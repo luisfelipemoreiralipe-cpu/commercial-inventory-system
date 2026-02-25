@@ -1,0 +1,32 @@
+const prisma = require('../utils/prisma');
+
+/**
+ * @param {object} filters
+ * @param {string} [filters.productId]
+ * @param {string} [filters.dateFrom]  ISO string
+ * @param {string} [filters.dateTo]    ISO string
+ */
+const findAll = ({ productId, dateFrom, dateTo } = {}) => {
+    const where = {};
+
+    if (productId) where.productId = productId;
+
+    if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) where.createdAt.lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    return prisma.stockMovement.findMany({
+        where,
+        include: {
+            product: { select: { id: true, name: true, unit: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+};
+
+const create = (data) =>
+    prisma.stockMovement.create({ data });
+
+module.exports = { findAll, create };

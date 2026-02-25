@@ -1,0 +1,29 @@
+{
+    "name": "commercial-backend",
+    "version": "1.0.0",
+    "description": "Internal Inventory Management System — REST API",
+    "main": "src/server.js",
+    "scripts": {
+        "dev": "nodemon src/server.js",
+        "start": "node src/server.js",
+        "db:migrate": "prisma migrate dev",
+        "db:deploy": "prisma migrate deploy",
+        "db:studio": "prisma studio",
+        "db:generate": "prisma generate"
+    },
+    "dependencies": {
+        "@prisma/client": "^5.10.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.5",
+        "dotenv-cli": "^11.0.0",
+        "express": "^4.18.3",
+        "zod": "^3.22.4"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.0",
+        "prisma": "^5.10.2"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

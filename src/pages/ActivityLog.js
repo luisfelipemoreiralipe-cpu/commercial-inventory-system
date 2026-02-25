@@ -1,0 +1,251 @@
+import React, { useState, useMemo } from 'react';
+import styled from 'styled-components';
+import {
+    MdEventNote,
+    MdAddCircle,
+    MdEdit,
+    MdDelete,
+    MdCheckCircle,
+    MdFilterList,
+} from 'react-icons/md';
+import { useApp } from '../context/AppContext';
+import Card from '../components/Card';
+import Badge from '../components/Badge';
+import EmptyState from '../components/EmptyState';
+
+// ─── Styled ───────────────────────────────────────────────────────────────────
+const PageHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing.md};
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+`;
+const PageTitle = styled.h1`font-size:${({ theme }) => theme.fontSizes['3xl']};font-weight:${({ theme }) => theme.fontWeights.bold};`;
+const PageSubtitle = styled.p`color:${({ theme }) => theme.colors.textSecondary};font-size:${({ theme }) => theme.fontSizes.sm};margin-top:4px;`;
+
+const FiltersBar = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  background: ${({ theme }) => theme.colors.bgCard};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+`;
+
+const FilterGroup = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+`;
+
+const FilterSelect = styled.select`
+  background: ${({ theme }) => theme.colors.bgInput};
+  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.md};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  padding: 7px 10px;
+  outline: none;
+  cursor: pointer;
+  transition: ${({ theme }) => theme.transition};
+  &:focus { border-color: ${({ theme }) => theme.colors.borderFocus}; }
+`;
+
+const ClearBtn = styled.button`
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerLight};
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: ${({ theme }) => theme.transition};
+  &:hover { background: ${({ theme }) => theme.colors.danger}; color: #fff; }
+`;
+
+const Timeline = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const LogEntry = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  transition: ${({ theme }) => theme.transition};
+  align-items: flex-start;
+
+  &:hover { background: ${({ theme }) => theme.colors.bgHover}; }
+  &:last-child { border-bottom: none; }
+`;
+
+const Dot = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: ${({ bg }) => bg};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: ${({ color }) => color};
+  flex-shrink: 0;
+  margin-top: 2px;
+`;
+
+const LogContent = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const LogDescription = styled.p`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  margin-bottom: 4px;
+  line-height: 1.5;
+`;
+
+const LogMeta = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  flex-wrap: wrap;
+`;
+
+const LogTime = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+// ─── Action / Entity config ───────────────────────────────────────────────────
+const ACTION_CONFIG = {
+    CREATE: { icon: <MdAddCircle />, bg: 'rgba(5,150,105,0.12)', color: '#059669', badgeVariant: 'success', label: 'Criação' },
+    UPDATE: { icon: <MdEdit />, bg: 'rgba(37,99,235,0.12)', color: '#2563EB', badgeVariant: 'info', label: 'Edição' },
+    DELETE: { icon: <MdDelete />, bg: 'rgba(220,38,38,0.12)', color: '#DC2626', badgeVariant: 'danger', label: 'Exclusão' },
+    COMPLETE: { icon: <MdCheckCircle />, bg: 'rgba(5,150,105,0.12)', color: '#059669', badgeVariant: 'success', label: 'Conclusão' },
+};
+
+const ENTITY_LABELS = {
+    PRODUCT: 'Produto',
+    SUPPLIER: 'Fornecedor',
+    PURCHASE_ORDER: 'Ordem de Compra',
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+const ActivityLog = () => {
+    const { state } = useApp();
+
+    const [filterEntity, setFilterEntity] = useState('');
+    const [filterAction, setFilterAction] = useState('');
+
+    const filtered = useMemo(() => {
+        return state.auditLogs.filter((log) => {
+            if (filterEntity && log.entityType !== filterEntity) return false;
+            if (filterAction && log.actionType !== filterAction) return false;
+            return true;
+        });
+    }, [state.auditLogs, filterEntity, filterAction]);
+
+    const hasFilters = filterEntity || filterAction;
+
+    return (
+        <>
+            <PageHeader>
+                <div>
+                    <PageTitle>Registro de Atividades</PageTitle>
+                    <PageSubtitle>
+                        {state.auditLogs.length} evento(s) registrado(s) no sistema
+                    </PageSubtitle>
+                </div>
+            </PageHeader>
+
+            {/* Filters */}
+            <FiltersBar>
+                <MdFilterList style={{ color: '#0066CC', flexShrink: 0 }} />
+
+                <FilterGroup>
+                    Entidade:
+                    <FilterSelect value={filterEntity} onChange={(e) => setFilterEntity(e.target.value)}>
+                        <option value="">Todas</option>
+                        <option value="PRODUCT">Produto</option>
+                        <option value="SUPPLIER">Fornecedor</option>
+                        <option value="PURCHASE_ORDER">Ordem de Compra</option>
+                    </FilterSelect>
+                </FilterGroup>
+
+                <FilterGroup>
+                    Ação:
+                    <FilterSelect value={filterAction} onChange={(e) => setFilterAction(e.target.value)}>
+                        <option value="">Todas</option>
+                        <option value="CREATE">Criação</option>
+                        <option value="UPDATE">Edição</option>
+                        <option value="DELETE">Exclusão</option>
+                        <option value="COMPLETE">Conclusão</option>
+                    </FilterSelect>
+                </FilterGroup>
+
+                {hasFilters && (
+                    <ClearBtn onClick={() => { setFilterEntity(''); setFilterAction(''); }}>
+                        Limpar
+                    </ClearBtn>
+                )}
+
+                <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#9CA3AF' }}>
+                    {filtered.length} resultado(s)
+                </span>
+            </FiltersBar>
+
+            {/* Timeline */}
+            <Card padding="0">
+                {filtered.length === 0 ? (
+                    <EmptyState
+                        icon={<MdEventNote />}
+                        title="Nenhuma atividade registrada"
+                        subtitle="Todas as ações no sistema serão registradas aqui automaticamente."
+                    />
+                ) : (
+                    <Timeline>
+                        {filtered.map((log) => {
+                            const cfg = ACTION_CONFIG[log.actionType] || ACTION_CONFIG.UPDATE;
+                            const entityLabel = ENTITY_LABELS[log.entityType] || log.entityType;
+                            const dateStr = new Date(log.createdAt).toLocaleDateString('pt-BR', {
+                                day: '2-digit', month: 'short', year: 'numeric',
+                            });
+                            const timeStr = new Date(log.createdAt).toLocaleTimeString('pt-BR', {
+                                hour: '2-digit', minute: '2-digit',
+                            });
+
+                            return (
+                                <LogEntry key={log.id}>
+                                    <Dot bg={cfg.bg} color={cfg.color}>
+                                        {cfg.icon}
+                                    </Dot>
+                                    <LogContent>
+                                        <LogDescription>{log.description}</LogDescription>
+                                        <LogMeta>
+                                            <Badge variant={cfg.badgeVariant}>{cfg.label}</Badge>
+                                            <Badge variant="primary">{entityLabel}</Badge>
+                                            <LogTime>{dateStr} às {timeStr}</LogTime>
+                                        </LogMeta>
+                                    </LogContent>
+                                </LogEntry>
+                            );
+                        })}
+                    </Timeline>
+                )}
+            </Card>
+        </>
+    );
+};
+
+export default ActivityLog;
