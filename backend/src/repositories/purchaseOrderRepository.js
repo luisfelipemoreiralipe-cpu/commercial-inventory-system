@@ -27,18 +27,20 @@ const findById = (id) =>
 const create = (data) =>
     prisma.purchaseOrder.create({
         data: {
-            items: {
-                create: data.items.map((item) => ({
-                    productId: item.productId,
-                    productName: item.productName,
-                    adjustedQuantity: item.adjustedQuantity,
-                    unitPrice: item.unitPrice,
-                })),
-            },
-        },
-        include: { items: true },
-    });
+            status: 'pending',
 
+            users: {
+                connect: { id: data.user_id }
+            },
+
+            items: {
+                create: data.items
+            }
+        },
+        include: {
+            items: true
+        }
+    });
 const markCompleted = (id) =>
     prisma.purchaseOrder.update({
         where: { id },

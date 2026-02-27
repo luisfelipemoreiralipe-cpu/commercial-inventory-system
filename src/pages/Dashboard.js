@@ -155,7 +155,7 @@ const StockBar = styled.div`
   width: 100%;
   height: 6px;
   background: ${({ theme }) => theme.colors.bgInput};
-  border-radius: 3px;
+  border-radius: 10px;
   overflow: hidden;
   margin-top: 4px;
 `;
@@ -261,7 +261,7 @@ const Dashboard = () => {
           </StatInfo>
         </StatCard>
 
-        <StatCard accent="#10b981">
+        <StatCard accent="#1072b9ff">
           <StatIconBox bg="rgba(16,185,129,0.15)" color="#10b981">
             <MdAttachMoney />
           </StatIconBox>
@@ -289,7 +289,7 @@ const Dashboard = () => {
       <Card padding="0">
         {lowStock.length === 0 ? (
           <EmptyNote style={{ margin: '16px' }}>
-            ✅ Todos os produtos estão com estoque adequado!
+            Todos os produtos estão com estoque adequado!
           </EmptyNote>
         ) : (
           <LowStockTable>

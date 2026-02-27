@@ -21,4 +21,25 @@ const remove = asyncHandler(async (req, res) => {
     res.status(204).send();
 });
 
-module.exports = { getAll, create, complete, remove };
+// 🆕 EXPORTAR PDF
+const exportPdf = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    const pdfBuffer = await purchaseOrderService.generatePdf(id);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=ordem-${id.slice(-6).toUpperCase()}.pdf`
+    );
+
+    res.send(pdfBuffer);
+});
+
+module.exports = {
+    getAll,
+    create,
+    complete,
+    remove,
+    exportPdf
+};

@@ -6,8 +6,10 @@ const { createPurchaseOrderSchema } = require('../validations/purchaseOrderValid
 const router = Router();
 
 router.get('/', controller.getAll);
+// router.get('/:id/pdf', purchaseOrderController.exportPdf);
 router.post('/', validate(createPurchaseOrderSchema), controller.create);
 router.put('/:id/complete', controller.complete);
+router.get('/:id/pdf', controller.exportPdf);
 router.delete('/:id', controller.remove);
 
 module.exports = router;

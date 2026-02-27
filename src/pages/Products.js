@@ -294,7 +294,7 @@ const Products = () => {
             {/* Filters */}
             <SearchRow>
                 <SearchBox>
-                    <MdSearch color="#555a72" />
+                    <MdSearch color="#1937cdff" />
                     <SearchInput
                         placeholder="Buscar por nome ou categoria..."
                         value={search}

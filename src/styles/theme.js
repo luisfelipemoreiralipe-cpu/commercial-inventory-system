@@ -14,7 +14,7 @@ export const theme = {
         primaryGlow: 'rgba(0, 102, 204, 0.20)',
 
         // ── Semantic ─────────────────────────────────────────────────────────────
-        success: '#059669',
+        success: '#0b4432ff',
         successLight: 'rgba(5, 150, 105, 0.12)',
         warning: '#D97706',
         warningLight: 'rgba(217, 119, 6, 0.12)',
@@ -25,7 +25,7 @@ export const theme = {
 
         // ── Text ─────────────────────────────────────────────────────────────────
         textPrimary: '#111827',
-        textSecondary: '#4B5563',
+        textSecondary: '#061b37ff',
         textMuted: '#9CA3AF',
 
         // ── Borders ──────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ export const theme = {
     },
 
     fonts: {
-        base: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        base: "'poppins', -apple-system, BlinkMacSystemFont, sans-serif",
         brand: "'Pacifico', cursive",
     },
 
