@@ -1,26 +1,31 @@
-const prisma = require('../config/prisma');
+const authService = require('../services/authService');
 
-exports.register = async (req, res, next) => {
+async function register(req, res) {
     try {
-        const { email } = req.body;
+        const { nome, email, password } = req.body;
 
-        const existingUser = await prisma.users.findUnique({
-            where: { email }
-        });
-
-        if (existingUser) {
+        // Validação simples (evita quebrar o serviço)
+        if (!nome || !email || !password) {
             return res.status(400).json({
-                success: false,
-                message: 'Email já cadastrado'
+                error: 'Nome, email e password são obrigatórios'
             });
         }
 
-        return res.json({
-            success: true,
-            message: 'Email disponível'
+        const user = await authService.register({
+            nome,
+            email,
+            password
         });
 
+        return res.status(201).json(user);
+
     } catch (error) {
-        next(error);
+        return res.status(400).json({
+            error: error.message
+        });
     }
+}
+
+module.exports = {
+    register
 };
