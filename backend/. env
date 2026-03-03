@@ -1,6 +1,0 @@
-# PostgreSQL connection string
-DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/commercial_db?schema=public"
-
-# Server
-PORT=3333
-NODE_ENV=development

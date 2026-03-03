@@ -8,10 +8,12 @@ const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const stockMovementRoutes = require('./routes/stockMovementRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 // Middlewares
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
 const errorMiddleware = require('./middlewares/errorMiddleware');
+
 
 const app = express();
 
@@ -24,6 +26,7 @@ app.use('/purchase-orders', purchaseOrderRoutes);
 app.use('/stock-movements', stockMovementRoutes);
 app.use('/audit-logs', auditLogRoutes);
 app.use('/categories', categoryRoutes);
+app.use('/auth', authRoutes);
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);
