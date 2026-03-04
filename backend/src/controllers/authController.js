@@ -30,7 +30,6 @@ async function register(req, res) {
     }
 }
 
-
 /*
 |--------------------------------------------------------------------------
 | LOGIN
@@ -60,8 +59,20 @@ async function login(req, res) {
     }
 }
 
+/*
+|--------------------------------------------------------------------------
+| ME (rota protegida para validar token)
+|--------------------------------------------------------------------------
+*/
+async function me(req, res) {
+    return res.status(200).json({
+        message: 'Token válido',
+        user: req.user
+    });
+}
 
 module.exports = {
     register,
-    login
+    login,
+    me
 };
