@@ -86,7 +86,7 @@ async function login({ email, password }) {
     }
 
     // 3️⃣ Buscar establishment vinculado
-    const establishment = await prisma.establishment.findUnique({
+    const establishment = await prisma.establishment.findFirst({
         where: { user_id: user.id }
     });
 
