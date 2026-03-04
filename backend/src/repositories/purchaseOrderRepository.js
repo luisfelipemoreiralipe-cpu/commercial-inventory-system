@@ -24,8 +24,13 @@ const findById = (id) =>
         },
     });
 
-const create = (data) =>
-    prisma.purchaseOrder.create({
+const create = (data) => {
+
+    if (!data.user_id) {
+        throw new Error("user_id não informado na criação da ordem.");
+    }
+
+    return prisma.purchaseOrder.create({
         data: {
             status: 'pending',
 
@@ -41,6 +46,7 @@ const create = (data) =>
             items: true
         }
     });
+};
 const markCompleted = (id) =>
     prisma.purchaseOrder.update({
         where: { id },

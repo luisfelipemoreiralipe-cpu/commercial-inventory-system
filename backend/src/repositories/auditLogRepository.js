@@ -14,7 +14,16 @@ const findAll = ({ entityType } = {}) => {
     });
 };
 
-const create = (data) =>
-    prisma.auditLog.create({ data });
+const create = ({ establishmentId, ...data }) =>
+    prisma.auditLog.create({
+        data: {
+            ...data,
+            establishment: {
+                connect: {
+                    id: establishmentId
+                }
+            }
+        }
+    });
 
 module.exports = { findAll, create };

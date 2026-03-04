@@ -10,20 +10,16 @@ function authMiddleware(req, res, next) {
 
         const [scheme, token] = authHeader.split(' ');
 
-        if (!scheme || !token) {
-            return res.status(401).json({ error: 'Token mal formatado' });
-        }
-
-        if (scheme !== 'Bearer') {
+        if (!scheme || !token || scheme !== 'Bearer') {
             return res.status(401).json({ error: 'Token mal formatado' });
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         req.user = {
-            id: decoded.userId,
+            id: decoded.userId || decoded.id,
             establishmentId: decoded.establishmentId
-        }
+        };
 
         next();
 

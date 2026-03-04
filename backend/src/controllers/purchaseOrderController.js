@@ -7,8 +7,18 @@ const getAll = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-    const data = await purchaseOrderService.createOrder(req.body);
+
+    const userId = req.user?.id;
+    const establishmentId = req.user?.establishmentId;
+
+    const data = await purchaseOrderService.createOrder({
+        ...req.body,
+        user_id: userId,
+        establishmentId
+    });
+
     res.status(201).json({ success: true, data });
+
 });
 
 const complete = asyncHandler(async (req, res) => {
@@ -21,8 +31,9 @@ const remove = asyncHandler(async (req, res) => {
     res.status(204).send();
 });
 
-// 🆕 EXPORTAR PDF
+// EXPORTAR PDF
 const exportPdf = asyncHandler(async (req, res) => {
+
     const { id } = req.params;
 
     const pdfBuffer = await purchaseOrderService.generatePdf(id);

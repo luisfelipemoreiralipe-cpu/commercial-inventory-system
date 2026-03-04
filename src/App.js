@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-
+import Login from "./pages/login";
 import { AppProvider } from './context/AppContext';
 import GlobalStyles from './styles/GlobalStyles';
 import { theme } from './styles/theme';
@@ -22,6 +22,7 @@ function App() {
         <BrowserRouter>
           <SidebarLayout>
             <Routes>
+              <Route path="/login" element={<Login />} />
               <Route path="/" element={<Dashboard />} />
               <Route path="/products" element={<Products />} />
               <Route path="/suppliers" element={<Suppliers />} />
