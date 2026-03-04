@@ -69,7 +69,7 @@ async function register({ nome, email, password }) {
 */
 async function login({ email, password }) {
 
-    // 1️⃣ Buscar usuário por email
+    // 1️⃣ Buscar usuário
     const user = await prisma.users.findUnique({
         where: { email }
     });
@@ -78,14 +78,14 @@ async function login({ email, password }) {
         throw new Error('Credenciais inválidas');
     }
 
-    // 2️⃣ Comparar senha
+    // 2️⃣ Validar senha
     const passwordMatch = await bcrypt.compare(password, user.senha_hash);
 
     if (!passwordMatch) {
         throw new Error('Credenciais inválidas');
     }
 
-    // 3️⃣ Buscar establishment vinculado
+    // 3️⃣ Buscar establishment
     const establishment = await prisma.establishment.findFirst({
         where: { user_id: user.id }
     });
@@ -94,24 +94,24 @@ async function login({ email, password }) {
         throw new Error('Estabelecimento não encontrado');
     }
 
-    // 4️⃣ Gerar JWT
+    // 4️⃣ Gerar token
     const token = jwt.sign(
         {
             userId: user.id,
             establishmentId: establishment.id
         },
         process.env.JWT_SECRET,
-        {
-            expiresIn: '1d'
-        }
+        { expiresIn: '1d' }
     );
 
+    // 5️⃣ Retorno
     return {
         token,
         user: {
             id: user.id,
             nome: user.nome,
-            email: user.email
+            email: user.email,
+            establishmentId: establishment.id
         }
     };
 }

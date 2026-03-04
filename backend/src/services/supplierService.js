@@ -2,57 +2,108 @@ const supplierRepo = require('../repositories/supplierRepository');
 const auditLogRepo = require('../repositories/auditLogRepository');
 const AppError = require('../utils/AppError');
 
-const mkLog = (actionType, entityId, description) => ({
+const mkLog = (actionType, entityId, description, establishmentId) => ({
     actionType,
     entityType: 'SUPPLIER',
     entityId,
     description,
+    establishmentId
 });
 
-const getAllSuppliers = () => supplierRepo.findAll();
 
-const getSupplierById = async (id) => {
-    const supplier = await supplierRepo.findById(id);
-    if (!supplier) throw new AppError('Fornecedor não encontrado.', 404);
+// LISTAR FORNECEDORES
+const getAllSuppliers = (establishmentId) =>
+    supplierRepo.findAll(establishmentId);
+
+
+// BUSCAR POR ID
+const getSupplierById = async (id, establishmentId) => {
+
+    const supplier = await supplierRepo.findById(id, establishmentId);
+
+    if (!supplier) {
+        throw new AppError('Fornecedor não encontrado.', 404);
+    }
+
     return supplier;
 };
 
-const createSupplier = async (data) => {
-    const supplier = await supplierRepo.create(data);
+
+// CRIAR FORNECEDOR
+const createSupplier = async (data, establishmentId) => {
+
+    if (!data.name) {
+        throw new AppError('Nome do fornecedor é obrigatório.', 400);
+    }
+
+    const supplier = await supplierRepo.create({
+        name: data.name,
+        cnpj: data.cnpj || null,
+        phone: data.phone || null,
+        email: data.email || null,
+        establishmentId
+    });
 
     await auditLogRepo.create(
-        mkLog('CREATE', supplier.id, `Fornecedor "${supplier.name}" criado.`)
+        mkLog(
+            'CREATE',
+            supplier.id,
+            `Fornecedor "${supplier.name}" criado.`,
+            establishmentId
+        )
     );
 
     return supplier;
 };
 
-const updateSupplier = async (id, data) => {
-    await getSupplierById(id);
 
-    const updated = await supplierRepo.update(id, data);
+// ATUALIZAR
+const updateSupplier = async (id, data, establishmentId) => {
+
+    await getSupplierById(id, establishmentId);
+
+    const updated = await supplierRepo.update(id, {
+        name: data.name,
+        cnpj: data.cnpj,
+        phone: data.phone,
+        email: data.email
+    });
 
     await auditLogRepo.create(
-        mkLog('UPDATE', id, `Fornecedor "${updated.name}" editado.`)
+        mkLog(
+            'UPDATE',
+            id,
+            `Fornecedor "${updated.name}" editado.`,
+            establishmentId
+        )
     );
 
     return updated;
 };
 
-const deleteSupplier = async (id) => {
-    const supplier = await getSupplierById(id);
+
+// EXCLUIR
+const deleteSupplier = async (id, establishmentId) => {
+
+    const supplier = await getSupplierById(id, establishmentId);
 
     await supplierRepo.remove(id);
 
     await auditLogRepo.create(
-        mkLog('DELETE', id, `Fornecedor "${supplier.name}" excluído.`)
+        mkLog(
+            'DELETE',
+            id,
+            `Fornecedor "${supplier.name}" excluído.`,
+            establishmentId
+        )
     );
 };
+
 
 module.exports = {
     getAllSuppliers,
     getSupplierById,
     createSupplier,
     updateSupplier,
-    deleteSupplier,
+    deleteSupplier
 };
