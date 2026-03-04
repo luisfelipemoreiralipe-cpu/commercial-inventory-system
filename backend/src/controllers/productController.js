@@ -48,6 +48,16 @@ const updateQuantity = asyncHandler(async (req, res) => {
     res.json({ success: true, data });
 });
 
+// ─── PRICE HISTORY ─────────────────────────────────────────────────────
+const getPriceHistory = asyncHandler(async (req, res) => {
+    const data = await productService.getPriceHistory(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+});
+
 module.exports = {
     getAll,
     getById,
@@ -55,4 +65,5 @@ module.exports = {
     update,
     remove,
     updateQuantity,
+    getPriceHistory
 };

@@ -5,7 +5,8 @@ const stockMovementRepo = require('../repositories/stockMovementRepository');
 const auditLogRepo = require('../repositories/auditLogRepository');
 const AppError = require('../utils/AppError');
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────
+
 const mkAuditLog = (actionType, entityId, description, establishmentId) => ({
     actionType,
     entityType: 'PRODUCT',
@@ -25,12 +26,13 @@ const mkMovement = (productId, productName, type, prevQty, newQty, reference, es
     establishmentId,
 });
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ─── READ ──────────────────────────────────────────────────────────────
 
 const getAllProducts = (establishmentId) =>
     productRepo.findAllByEstablishment(establishmentId);
 
 const getProductById = async (id, establishmentId) => {
+
     const product = await productRepo.findByIdAndEstablishment(id, establishmentId);
 
     if (!product) {
@@ -40,10 +42,9 @@ const getProductById = async (id, establishmentId) => {
     return product;
 };
 
-const createProduct = async (data, establishmentId) => {
-    console.log("ESTABLISHMENT ID RECEBIDO:", establishmentId)
+// ─── CREATE ─────────────────────────────────────────────────────────────
 
-    // ─── validar categoria ─────────────────────────────────
+const createProduct = async (data, establishmentId) => {
 
     if (!data.categoryId) {
         throw new AppError('Categoria é obrigatória.', 400);
@@ -55,8 +56,6 @@ const createProduct = async (data, establishmentId) => {
         throw new AppError('Categoria inválida.', 400);
     }
 
-    // ─── validar fornecedor ─────────────────────────────────
-
     if (!data.supplierId) {
         throw new AppError('Fornecedor é obrigatório.', 400);
     }
@@ -66,8 +65,6 @@ const createProduct = async (data, establishmentId) => {
     if (!supplier) {
         throw new AppError('Fornecedor inválido.', 400);
     }
-
-    // ─── criar produto ─────────────────────────────────
 
     const product = await productRepo.create({
         ...data,
@@ -85,6 +82,8 @@ const createProduct = async (data, establishmentId) => {
 
     return product;
 };
+
+// ─── UPDATE ─────────────────────────────────────────────────────────────
 
 const updateProduct = async (id, data, establishmentId) => {
 
@@ -128,6 +127,8 @@ const updateProduct = async (id, data, establishmentId) => {
     return updated;
 };
 
+// ─── DELETE ─────────────────────────────────────────────────────────────
+
 const deleteProduct = async (id, establishmentId) => {
 
     const product = await getProductById(id, establishmentId);
@@ -143,6 +144,8 @@ const deleteProduct = async (id, establishmentId) => {
         )
     );
 };
+
+// ─── UPDATE STOCK ──────────────────────────────────────────────────────
 
 const updateProductQuantity = async (id, newQuantity, establishmentId) => {
 
@@ -183,6 +186,15 @@ const updateProductQuantity = async (id, newQuantity, establishmentId) => {
     return updated;
 };
 
+// ─── PRICE HISTORY ─────────────────────────────────────────────────────
+
+const getPriceHistory = async (productId, establishmentId) => {
+
+    await getProductById(productId, establishmentId);
+
+    return productRepo.getPriceHistory(productId);
+};
+
 module.exports = {
     getAllProducts,
     getProductById,
@@ -190,4 +202,5 @@ module.exports = {
     updateProduct,
     deleteProduct,
     updateProductQuantity,
+    getPriceHistory
 };

@@ -76,10 +76,32 @@ const removeByEstablishment = (id, establishmentId) =>
         },
     });
 
+// ─── PRICE HISTORY ─────────────────────────────────────────────────────
+const getPriceHistory = (productId) =>
+    prisma.purchaseOrderItem.findMany({
+        where: {
+            productId
+        },
+        select: {
+            unitPrice: true,
+            adjustedQuantity: true,
+            createdAt: true,
+            supplier: {
+                select: {
+                    id: true,
+                    name: true
+                }
+            }
+        },
+        orderBy: {
+            createdAt: 'desc'
+        }
+    });
 module.exports = {
     findAllByEstablishment,
     findByIdAndEstablishment,
     create,
     updateByEstablishment,
     removeByEstablishment,
+    getPriceHistory
 };

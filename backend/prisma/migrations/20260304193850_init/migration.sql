@@ -23,15 +23,15 @@ CREATE TABLE "categories" (
 
 -- CreateTable
 CREATE TABLE "products" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "unit" TEXT NOT NULL,
     "unitPrice" DECIMAL(12,2) NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 0,
     "minQuantity" INTEGER NOT NULL DEFAULT 0,
     "establishmentId" UUID NOT NULL,
-    "supplierId" TEXT NOT NULL,
-    "categoryId" TEXT NOT NULL,
+    "supplierId" UUID NOT NULL,
+    "categoryId" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -40,7 +40,7 @@ CREATE TABLE "products" (
 
 -- CreateTable
 CREATE TABLE "purchase_orders" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completedAt" TIMESTAMP(3),
@@ -51,9 +51,10 @@ CREATE TABLE "purchase_orders" (
 
 -- CreateTable
 CREATE TABLE "purchase_order_items" (
-    "id" TEXT NOT NULL,
-    "purchaseOrderId" TEXT NOT NULL,
-    "productId" TEXT,
+    "id" UUID NOT NULL,
+    "purchaseOrderId" UUID NOT NULL,
+    "productId" UUID,
+    "supplierId" UUID,
     "productName" TEXT NOT NULL,
     "adjustedQuantity" INTEGER NOT NULL,
     "unitPrice" DECIMAL(12,2) NOT NULL,
@@ -63,8 +64,8 @@ CREATE TABLE "purchase_order_items" (
 
 -- CreateTable
 CREATE TABLE "stock_movements" (
-    "id" TEXT NOT NULL,
-    "productId" TEXT,
+    "id" UUID NOT NULL,
+    "productId" UUID,
     "productName" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
@@ -105,18 +106,15 @@ CREATE TABLE "Establishment" (
 
 -- CreateTable
 CREATE TABLE "users" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "nome" VARCHAR(150) NOT NULL,
-    "email" VARCHAR(150) NOT NULL,
+    "id" UUID NOT NULL,
+    "nome" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
     "senha_hash" TEXT NOT NULL,
-    "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
-
--- CreateIndex
-CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Establishment_user_id_key" ON "Establishment"("user_id");
@@ -131,22 +129,25 @@ ALTER TABLE "Supplier" ADD CONSTRAINT "Supplier_establishmentId_fkey" FOREIGN KE
 ALTER TABLE "categories" ADD CONSTRAINT "categories_establishmentId_fkey" FOREIGN KEY ("establishmentId") REFERENCES "Establishment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "products" ADD CONSTRAINT "products_establishmentId_fkey" FOREIGN KEY ("establishmentId") REFERENCES "Establishment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "products" ADD CONSTRAINT "products_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "products" ADD CONSTRAINT "products_establishmentId_fkey" FOREIGN KEY ("establishmentId") REFERENCES "Establishment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "products" ADD CONSTRAINT "products_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_user_order" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "products" ADD CONSTRAINT "products_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_purchaseOrderId_fkey" FOREIGN KEY ("purchaseOrderId") REFERENCES "purchase_orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "purchase_orders" ADD CONSTRAINT "purchase_orders_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_purchaseOrderId_fkey" FOREIGN KEY ("purchaseOrderId") REFERENCES "purchase_orders"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE SET NULL ON UPDATE CASCADE;

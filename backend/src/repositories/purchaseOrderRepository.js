@@ -6,6 +6,7 @@ const findAll = () =>
             items: {
                 include: {
                     product: { select: { id: true, name: true, unit: true } },
+                    supplier: { select: { id: true, name: true } }
                 },
             },
         },
@@ -19,16 +20,42 @@ const findById = (id) =>
             items: {
                 include: {
                     product: { select: { id: true, name: true, unit: true } },
+                    supplier: { select: { id: true, name: true } }
                 },
             },
         },
     });
 
-const create = (data) => {
+const create = async (data) => {
 
     if (!data.user_id) {
         throw new Error("user_id não informado na criação da ordem.");
     }
+
+    // Buscar fornecedores automaticamente a partir dos produtos
+    const itemsWithSupplier = await Promise.all(
+        data.items.map(async (item) => {
+
+            let supplierId = item.supplierId;
+
+            if (!supplierId && item.productId) {
+                const product = await prisma.product.findUnique({
+                    where: { id: item.productId },
+                    select: { supplierId: true }
+                });
+
+                supplierId = product?.supplierId || null;
+            }
+
+            return {
+                productId: item.productId,
+                productName: item.productName,
+                adjustedQuantity: item.adjustedQuantity,
+                unitPrice: item.unitPrice,
+                supplierId
+            };
+        })
+    );
 
     return prisma.purchaseOrder.create({
         data: {
@@ -39,14 +66,19 @@ const create = (data) => {
             },
 
             items: {
-                create: data.items
+                create: itemsWithSupplier
             }
         },
         include: {
-            items: true
+            items: {
+                include: {
+                    supplier: true
+                }
+            }
         }
     });
 };
+
 const markCompleted = (id) =>
     prisma.purchaseOrder.update({
         where: { id },
