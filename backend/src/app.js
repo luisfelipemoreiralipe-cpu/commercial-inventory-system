@@ -1,4 +1,5 @@
 const express = require('express');
+
 const cors = require('cors');
 
 // Routes
@@ -9,6 +10,7 @@ const stockMovementRoutes = require('./routes/stockMovementRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const authRoutes = require('./routes/authRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 // Middlewares
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
@@ -27,6 +29,7 @@ app.use('/stock-movements', stockMovementRoutes);
 app.use('/audit-logs', auditLogRoutes);
 app.use('/categories', categoryRoutes);
 app.use('/auth', authRoutes);
+app.use('/dashboard', dashboardRoutes);
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);

@@ -20,29 +20,40 @@ model Supplier {
 }
 
 model Category {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  createdAt DateTime  @default(now())
-  products  Product[]
+  id              String   @id @default(uuid())
+  name            String
+  createdAt       DateTime @default(now())
 
+  establishmentId String   @db.Uuid
+  establishment   establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  products        Product[]
+
+  @@unique([name, establishmentId])  // 👈 importante
   @@map("categories")
 }
 
 model Product {
-  id             String              @id @default(uuid())
-  name           String
-  unit           String
-  unitPrice      Decimal             @db.Decimal(12, 2)
-  quantity       Int                 @default(0)
-  minQuantity    Int                 @default(0)
-  supplierId     String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  categoryId     String
-  category       Category            @relation(fields: [categoryId], references: [id])
-  supplier       Supplier?           @relation(fields: [supplierId], references: [id])
-  orderItems     PurchaseOrderItem[]
-  stockMovements StockMovement[]
+  id              String   @id @default(uuid())
+  name            String
+  unit            String
+  unitPrice       Decimal  @db.Decimal(12, 2)
+  quantity        Int      @default(0)
+  minQuantity     Int      @default(0)
+
+  establishmentId String   @db.Uuid
+  establishment   establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  supplierId      String?
+  categoryId      String
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category        Category @relation(fields: [categoryId], references: [id])
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  orderItems      PurchaseOrderItem[]
+  stockMovements  StockMovement[]
 
   @@map("products")
 }
@@ -110,6 +121,8 @@ model establishment {
   created_at    DateTime? @default(now()) @db.Timestamp(6)
   updated_at    DateTime? @default(now()) @db.Timestamp(6)
   users         users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user")
+  products      Product[]
+  categories Category[] 
 }
 
 model users {

@@ -38,6 +38,16 @@ async function register({ nome, email, password }) {
                 nome_fantasia: `${nome} Restaurante`
             }
         });
+        await tx.category.createMany({
+            data: [
+                { name: 'Bebidas', establishmentId: establishment.id },
+                { name: 'Carnes', establishmentId: establishment.id },
+                { name: 'Hortifruti', establishmentId: establishment.id },
+                { name: 'Laticínios', establishmentId: establishment.id },
+                { name: 'Limpeza', establishmentId: establishment.id },
+                { name: 'Secos', establishmentId: establishment.id }
+            ]
+        });
 
         return { user, establishment };
     });
