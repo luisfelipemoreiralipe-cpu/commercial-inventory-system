@@ -192,7 +192,43 @@ const getPriceHistory = async (productId, establishmentId) => {
 
     await getProductById(productId, establishmentId);
 
-    return productRepo.getPriceHistory(productId);
+    const history = await productRepo.getPriceHistory(productId);
+
+    return history.map(item => ({
+        ...item,
+        unitPrice: Number(item.unitPrice),
+        adjustedQuantity: Number(item.adjustedQuantity),
+        supplierName: item.supplier?.name || null
+    }));
+};
+
+// ─── BEST SUPPLIER ─────────────────────────────────────────────────────
+
+const getBestSupplier = async (productId, establishmentId) => {
+
+    const history = await getPriceHistory(productId, establishmentId);
+
+    if (!history.length) {
+        throw new AppError('Nenhum histórico de preço encontrado para este produto.', 404);
+    }
+
+    const lastPurchase = history[0];
+
+    let best = history[0];
+
+    history.forEach(item => {
+        if (item.unitPrice < best.unitPrice) {
+            best = item;
+        }
+    });
+
+    return {
+        productId,
+        bestSupplier: best.supplierName,
+        bestPrice: best.unitPrice,
+        lastPrice: lastPurchase.unitPrice,
+        saving: lastPurchase.unitPrice - best.unitPrice
+    };
 };
 
 module.exports = {
@@ -202,5 +238,6 @@ module.exports = {
     updateProduct,
     deleteProduct,
     updateProductQuantity,
-    getPriceHistory
+    getPriceHistory,
+    getBestSupplier
 };

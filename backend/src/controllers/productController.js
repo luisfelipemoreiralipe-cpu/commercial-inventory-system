@@ -49,8 +49,20 @@ const updateQuantity = asyncHandler(async (req, res) => {
 });
 
 // ─── PRICE HISTORY ─────────────────────────────────────────────────────
+
 const getPriceHistory = asyncHandler(async (req, res) => {
     const data = await productService.getPriceHistory(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+});
+
+// ─── BEST SUPPLIER ─────────────────────────────────────────────────────
+
+const getBestSupplier = asyncHandler(async (req, res) => {
+    const data = await productService.getBestSupplier(
         req.params.id,
         req.user.establishmentId
     );
@@ -65,5 +77,6 @@ module.exports = {
     update,
     remove,
     updateQuantity,
-    getPriceHistory
+    getPriceHistory,
+    getBestSupplier
 };

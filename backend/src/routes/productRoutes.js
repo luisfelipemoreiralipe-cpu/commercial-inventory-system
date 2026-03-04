@@ -12,17 +12,35 @@ const router = Router();
 
 router.get('/', authMiddleware, controller.getAll);
 
-// HISTÓRICO DE PREÇO
+// ─── PRICE HISTORY ─────────────────────────────────────────────────────
 router.get('/:id/price-history', authMiddleware, controller.getPriceHistory);
+
+// ─── BEST SUPPLIER ─────────────────────────────────────────────────────
+router.get('/:id/best-supplier', authMiddleware, controller.getBestSupplier);
 
 router.get('/:id', authMiddleware, controller.getById);
 
-router.post('/', authMiddleware, validate(createProductSchema), controller.create);
+router.post(
+    '/',
+    authMiddleware,
+    validate(createProductSchema),
+    controller.create
+);
 
-router.put('/:id', authMiddleware, validate(updateProductSchema), controller.update);
+router.put(
+    '/:id',
+    authMiddleware,
+    validate(updateProductSchema),
+    controller.update
+);
 
 router.delete('/:id', authMiddleware, controller.remove);
 
-router.patch('/:id/quantity', authMiddleware, validate(updateQuantitySchema), controller.updateQuantity);
+router.patch(
+    '/:id/quantity',
+    authMiddleware,
+    validate(updateQuantitySchema),
+    controller.updateQuantity
+);
 
 module.exports = router;
