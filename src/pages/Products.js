@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore } from 'react-icons/md';
 import { useApp, ACTIONS } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
@@ -9,6 +9,11 @@ import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import { Input, Select } from '../components/FormFields';
+import {
+    getProductSuppliers,
+    addProductSupplier,
+    removeProductSupplier
+} from "../services/productSupplierService";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const UNITS = ['unidade', 'kg', 'litro', 'caixa', 'pacote', 'saco', 'rolo', 'metro', 'pç'];
@@ -129,7 +134,7 @@ const Tr = styled.tr`
 const ActionRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 `;
 
 const IconBtn = styled.button`
@@ -193,6 +198,9 @@ const Products = () => {
     const [form, setForm] = useState(EMPTY_FORM);
     const [qtyValue, setQtyValue] = useState('');
     const [errors, setErrors] = useState({});
+    const [supplierModal, setSupplierModal] = useState(null);
+    const [productSuppliers, setProductSuppliers] = useState([]);
+    const [selectedSupplier, setSelectedSupplier] = useState("");
 
     // Derived
     const categories = state.categories || [];
@@ -220,6 +228,23 @@ const Products = () => {
         return Object.keys(e).length === 0;
     };
 
+    const handleOpenSuppliers = async (product) => {
+
+        try {
+
+            const result = await getProductSuppliers(product.id);
+
+            setProductSuppliers(result.data || []);
+            setSupplierModal(product);
+
+        } catch (err) {
+
+            console.error(err);
+
+        }
+
+    };
+
     const openAdd = () => {
         setEditTarget(null);
         setForm(EMPTY_FORM);
@@ -240,6 +265,31 @@ const Products = () => {
         });
         setErrors({});
         setModalOpen(true);
+    };
+
+    const handleAddSupplier = async () => {
+
+        if (!selectedSupplier) return;
+
+        try {
+
+            await addProductSupplier(
+                supplierModal.id,
+                selectedSupplier
+            );
+
+            const updated = await getProductSuppliers(supplierModal.id);
+
+            setProductSuppliers(updated.data);
+
+            setSelectedSupplier("");
+
+        } catch (err) {
+
+            console.error(err);
+
+        }
+
     };
 
     const handleSubmit = () => {
@@ -271,6 +321,29 @@ const Products = () => {
         });
         setQtyModal(null);
         setQtyValue('');
+    };
+
+    const handleRemoveSupplier = async (supplierId) => {
+
+        try {
+
+            await removeProductSupplier(
+                supplierModal.id,
+                supplierId
+            );
+
+            const updated = await getProductSuppliers(
+                supplierModal.id
+            );
+
+            setProductSuppliers(updated.data);
+
+        } catch (err) {
+
+            console.error(err);
+
+        }
+
     };
 
     const field = (key) => ({
@@ -364,6 +437,12 @@ const Products = () => {
                                             </Td>
                                             <Td>
                                                 <ActionRow>
+                                                    <IconBtn
+                                                        title="Fornecedores"
+                                                        onClick={() => handleOpenSuppliers(p)}
+                                                    >
+                                                        <MdStore />
+                                                    </IconBtn>
                                                     <IconBtn
                                                         title="Editar quantidade"
                                                         color="warning"
@@ -463,6 +542,86 @@ const Products = () => {
                     Tem certeza que deseja deletar o produto <strong style={{ color: '#111827' }}>{deleteModal?.name}</strong>?
                     Essa ação não pode ser desfeita.
                 </p>
+            </Modal>
+            {/* Suppliers Modal */}
+
+            <Modal
+                isOpen={!!supplierModal}
+                onClose={() => setSupplierModal(null)}
+                title={`Fornecedores — ${supplierModal?.name}`}
+                footer={
+                    <Button onClick={() => setSupplierModal(null)}>
+                        Fechar
+                    </Button>
+                }
+            >
+
+                {productSuppliers.length === 0 ?
+
+                    <p>Nenhum fornecedor vinculado</p>
+
+                    :
+
+                    <ul style={{ listStyle: "none", padding: 0 }}>
+
+                        {productSuppliers.map((s) => (
+
+                            <li
+                                key={s.id}
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: 10
+                                }}
+                            >
+
+                                <span>{s.name}</span>
+
+                                <Button
+                                    variant="danger"
+                                    onClick={() => handleRemoveSupplier(s.id)}
+                                >
+                                    Remover
+                                </Button>
+
+                            </li>
+
+                        ))}
+
+                    </ul>
+
+                }
+
+                <hr style={{ margin: "20px 0" }} />
+
+                <Select
+                    label="Adicionar fornecedor"
+                    value={selectedSupplier}
+                    onChange={(e) => setSelectedSupplier(e.target.value)}
+                >
+
+                    <option value="">Selecionar fornecedor</option>
+
+                    {state.suppliers.map((s) => (
+
+                        <option key={s.id} value={s.id}>
+                            {s.name}
+                        </option>
+
+                    ))}
+
+                </Select>
+
+                <Button
+                    style={{ marginTop: 10 }}
+                    onClick={handleAddSupplier}
+                >
+
+                    Adicionar fornecedor
+
+                </Button>
+
             </Modal>
         </>
     );
