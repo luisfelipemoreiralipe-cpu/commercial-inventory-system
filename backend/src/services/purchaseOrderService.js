@@ -127,6 +127,50 @@ const deleteOrder = async (id, establishmentId) => {
 
 };
 
+const createOrdersGroupedBySupplier = async (data) => {
+
+    const { items, establishmentId, user_id } = data;
+
+    const ordersBySupplier = {};
+
+    for (const item of items) {
+
+        const supplierId = item.supplierId;
+
+        if (!supplierId) continue;
+
+        if (!ordersBySupplier[supplierId]) {
+            ordersBySupplier[supplierId] = [];
+        }
+
+        ordersBySupplier[supplierId].push(item);
+    }
+
+    const createdOrders = [];
+
+    for (const supplierId in ordersBySupplier) {
+
+        const orderData = {
+            establishmentId,
+            user_id,
+            items: ordersBySupplier[supplierId].map(item => ({
+                productId: item.productId,
+                productName: item.productName,
+                adjustedQuantity: item.adjustedQuantity,
+                unitPrice: item.unitPrice,
+                supplierId
+            }))
+        };
+
+        const order = await purchaseOrderRepo.create(orderData);
+
+        createdOrders.push(order);
+    }
+
+    return createdOrders;
+};
+
+
 // ─── GERAR PDF ────────────────────────────────────────────────────────────────
 
 const generatePdf = async (orderId) => {
@@ -208,6 +252,7 @@ module.exports = {
     getAllOrders,
     getOrderById,
     createOrder,
+    createOrdersGroupedBySupplier,
     completeOrder,
     deleteOrder,
     generatePdf

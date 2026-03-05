@@ -1,5 +1,4 @@
 const express = require('express');
-
 const cors = require('cors');
 
 // Routes
@@ -12,17 +11,18 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
+const purchaseSuggestionRoutes = require('./routes/purchaseSuggestionRoutes');
 
 // Middlewares
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
 const errorMiddleware = require('./middlewares/errorMiddleware');
-
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+// Routes
 app.use('/products', productRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/purchase-orders', purchaseOrderRoutes);
@@ -33,10 +33,13 @@ app.use('/auth', authRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/reports', reportsRoutes);
 
+// Nova rota da engine de compras
+app.use('/api', purchaseSuggestionRoutes);
+
 // Fallback for undefined routes
 app.use(notFoundMiddleware);
 
-// Central error handler (must be last)
+// Central error handler
 app.use(errorMiddleware);
 
 module.exports = app;
