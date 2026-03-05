@@ -56,6 +56,9 @@ const createProduct = async (data, establishmentId) => {
         throw new AppError('Categoria inválida.', 400);
     }
 
+
+
+
     const product = await productRepo.create({
         ...data,
         establishmentId,
@@ -87,6 +90,14 @@ const updateProduct = async (id, data, establishmentId) => {
         }
     }
 
+    if (data.supplierId) {
+        const supplier = await supplierRepo.findById(data.supplierId);
+
+        if (!supplier) {
+            throw new AppError('Fornecedor inválido.', 400);
+        }
+    }
+
     const updated = await productRepo.updateByEstablishment(
         id,
         establishmentId,
@@ -108,6 +119,7 @@ const updateProduct = async (id, data, establishmentId) => {
 
     return updated;
 };
+
 // ─── DELETE ─────────────────────────────────────────────────────────────
 
 const deleteProduct = async (id, establishmentId) => {
@@ -179,7 +191,7 @@ const getPriceHistory = async (productId, establishmentId) => {
         ...item,
         unitPrice: Number(item.unitPrice),
         adjustedQuantity: Number(item.adjustedQuantity),
-        supplierId: item.supplier?.id || null
+        supplierName: item.supplier?.name || null
     }));
 };
 
@@ -306,37 +318,7 @@ const getPurchaseSavings = async (establishmentId) => {
 
 // ─── PRODUCT SUPPLIERS ─────────────────────────────────────────────────
 
-const addSupplierToProduct = async (productId, supplierId, establishmentId) => {
 
-    await getProductById(productId, establishmentId);
-
-    const supplier = await supplierRepo.findById(supplierId);
-
-    if (!supplier) {
-        throw new AppError('Fornecedor inválido.', 400);
-    }
-
-    return productRepo.addSupplierToProduct(productId, supplierId);
-};
-
-const getProductSuppliers = async (productId, establishmentId) => {
-
-    await getProductById(productId, establishmentId);
-
-    const suppliers = await productRepo.getSuppliersByProduct(productId);
-
-    return suppliers.map(item => ({
-        id: item.supplier.id,
-        name: item.supplier.name
-    }));
-};
-
-const removeSupplierFromProduct = async (productId, supplierId, establishmentId) => {
-
-    await getProductById(productId, establishmentId);
-
-    await productRepo.removeSupplierFromProduct(productId, supplierId);
-};
 
 module.exports = {
     getAllProducts,
@@ -350,7 +332,4 @@ module.exports = {
     getSupplierComparison,
     getPurchaseSavings,
 
-    addSupplierToProduct,
-    getProductSuppliers,
-    removeSupplierFromProduct
 };

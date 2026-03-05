@@ -1,5 +1,6 @@
 const productService = require('../services/productService');
 const asyncHandler = require('../utils/asyncHandler');
+const productSupplierService = require('../services/productSupplierService');
 
 const getAll = asyncHandler(async (req, res) => {
 
@@ -97,7 +98,7 @@ const getSupplierComparison = asyncHandler(async (req, res) => {
 
 const addSupplier = asyncHandler(async (req, res) => {
 
-    const data = await productService.addSupplierToProduct(
+    const data = await productSupplierService.addSupplierToProduct(
         req.params.id,
         req.body.supplierId,
         req.user.establishmentId
@@ -109,7 +110,7 @@ const addSupplier = asyncHandler(async (req, res) => {
 
 const getSuppliers = asyncHandler(async (req, res) => {
 
-    const data = await productService.getProductSuppliers(
+    const data = await productSupplierService.getProductSuppliers(
         req.params.id,
         req.user.establishmentId
     );
@@ -120,7 +121,7 @@ const getSuppliers = asyncHandler(async (req, res) => {
 
 const removeSupplier = asyncHandler(async (req, res) => {
 
-    await productService.removeSupplierFromProduct(
+    await productSupplierService.removeSupplierFromProduct(
         req.params.productId,
         req.params.supplierId,
         req.user.establishmentId
