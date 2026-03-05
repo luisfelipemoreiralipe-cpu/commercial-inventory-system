@@ -5,8 +5,17 @@ const findAllByEstablishment = (establishmentId) =>
     prisma.product.findMany({
         where: { establishmentId },
         include: {
-            supplier: { select: { id: true, name: true } },
             category: true,
+            productSuppliers: {
+                include: {
+                    supplier: {
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    }
+                }
+            }
         },
         orderBy: { name: 'asc' },
     });
@@ -18,8 +27,17 @@ const findByIdAndEstablishment = (id, establishmentId) =>
             establishmentId,
         },
         include: {
-            supplier: { select: { id: true, name: true } },
             category: true,
+            productSuppliers: {
+                include: {
+                    supplier: {
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    }
+                }
+            }
         },
     });
 

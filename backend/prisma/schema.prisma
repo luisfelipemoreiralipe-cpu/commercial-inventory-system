@@ -18,10 +18,7 @@ model Supplier {
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
   createdAt DateTime @default(now())
-
-  products Product[]
   orderItems PurchaseOrderItem[]
-
   productSuppliers ProductSupplier[]
 }
 
@@ -49,13 +46,11 @@ model Product {
   establishmentId String        @db.Uuid
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
-  supplierId String @db.Uuid
   categoryId String @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  supplier       Supplier            @relation(fields: [supplierId], references: [id])
   category       Category            @relation(fields: [categoryId], references: [id])
   orderItems     PurchaseOrderItem[]
   stockMovements StockMovement[]

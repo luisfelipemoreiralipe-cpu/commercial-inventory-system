@@ -1,16 +1,11 @@
 const prisma = require('../utils/prisma');
 
-
 // LISTAR
 const findAll = (establishmentId) =>
     prisma.supplier.findMany({
         where: { establishmentId },
-        include: {
-            _count: { select: { products: true } },
-        },
         orderBy: { name: 'asc' },
     });
-
 
 // BUSCAR POR ID
 const findById = (id, establishmentId) =>
@@ -21,13 +16,11 @@ const findById = (id, establishmentId) =>
         }
     });
 
-
 // CRIAR
 const create = (data) =>
     prisma.supplier.create({
         data
     });
-
 
 // ATUALIZAR
 const update = (id, data) =>
@@ -36,13 +29,11 @@ const update = (id, data) =>
         data
     });
 
-
 // REMOVER
 const remove = (id) =>
     prisma.supplier.delete({
         where: { id }
     });
-
 
 module.exports = {
     findAll,

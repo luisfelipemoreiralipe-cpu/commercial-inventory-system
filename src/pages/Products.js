@@ -205,6 +205,14 @@ const Products = () => {
     // Derived
     const categories = state.categories || [];
 
+    const availableSuppliers = state.suppliers.filter((supplier) => {
+
+        return !productSuppliers.some(
+            (ps) => ps.id === supplier.id
+        );
+
+    });
+
     const filtered = state.products.filter((p) => {
         const matchSearch =
             p.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -227,6 +235,8 @@ const Products = () => {
         setErrors(e);
         return Object.keys(e).length === 0;
     };
+
+
 
     const handleOpenSuppliers = async (product) => {
 
@@ -590,7 +600,6 @@ const Products = () => {
                         ))}
 
                     </ul>
-
                 }
 
                 <hr style={{ margin: "20px 0" }} />
@@ -603,16 +612,13 @@ const Products = () => {
 
                     <option value="">Selecionar fornecedor</option>
 
-                    {state.suppliers.map((s) => (
+                    {availableSuppliers.map((s) => (
 
                         <option key={s.id} value={s.id}>
                             {s.name}
                         </option>
-
                     ))}
-
                 </Select>
-
                 <Button
                     style={{ marginTop: 10 }}
                     onClick={handleAddSupplier}

@@ -137,14 +137,17 @@ export const AppProvider = ({ children }) => {
             dispatchRaw({
                 type: 'SET_ALL_DATA',
                 payload: {
-                    categories: cRes.data,
-                    products: pRes.data,
-                    suppliers: sRes.data,
-                    purchaseOrders: poRes.data,
-                    stockMovements: mRes.data,
-                    auditLogs: lRes.data,
+                    categories: cRes.data.data || cRes.data,
+                    products: pRes.data.data || pRes.data,
+                    suppliers: sRes.data.data || sRes.data,
+                    purchaseOrders: poRes.data.data || poRes.data,
+                    stockMovements: mRes.data.data || mRes.data,
+                    auditLogs: lRes.data.data || lRes.data,
                 },
             });
+            console.log("CATEGORIES:", cRes.data);
+            console.log("PRODUCTS:", pRes.data);
+            console.log("SUPPLIERS:", sRes.data);
         } catch (err) {
             console.error(err);
             dispatchRaw({ type: 'SET_ERROR', payload: err.message || 'Erro de comunicação.' });

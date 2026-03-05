@@ -2,8 +2,18 @@ const productService = require('../services/productService');
 const asyncHandler = require('../utils/asyncHandler');
 
 const getAll = asyncHandler(async (req, res) => {
-    const data = await productService.getAllProducts(req.user.establishmentId);
+
+    const products = await productService.getAllProducts(
+        req.user.establishmentId
+    );
+
+    const data = products.map((p) => ({
+        ...p,
+        supplier: p.productSuppliers?.[0]?.supplier || null
+    }));
+
     res.json({ success: true, data });
+
 });
 
 const getById = asyncHandler(async (req, res) => {
