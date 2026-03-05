@@ -2,31 +2,38 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
+
+  const establishment = await prisma.establishment.create({
+    data: {
+      nome_fantasia: "Restaurante Teste",
+      cnpj: "00000000000100"
+    }
+  });
+
   const categories = [
     'Alimentos',
     'Bebidas',
     'Limpeza',
     'Embalagens',
     'Hortifruti',
-    'Carnes',
+    'Carnes'
   ];
 
   for (const name of categories) {
-    await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
+    await prisma.category.create({
+      data: {
+        name,
+        establishmentId: establishment.id
+      }
     });
   }
 
-  console.log('🌱 Categorias seedadas com sucesso');
+  console.log('🌱 Seed executado com sucesso');
+
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
+  .catch(console.error)
   .finally(async () => {
     await prisma.$disconnect();
   });

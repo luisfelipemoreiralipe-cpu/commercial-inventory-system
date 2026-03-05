@@ -22,8 +22,16 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const complete = asyncHandler(async (req, res) => {
-    const data = await purchaseOrderService.completeOrder(req.params.id);
+
+    const establishmentId = req.user?.establishmentId;
+
+    const data = await purchaseOrderService.completeOrder(
+        req.params.id,
+        establishmentId
+    );
+
     res.json({ success: true, data });
+
 });
 
 const remove = asyncHandler(async (req, res) => {

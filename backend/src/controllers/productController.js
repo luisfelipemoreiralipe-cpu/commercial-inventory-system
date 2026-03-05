@@ -70,6 +70,17 @@ const getBestSupplier = asyncHandler(async (req, res) => {
     res.json({ success: true, data });
 });
 
+const getSupplierComparison = asyncHandler(async (req, res) => {
+
+    const data = await productService.getSupplierComparison(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+
+});
+
 module.exports = {
     getAll,
     getById,
@@ -78,5 +89,6 @@ module.exports = {
     remove,
     updateQuantity,
     getPriceHistory,
-    getBestSupplier
+    getBestSupplier,
+    getSupplierComparison
 };

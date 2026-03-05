@@ -231,6 +231,97 @@ const getBestSupplier = async (productId, establishmentId) => {
     };
 };
 
+// ─── SUPPLIER COMPARISON ───────────────────────────────────────────────
+
+const getSupplierComparison = async (productId, establishmentId) => {
+
+    const history = await getPriceHistory(productId, establishmentId);
+
+    if (!history.length) {
+        throw new AppError('Nenhum histórico de preço encontrado para este produto.', 404);
+    }
+
+    const suppliersMap = {};
+
+    history.forEach(item => {
+
+        const supplierName = item.supplierName;
+
+        if (!suppliersMap[supplierName]) {
+            suppliersMap[supplierName] = item.unitPrice;
+        } else {
+            suppliersMap[supplierName] = Math.min(
+                suppliersMap[supplierName],
+                item.unitPrice
+            );
+        }
+
+    });
+
+    const suppliers = Object.entries(suppliersMap).map(([supplier, price]) => ({
+        supplier,
+        bestPrice: price
+    }));
+
+    suppliers.sort((a, b) => a.bestPrice - b.bestPrice);
+
+    return {
+        productId,
+        suppliers
+    };
+};
+// ─── PURCHASE SAVINGS REPORT ───────────────────────────────────────────
+
+const getPurchaseSavings = async (establishmentId) => {
+
+    const products = await productRepo.findAllByEstablishment(establishmentId);
+
+    const report = [];
+
+    for (const product of products) {
+
+        const history = await getPriceHistory(product.id, establishmentId);
+
+        if (!history.length) continue;
+
+        const lastPurchase = history[0];
+
+        let bestPrice = history[0].unitPrice;
+
+        history.forEach(item => {
+            if (item.unitPrice < bestPrice) {
+                bestPrice = item.unitPrice;
+            }
+        });
+
+        const savingPerUnit = lastPurchase.unitPrice - bestPrice;
+
+        const quantityBought = lastPurchase.adjustedQuantity;
+
+        const saving = savingPerUnit * quantityBought;
+
+        if (saving > 0) {
+            report.push({
+                product: product.name,
+                currentPrice: lastPurchase.unitPrice,
+                bestPrice,
+                quantityBought,
+                savingPerUnit,
+                saving
+            });
+        }
+
+    }
+
+    const totalSaving = report.reduce((sum, item) => sum + item.saving, 0);
+
+    return {
+        products: report,
+        totalSaving
+    };
+
+};
+
 module.exports = {
     getAllProducts,
     getProductById,
@@ -239,5 +330,7 @@ module.exports = {
     deleteProduct,
     updateProductQuantity,
     getPriceHistory,
-    getBestSupplier
+    getBestSupplier,
+    getSupplierComparison,
+    getPurchaseSavings
 };

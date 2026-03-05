@@ -13,6 +13,7 @@ import Suppliers from './pages/Suppliers';
 import PurchaseOrders from './pages/PurchaseOrders';
 import StockHistory from './pages/StockHistory';
 import ActivityLog from './pages/ActivityLog';
+import PriceComparison from "./pages/PriceComparison";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
               <Route path="/stock-history" element={<StockHistory />} />
               <Route path="/activity-log" element={<ActivityLog />} />
               <Route path="*" element={<Dashboard />} />
+              <Route path="/price-comparison" element={<PriceComparison />} />
             </Routes>
           </SidebarLayout>
         </BrowserRouter>

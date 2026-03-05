@@ -18,6 +18,9 @@ router.get('/:id/price-history', authMiddleware, controller.getPriceHistory);
 // ─── BEST SUPPLIER ─────────────────────────────────────────────────────
 router.get('/:id/best-supplier', authMiddleware, controller.getBestSupplier);
 
+// ─── SUPPLIER COMPARISON ───────────────────────────────────────────────
+router.get('/:id/supplier-comparison', authMiddleware, controller.getSupplierComparison);
+
 router.get('/:id', authMiddleware, controller.getById);
 
 router.post(

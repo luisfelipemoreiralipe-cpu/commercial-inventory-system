@@ -11,6 +11,7 @@ const auditLogRoutes = require('./routes/auditLogRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const reportsRoutes = require('./routes/reportsRoutes');
 
 // Middlewares
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
@@ -30,6 +31,7 @@ app.use('/audit-logs', auditLogRoutes);
 app.use('/categories', categoryRoutes);
 app.use('/auth', authRoutes);
 app.use('/dashboard', dashboardRoutes);
+app.use('/reports', reportsRoutes);
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);
