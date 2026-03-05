@@ -70,6 +70,8 @@ const getBestSupplier = asyncHandler(async (req, res) => {
     res.json({ success: true, data });
 });
 
+// ─── SUPPLIER COMPARISON ───────────────────────────────────────────────
+
 const getSupplierComparison = asyncHandler(async (req, res) => {
 
     const data = await productService.getSupplierComparison(
@@ -78,6 +80,43 @@ const getSupplierComparison = asyncHandler(async (req, res) => {
     );
 
     res.json({ success: true, data });
+
+});
+
+// ─── PRODUCT SUPPLIERS ─────────────────────────────────────────────────
+
+const addSupplier = asyncHandler(async (req, res) => {
+
+    const data = await productService.addSupplierToProduct(
+        req.params.id,
+        req.body.supplierId,
+        req.user.establishmentId
+    );
+
+    res.status(201).json({ success: true, data });
+
+});
+
+const getSuppliers = asyncHandler(async (req, res) => {
+
+    const data = await productService.getProductSuppliers(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+
+});
+
+const removeSupplier = asyncHandler(async (req, res) => {
+
+    await productService.removeSupplierFromProduct(
+        req.params.productId,
+        req.params.supplierId,
+        req.user.establishmentId
+    );
+
+    res.status(204).send();
 
 });
 
@@ -90,5 +129,9 @@ module.exports = {
     updateQuantity,
     getPriceHistory,
     getBestSupplier,
-    getSupplierComparison
+    getSupplierComparison,
+
+    addSupplier,
+    getSuppliers,
+    removeSupplier
 };

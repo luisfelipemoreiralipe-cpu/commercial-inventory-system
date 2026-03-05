@@ -21,6 +21,21 @@ router.get('/:id/best-supplier', authMiddleware, controller.getBestSupplier);
 // ─── SUPPLIER COMPARISON ───────────────────────────────────────────────
 router.get('/:id/supplier-comparison', authMiddleware, controller.getSupplierComparison);
 
+// ─── PRODUCT SUPPLIERS ─────────────────────────────────────────────────
+
+// listar fornecedores do produto
+router.get('/:id/suppliers', authMiddleware, controller.getSuppliers);
+
+// adicionar fornecedor ao produto
+router.post('/:id/suppliers', authMiddleware, controller.addSupplier);
+
+// remover fornecedor do produto
+router.delete(
+    '/:productId/suppliers/:supplierId',
+    authMiddleware,
+    controller.removeSupplier
+);
+
 router.get('/:id', authMiddleware, controller.getById);
 
 router.post(

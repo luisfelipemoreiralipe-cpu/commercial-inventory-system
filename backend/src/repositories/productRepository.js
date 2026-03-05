@@ -97,11 +97,43 @@ const getPriceHistory = (productId) =>
             createdAt: 'desc'
         }
     });
+
+// ─── PRODUCT SUPPLIERS ───────────────────────────────────────────────
+
+const addSupplierToProduct = (productId, supplierId) =>
+    prisma.productSupplier.create({
+        data: {
+            product: { connect: { id: productId } },
+            supplier: { connect: { id: supplierId } }
+        },
+        include: {
+            supplier: { select: { id: true, name: true } }
+        }
+    });
+
+const getSuppliersByProduct = (productId) =>
+    prisma.productSupplier.findMany({
+        where: { productId },
+        include: {
+            supplier: { select: { id: true, name: true } }
+        }
+    });
+
+const removeSupplierFromProduct = (productId, supplierId) =>
+    prisma.productSupplier.deleteMany({
+        where: {
+            productId,
+            supplierId
+        }
+    });
 module.exports = {
     findAllByEstablishment,
     findByIdAndEstablishment,
     create,
     updateByEstablishment,
     removeByEstablishment,
-    getPriceHistory
+    getPriceHistory,
+    addSupplierToProduct,
+    getSuppliersByProduct,
+    removeSupplierFromProduct,
 };

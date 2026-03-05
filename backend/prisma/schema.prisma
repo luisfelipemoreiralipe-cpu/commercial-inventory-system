@@ -20,7 +20,9 @@ model Supplier {
   createdAt DateTime @default(now())
 
   products Product[]
-  orderItems PurchaseOrderItem[]   // NOVO
+  orderItems PurchaseOrderItem[]
+
+  productSuppliers ProductSupplier[]
 }
 
 model Category {
@@ -57,6 +59,7 @@ model Product {
   category       Category            @relation(fields: [categoryId], references: [id])
   orderItems     PurchaseOrderItem[]
   stockMovements StockMovement[]
+  productSuppliers ProductSupplier[]
 
   @@map("products")
 }
@@ -157,4 +160,19 @@ model users {
 
   establishment   Establishment?
   purchase_orders PurchaseOrder[]
+}
+
+model ProductSupplier {
+  id String @id @default(uuid()) @db.Uuid
+
+  productId  String @db.Uuid
+  supplierId String @db.Uuid
+
+  product  Product  @relation(fields: [productId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([productId, supplierId])
+  @@map("product_suppliers")
 }

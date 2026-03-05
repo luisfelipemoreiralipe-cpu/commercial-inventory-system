@@ -270,6 +270,7 @@ const getSupplierComparison = async (productId, establishmentId) => {
         suppliers
     };
 };
+
 // ─── PURCHASE SAVINGS REPORT ───────────────────────────────────────────
 
 const getPurchaseSavings = async (establishmentId) => {
@@ -322,6 +323,40 @@ const getPurchaseSavings = async (establishmentId) => {
 
 };
 
+// ─── PRODUCT SUPPLIERS ─────────────────────────────────────────────────
+
+const addSupplierToProduct = async (productId, supplierId, establishmentId) => {
+
+    await getProductById(productId, establishmentId);
+
+    const supplier = await supplierRepo.findById(supplierId);
+
+    if (!supplier) {
+        throw new AppError('Fornecedor inválido.', 400);
+    }
+
+    return productRepo.addSupplierToProduct(productId, supplierId);
+};
+
+const getProductSuppliers = async (productId, establishmentId) => {
+
+    await getProductById(productId, establishmentId);
+
+    const suppliers = await productRepo.getSuppliersByProduct(productId);
+
+    return suppliers.map(item => ({
+        id: item.supplier.id,
+        name: item.supplier.name
+    }));
+};
+
+const removeSupplierFromProduct = async (productId, supplierId, establishmentId) => {
+
+    await getProductById(productId, establishmentId);
+
+    await productRepo.removeSupplierFromProduct(productId, supplierId);
+};
+
 module.exports = {
     getAllProducts,
     getProductById,
@@ -332,5 +367,9 @@ module.exports = {
     getPriceHistory,
     getBestSupplier,
     getSupplierComparison,
-    getPurchaseSavings
+    getPurchaseSavings,
+
+    addSupplierToProduct,
+    getProductSuppliers,
+    removeSupplierFromProduct
 };
