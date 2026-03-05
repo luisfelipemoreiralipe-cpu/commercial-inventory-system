@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styled from 'styled-components';
 import {
     MdRefresh,
@@ -14,6 +14,8 @@ import Button from '../components/Button';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
+import api from '../services/api';
+
 
 // ─── Business Logic helpers ────────────────────────────────────────────────────
 /**
@@ -196,8 +198,25 @@ const TableOverflow = styled.div`
 `;
 
 // ─── Component ─────────────────────────────────────────────────────────────────
+
+
 const PurchaseOrders = () => {
     const { state, dispatch, getSupplierById } = useApp();
+    const [suggestions, setSuggestions] = useState([]);
+
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            try {
+                const res = await api.get('/api/purchase-suggestions');
+                setSuggestions(res.data.items);
+                console.log("purchase suggestions:", res.data);
+            } catch (err) {
+                console.error('Erro ao buscar sugestões', err);
+            }
+        };
+
+        fetchSuggestions();
+    }, []);
 
     // Pending purchase list (low-stock products)
     const lowStockProducts = useMemo(
@@ -223,6 +242,12 @@ const PurchaseOrders = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [lowStockProducts, adjustedQtys]
     );
+    const totalSaving = useMemo(() => {
+        return suggestions.reduce((sum, s) => {
+            if (!s.saving) return sum;
+            return sum + (s.saving * s.suggestedQuantity);
+        }, 0);
+    }, [suggestions]);
 
     const handleGenerate = () => {
         if (lowStockProducts.length === 0) return;
@@ -262,7 +287,7 @@ const PurchaseOrders = () => {
 
             {/* ── Auto Purchase List ─────────────────────────────────────────── */}
             <SectionTitle>🛒 Lista de Compras Automática</SectionTitle>
-
+            {console.log("suggestions state:", suggestions)}
             {lowStockProducts.length === 0 ? (
                 <InfoBanner>
                     ✅ Todos os produtos estão com estoque acima do mínimo. Nenhuma reposição necessária.
@@ -280,6 +305,9 @@ const PurchaseOrders = () => {
                             <br />
                             <SummaryValue>{formatCurrency(totalEstimated)}</SummaryValue>
                         </div>
+                        <SummaryLabel>
+                            Economia possível: {formatCurrency(totalSaving)}
+                        </SummaryLabel>
                         <Button onClick={handleGenerate}>
                             <MdRefresh /> Gerar Ordem de Compra
                         </Button>
@@ -296,11 +324,17 @@ const PurchaseOrders = () => {
                                         <Th>Qtd. Sugerida</Th>
                                         <Th>Qtd. Ajustada</Th>
                                         <Th>Custo Est.</Th>
+                                        <Th>Melhor preço</Th>
+                                        <Th>Economia</Th>
                                         <Th>Fornecedor</Th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {lowStockProducts.map((p) => {
+                                        const suggestion = suggestions.find(
+                                            (s) => s.productId === p.id
+                                        );
+                                        console.log("suggestion for product", p.name, suggestion);
                                         const adj = getAdjusted(p);
                                         const supplier = p.supplierId ? getSupplierById(p.supplierId) : null;
                                         return (
@@ -310,7 +344,7 @@ const PurchaseOrders = () => {
                                                     {p.quantity} {p.unit}
                                                 </Td>
                                                 <Td>{p.minQuantity} {p.unit}</Td>
-                                                <Td>{calcSuggested(p)} {p.unit}</Td>
+                                                <Td>{suggestion?.suggestedQuantity ?? calcSuggested(p)} {p.unit}</Td>
                                                 <Td>
                                                     <QtyInput
                                                         type="number"
@@ -328,7 +362,19 @@ const PurchaseOrders = () => {
                                                     {formatCurrency(adj * Number(p.unitPrice))}
                                                 </Td>
                                                 <Td>
-                                                    {supplier ? (
+                                                    {suggestion?.bestPrice
+                                                        ? formatCurrency(suggestion.bestPrice)
+                                                        : '—'}
+                                                </Td>
+                                                <Td>
+                                                    {suggestion?.saving > 0
+                                                        ? formatCurrency(suggestion.saving)
+                                                        : '—'}
+                                                </Td>
+                                                <Td>
+                                                    {suggestion?.bestSupplierName ? (
+                                                        <Badge variant="info">{suggestion.bestSupplierName}</Badge>
+                                                    ) : supplier ? (
                                                         <Badge variant="info">{supplier.name}</Badge>
                                                     ) : (
                                                         <span style={{ color: '#555a72', fontSize: '0.75rem' }}>—</span>
