@@ -9,7 +9,7 @@ const getAll = asyncHandler(async (req, res) => {
 
     const data = products.map((p) => ({
         ...p,
-        supplier: p.productSuppliers?.[0]?.supplier || null
+        suppliers: p.productSuppliers?.map(ps => ps.supplier) || []
     }));
 
     res.json({ success: true, data });

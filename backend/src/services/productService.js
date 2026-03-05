@@ -56,16 +56,6 @@ const createProduct = async (data, establishmentId) => {
         throw new AppError('Categoria inválida.', 400);
     }
 
-    if (!data.supplierId) {
-        throw new AppError('Fornecedor é obrigatório.', 400);
-    }
-
-    const supplier = await supplierRepo.findById(data.supplierId);
-
-    if (!supplier) {
-        throw new AppError('Fornecedor inválido.', 400);
-    }
-
     const product = await productRepo.create({
         ...data,
         establishmentId,
@@ -97,14 +87,6 @@ const updateProduct = async (id, data, establishmentId) => {
         }
     }
 
-    if (data.supplierId) {
-        const supplier = await supplierRepo.findById(data.supplierId);
-
-        if (!supplier) {
-            throw new AppError('Fornecedor inválido.', 400);
-        }
-    }
-
     const updated = await productRepo.updateByEstablishment(
         id,
         establishmentId,
@@ -126,7 +108,6 @@ const updateProduct = async (id, data, establishmentId) => {
 
     return updated;
 };
-
 // ─── DELETE ─────────────────────────────────────────────────────────────
 
 const deleteProduct = async (id, establishmentId) => {
@@ -198,7 +179,7 @@ const getPriceHistory = async (productId, establishmentId) => {
         ...item,
         unitPrice: Number(item.unitPrice),
         adjustedQuantity: Number(item.adjustedQuantity),
-        supplierName: item.supplier?.name || null
+        supplierId: item.supplier?.id || null
     }));
 };
 

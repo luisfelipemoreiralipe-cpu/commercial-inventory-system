@@ -55,10 +55,6 @@ const create = (data) =>
                 connect: { id: data.categoryId }
             },
 
-            supplier: {
-                connect: { id: data.supplierId }
-            },
-
             establishment: {
                 connect: { id: data.establishmentId }
             }
@@ -79,12 +75,20 @@ const updateByEstablishment = (id, establishmentId, data) =>
         return prisma.product.findFirst({
             where: { id, establishmentId },
             include: {
-                supplier: { select: { id: true, name: true } },
                 category: true,
+                productSuppliers: {
+                    include: {
+                        supplier: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
+                    }
+                }
             },
         });
     });
-
 // ─── DELETE ─────────────────────────────────────────────────────────────
 const removeByEstablishment = (id, establishmentId) =>
     prisma.product.deleteMany({
