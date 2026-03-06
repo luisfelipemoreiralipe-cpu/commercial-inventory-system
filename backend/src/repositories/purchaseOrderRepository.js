@@ -88,7 +88,7 @@ const create = async (data) => {
         })
     );
 
-    return prisma.purchaseOrder.create({
+    const order = await prisma.purchaseOrder.create({
         data: {
             status: 'pending',
 
@@ -120,6 +120,14 @@ const create = async (data) => {
             }
         }
     });
+
+    // 🔹 Derivar fornecedor da ordem pelo primeiro item
+    const firstSupplier = order.items?.[0]?.supplier || null;
+
+    return {
+        ...order,
+        supplier: firstSupplier
+    };
 };
 
 

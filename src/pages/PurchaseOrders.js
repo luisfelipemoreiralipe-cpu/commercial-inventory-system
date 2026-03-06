@@ -205,11 +205,12 @@ const PurchaseOrders = () => {
     const [suggestions, setSuggestions] = useState([]);
 
     useEffect(() => {
+
         const fetchSuggestions = async () => {
             try {
                 const res = await api.get('/api/purchase-suggestions');
                 setSuggestions(res.data.items);
-                console.log("purchase suggestions:", res.data);
+                console.log("API purchase suggestions response:", res.data);
             } catch (err) {
                 console.error('Erro ao buscar sugestões', err);
             }
@@ -217,6 +218,9 @@ const PurchaseOrders = () => {
 
         fetchSuggestions();
     }, []);
+    useEffect(() => {
+        console.log("Suggestions carregadas no state:", suggestions);
+    }, [suggestions]);
 
     // Pending purchase list (low-stock products)
     const lowStockProducts = useMemo(
@@ -250,19 +254,62 @@ const PurchaseOrders = () => {
     }, [suggestions]);
 
     const handleGenerate = () => {
-        if (lowStockProducts.length === 0) return;
-        const items = lowStockProducts.map((p) => ({
-            productId: p.id,
-            productName: p.name,
-            unit: p.unit,
-            unitPrice: Number(p.unitPrice),
-            suggestedQuantity: calcSuggested(p),
-            adjustedQuantity: getAdjusted(p),
-            supplierId: p.supplierId || null,
-        }));
-        dispatch({ type: ACTIONS.ADD_PURCHASE_ORDER, payload: { items } });
-    };
+        console.log("Gerar ordem clicado");
 
+        if (lowStockProducts.length === 0) return;
+
+        const groupedBySupplier = {};
+
+        lowStockProducts.forEach((p) => {
+
+            const suggestion = suggestions.find(
+                (s) => s.productId === p.id
+            );
+            console.log("Match product → suggestion:", p.name, suggestion);
+            const supplierId =
+                suggestion?.bestSupplierId ||
+                p.supplierId ||
+                "unknown";
+
+            if (!groupedBySupplier[supplierId]) {
+                groupedBySupplier[supplierId] = [];
+            }
+
+            groupedBySupplier[supplierId].push({
+                productId: p.id,
+                productName: p.name,
+                unit: p.unit,
+                unitPrice: suggestion?.bestPrice || Number(p.unitPrice),
+                suggestedQuantity: suggestion?.suggestedQuantity || calcSuggested(p),
+                adjustedQuantity: getAdjusted(p),
+                supplierId
+            });
+
+        });
+
+        console.log("orders grouped by supplier:", groupedBySupplier);
+        Object.entries(groupedBySupplier).forEach(([supplierId, items]) => {
+
+            const supplierName =
+                suggestions.find((s) => s.bestSupplierId === supplierId)?.bestSupplierName
+                || getSupplierById(supplierId)?.name
+                || "Fornecedor";
+            console.log("Criando ordem:", {
+                supplierId,
+                supplierName,
+                items
+            });
+            dispatch({
+                type: ACTIONS.ADD_PURCHASE_ORDER,
+                payload: {
+                    supplierId,
+                    supplierName,
+                    items
+                }
+            });
+
+        });
+    };
     const handleComplete = () => {
         dispatch({ type: ACTIONS.COMPLETE_PURCHASE_ORDER, payload: confirmComplete });
         setConfirmComplete(null);
@@ -396,6 +443,11 @@ const PurchaseOrders = () => {
                     <SectionTitle style={{ marginTop: '2rem' }}>⏳ Ordens Pendentes ({pendingOrders.length})</SectionTitle>
                     <OrdersGrid>
                         {pendingOrders.map((order) => {
+                            const supplierName =
+                                order.items?.[0]?.supplier?.name ||
+                                getSupplierById(order.items?.[0]?.supplierId)?.name ||
+                                "—";
+
                             const total = order.items.reduce(
                                 (s, i) => s + i.adjustedQuantity * i.unitPrice,
                                 0
@@ -404,17 +456,23 @@ const PurchaseOrders = () => {
                                 <OrderCard key={order.id} status="pending">
                                     <OrderCardHead>
                                         <div>
-                                            <strong style={{ color: '#111827' }}>Ordem #{order.id.slice(-6).toUpperCase()}</strong>
+
+                                            <p style={{ fontSize: "0.8rem", color: "#6B7280" }}>
+                                                Fornecedor: {supplierName}
+                                            </p>
+
                                             <OrderDate>
                                                 Criada em: {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                                             </OrderDate>
+
                                         </div>
+
                                         <Badge variant="warning">Pendente</Badge>
+
                                     </OrderCardHead>
 
                                     <OrderItemsList>
                                         {order.items.map((item) => {
-                                            const supplier = item.supplierId ? getSupplierById(item.supplierId) : null;
                                             return (
                                                 <OrderItem key={item.productId}>
                                                     <span>
@@ -423,14 +481,11 @@ const PurchaseOrders = () => {
                                                             ×{item.adjustedQuantity} {item.unit}
                                                         </span>
                                                     </span>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                                                        <span style={{ color: '#0066CC', fontWeight: 600 }}>
-                                                            {formatCurrency(item.adjustedQuantity * item.unitPrice)}
-                                                        </span>
-                                                        {supplier && (
-                                                            <span style={{ fontSize: '0.7rem', color: '#3b82f6' }}>{supplier.name}</span>
-                                                        )}
-                                                    </div>
+
+                                                    <span style={{ color: '#0066CC', fontWeight: 600 }}>
+                                                        {formatCurrency(item.adjustedQuantity * item.unitPrice)}
+                                                    </span>
+
                                                 </OrderItem>
                                             );
                                         })}
