@@ -168,21 +168,23 @@ const StyledNavLink = styled(NavLink)`
     color: ${({ theme }) => theme.colors.textPrimary};
   }
 
-  &.active {
-    background: ${({ theme }) => theme.colors.primaryLight};
-    color: ${({ theme }) => theme.colors.primary};
-    font-weight: ${({ theme }) => theme.fontWeights.semibold};
+&.active {
+  background: ${({ theme }) => theme.colors.bgHover};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
 
-    &::before {
-      content: '';
-      position: absolute;
-      left: -8px; top: 50%;
-      transform: translateY(-50%);
-      width: 3px; height: 60%;
-      background: ${({ theme }) => theme.colors.primary};
-      border-radius: 0 3px 3px 0;
-    }
+  &::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: ${({ theme }) => theme.colors.primary};
+    border-radius: 0 3px 3px 0;
   }
+}
 `;
 
 const NavIcon = styled.span`

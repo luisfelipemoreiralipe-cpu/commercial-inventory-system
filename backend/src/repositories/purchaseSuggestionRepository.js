@@ -2,18 +2,33 @@ const prisma = require('../utils/prisma');
 
 // ─── PRODUCTS BELOW MINIMUM ─────────────────────────
 
-const getProductsBelowMinimum = (establishmentId) =>
-    prisma.product.findMany({
+const getProductsBelowMinimum = async (establishmentId) => {
+
+    return prisma.product.findMany({
         where: {
             establishmentId,
             quantity: {
-                lte: prisma.product.fields.minQuantity
+                lt: prisma.product.fields.minQuantity
             }
         },
-        include: {
-            category: true,
+
+        select: {
+            id: true,
+            name: true,
+            unit: true,
+            quantity: true,
+            minQuantity: true,
+
+            category: {
+                select: {
+                    id: true,
+                    name: true
+                }
+            },
+
             productSuppliers: {
-                include: {
+                select: {
+                    price: true,
                     supplier: {
                         select: {
                             id: true,
@@ -23,7 +38,10 @@ const getProductsBelowMinimum = (establishmentId) =>
                 }
             }
         }
+
     });
+
+};
 
 module.exports = {
     getProductsBelowMinimum

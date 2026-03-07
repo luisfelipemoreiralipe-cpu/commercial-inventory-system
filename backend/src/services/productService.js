@@ -56,9 +56,6 @@ const createProduct = async (data, establishmentId) => {
         throw new AppError('Categoria inválida.', 400);
     }
 
-
-
-
     const product = await productRepo.create({
         ...data,
         establishmentId,

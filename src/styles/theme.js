@@ -1,40 +1,40 @@
 export const theme = {
     colors: {
         // ── Backgrounds (light mode) ─────────────────────────────────────────────
-        bg: '#F8FAFC',
+        bg: '#F9FAFB',
         bgCard: '#FFFFFF',
         bgInput: '#F9FAFB',
         bgHover: '#F3F4F6',
-        bgSidebar: '#EFF2F7',
+        bgSidebar: '#F3F4F6',
 
         // ── Brand — Commercial blue ──────────────────────────────────────────────
-        primary: '#0066CC',
-        primaryHover: '#0052A3',
-        primaryLight: 'rgba(0, 102, 204, 0.10)',
-        primaryGlow: 'rgba(0, 102, 204, 0.20)',
+        primary: '#111827',
+        primaryHover: '#1F2937',
+        primaryLight: 'rgba(17, 24, 39, 0.06)',
+        primaryGlow: 'rgba(17, 24, 39, 0.15)',
 
         // ── Semantic ─────────────────────────────────────────────────────────────
-        success: '#0b4432ff',
-        successLight: 'rgba(5, 150, 105, 0.12)',
+        success: '#059669',
+        successLight: 'rgba(5,150,105,0.12)',
         warning: '#D97706',
-        warningLight: 'rgba(217, 119, 6, 0.12)',
+        warningLight: 'rgba(217,119,6,0.12)',
         danger: '#DC2626',
-        dangerLight: 'rgba(220, 38, 38, 0.12)',
+        dangerLight: 'rgba(220,38,38,0.12)',
         info: '#2563EB',
-        infoLight: 'rgba(37, 99, 235, 0.12)',
+        infoLight: 'rgba(37,99,235,0.12)',
 
         // ── Text ─────────────────────────────────────────────────────────────────
         textPrimary: '#111827',
-        textSecondary: '#061b37ff',
+        textSecondary: '#374151',
         textMuted: '#9CA3AF',
 
         // ── Borders ──────────────────────────────────────────────────────────────
         border: '#E5E7EB',
-        borderFocus: '#0066CC',
+        borderFocus: '#111827',
     },
 
     fonts: {
-        base: "'poppins', -apple-system, BlinkMacSystemFont, sans-serif",
+        base: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         brand: "'Pacifico', cursive",
     },
 
@@ -69,16 +69,16 @@ export const theme = {
     radii: {
         sm: '6px',
         md: '10px',
-        lg: '14px',
-        xl: '20px',
+        lg: '12px',
+        xl: '18px',
         pill: '9999px',
     },
 
     shadows: {
-        card: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05)',
-        modal: '0 20px 60px rgba(0,0,0,0.18)',
-        button: '0 2px 8px rgba(0,102,204,0.28)',
-        glow: '0 0 16px rgba(0,102,204,0.20)',
+        card: '0 2px 6px rgba(0,0,0,0.04)',
+        modal: '0 20px 60px rgba(0,0,0,0.12)',
+        button: '0 2px 6px rgba(0,0,0,0.08)',
+        glow: '0 0 10px rgba(0,0,0,0.10)',
     },
 
     transition: 'all 0.2s ease',

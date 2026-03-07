@@ -30,7 +30,7 @@ const EMPTY_FORM = {
 // ─── Styled ────────────────────────────────────────────────────────────────────
 const PageHeader = styled.div`
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing.md};
@@ -61,18 +61,23 @@ const SearchRow = styled.div`
 const SearchBox = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: ${({ theme }) => theme.colors.bgInput};
-  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  gap: 10px;
+  background: ${({ theme }) => theme.colors.bgCard};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radii.md};
-  padding: 8px 14px;
+  padding: 10px 14px;
   flex: 1;
-  min-width: 200px;
+  min-width: 240px;
   transition: ${({ theme }) => theme.transition};
 
+  svg {
+    color: ${({ theme }) => theme.colors.textMuted};
+    font-size: 18px;
+  }
+
   &:focus-within {
-    border-color: ${({ theme }) => theme.colors.borderFocus};
-    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primaryGlow};
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.primaryLight};
   }
 `;
 
@@ -87,19 +92,25 @@ const SearchInput = styled.input`
 `;
 
 const FilterSelect = styled.select`
-  background: ${({ theme }) => theme.colors.bgInput};
-  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.bgCard};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radii.md};
   color: ${({ theme }) => theme.colors.textPrimary};
   font-size: ${({ theme }) => theme.fontSizes.sm};
-  padding: 9px 12px;
+  padding: 10px 12px;
   outline: none;
   cursor: pointer;
   transition: ${({ theme }) => theme.transition};
-  &:focus { border-color: ${({ theme }) => theme.colors.borderFocus}; }
-  option { background: ${({ theme }) => theme.colors.bgCard}; }
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.textMuted};
+  }
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+  option {
+    background: ${({ theme }) => theme.colors.bgCard};
+  }
 `;
-
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
@@ -109,10 +120,11 @@ const Th = styled.th`
   text-align: left;
   padding: 12px 16px;
   font-size: ${({ theme }) => theme.fontSizes.xs};
-  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textMuted};
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  background: ${({ theme }) => theme.colors.bgHover};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
@@ -126,9 +138,16 @@ const Td = styled.td`
 
 const Tr = styled.tr`
   transition: ${({ theme }) => theme.transition};
-  background: ${({ lowStock, theme }) => lowStock ? 'rgba(239,68,68,0.05)' : 'transparent'};
-  &:hover { background: ${({ theme }) => theme.colors.bgHover}; }
-  &:last-child td { border-bottom: none; }
+
+  ${({ lowStock }) =>
+        lowStock &&
+        `
+      background: rgba(239,68,68,0.05);
+  `}
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgHover};
+  }
 `;
 
 const ActionRow = styled.div`
@@ -138,26 +157,27 @@ const ActionRow = styled.div`
 `;
 
 const IconBtn = styled.button`
-  background: ${({ theme }) => theme.colors.bgInput};
+  background: ${({ theme }) => theme.colors.bgCard};
   border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.sm};
+  border-radius: ${({ theme }) => theme.radii.md};
   color: ${({ theme, color }) => theme.colors[color] || theme.colors.textSecondary};
-  width: 32px;
-  height: 32px;
+
+  width: 34px;
+  height: 34px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   cursor: pointer;
   font-size: 1rem;
+
   transition: ${({ theme }) => theme.transition};
 
   &:hover {
-    background: ${({ theme, color }) =>
-        color === 'danger' ? theme.colors.dangerLight :
-            color === 'warning' ? theme.colors.warningLight :
-                theme.colors.bgHover};
+    background: ${({ theme }) => theme.colors.bgHover};
+    border-color: ${({ theme }) => theme.colors.textMuted};
     color: ${({ theme, color }) => theme.colors[color] || theme.colors.textPrimary};
-    border-color: ${({ theme, color }) => theme.colors[color] || theme.colors.border};
   }
 `;
 
@@ -201,6 +221,7 @@ const Products = () => {
     const [supplierModal, setSupplierModal] = useState(null);
     const [productSuppliers, setProductSuppliers] = useState([]);
     const [selectedSupplier, setSelectedSupplier] = useState("");
+    const [supplierPrice, setSupplierPrice] = useState("");
 
     // Derived
     const categories = state.categories || [];
@@ -281,18 +302,27 @@ const Products = () => {
 
         if (!selectedSupplier) return;
 
+        if (!supplierPrice || Number(supplierPrice) <= 0) {
+            alert("Informe um preço válido");
+            return;
+        }
+
         try {
 
             await addProductSupplier(
                 supplierModal.id,
-                selectedSupplier
+                selectedSupplier,
+                Number(supplierPrice)
             );
 
-            const updated = await getProductSuppliers(supplierModal.id);
+            const updated = await getProductSuppliers(
+                supplierModal.id
+            );
 
             setProductSuppliers(updated.data);
 
             setSelectedSupplier("");
+            setSupplierPrice("");
 
         } catch (err) {
 
@@ -377,7 +407,7 @@ const Products = () => {
             {/* Filters */}
             <SearchRow>
                 <SearchBox>
-                    <MdSearch color="#1937cdff" />
+                    <MdSearch />
                     <SearchInput
                         placeholder="Buscar por nome ou categoria..."
                         value={search}
@@ -424,10 +454,9 @@ const Products = () => {
                                     return (
                                         <Tr key={p.id} lowStock={isLow}>
                                             <Td>
-                                                <strong>{p.name}</strong>
+                                                <div style={{ fontWeight: 600 }}>{p.name}</div>
                                                 <DateMeta>
-                                                    Criado: {new Date(p.createdAt).toLocaleDateString('pt-BR')}<br />
-                                                    Atualizado: {new Date(p.updatedAt).toLocaleDateString('pt-BR')}
+                                                    Criado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}
                                                 </DateMeta>
                                             </Td>
                                             <Td>{p.category?.name || 'N/A'}</Td>
@@ -440,9 +469,9 @@ const Products = () => {
                                             <Td>{formatCurrency(p.unitPrice * p.quantity)}</Td>
                                             <Td>
                                                 {isLow ? (
-                                                    <Badge variant="danger">⚠ Baixo</Badge>
+                                                    <Badge variant="danger">Baixo</Badge>
                                                 ) : (
-                                                    <Badge variant="success">✓ OK</Badge>
+                                                    <Badge variant="success">OK</Badge>
                                                 )}
                                             </Td>
                                             <Td>
@@ -586,7 +615,9 @@ const Products = () => {
                                 }}
                             >
 
-                                <span>{s.name}</span>
+                                <span>
+                                    {s.name} — {formatCurrency(s.price || 0)}
+                                </span>
 
                                 <Button
                                     variant="danger"
@@ -598,7 +629,6 @@ const Products = () => {
                             </li>
 
                         ))}
-
                     </ul>
                 }
 
@@ -617,8 +647,21 @@ const Products = () => {
                         <option key={s.id} value={s.id}>
                             {s.name}
                         </option>
+
                     ))}
+
                 </Select>
+
+                <Input
+                    label="Preço do fornecedor"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={supplierPrice}
+                    onChange={(e) => setSupplierPrice(e.target.value)}
+                />
+
                 <Button
                     style={{ marginTop: 10 }}
                     onClick={handleAddSupplier}

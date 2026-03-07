@@ -1,12 +1,14 @@
 const prisma = require('../utils/prisma');
 
+
 // ─── CREATE ─────────────────────────────────────────
 
-const addSupplierToProduct = (productId, supplierId) =>
+const addSupplierToProduct = (productId, supplierId, price) =>
     prisma.productSupplier.create({
         data: {
             product: { connect: { id: productId } },
-            supplier: { connect: { id: supplierId } }
+            supplier: { connect: { id: supplierId } },
+            price: Number(price)
         },
         include: {
             supplier: {
@@ -17,6 +19,7 @@ const addSupplierToProduct = (productId, supplierId) =>
             }
         }
     });
+
 
 // ─── READ ───────────────────────────────────────────
 
@@ -33,6 +36,7 @@ const getSuppliersByProduct = (productId) =>
         }
     });
 
+
 // ─── DELETE ─────────────────────────────────────────
 
 const removeSupplierFromProduct = (productId, supplierId) =>
@@ -42,6 +46,7 @@ const removeSupplierFromProduct = (productId, supplierId) =>
             supplierId
         }
     });
+
 
 module.exports = {
     addSupplierToProduct,

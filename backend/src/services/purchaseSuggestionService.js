@@ -16,11 +16,13 @@ const getPurchaseSuggestions = async (establishmentId) => {
         if (suggestedQuantity <= 0) continue;
 
         const suppliers = product.productSuppliers.map(ps => ({
-            id: ps.supplier.id,
-            name: ps.supplier.name
+            supplierId: ps.supplier.id,
+            supplierName: ps.supplier.name,
+            price: Number(ps.price)
         }));
 
-        const priceHistory = await productRepo.getPriceHistory(product.id);
+
+
 
         let bestSupplierId = null;
         let bestSupplierName = null;
@@ -28,24 +30,19 @@ const getPurchaseSuggestions = async (establishmentId) => {
         let lastPrice = null;
         let saving = null;
 
-        if (priceHistory.length) {
+        if (suppliers.length > 0) {
 
-            const lastPurchase = priceHistory[0];
-            lastPrice = Number(lastPurchase.unitPrice);
+            let best = suppliers[0];
 
-            let best = priceHistory[0];
-
-            for (const item of priceHistory) {
-                if (Number(item.unitPrice) < Number(best.unitPrice)) {
-                    best = item;
+            for (const s of suppliers) {
+                if (Number(s.price) < Number(best.price)) {
+                    best = s;
                 }
             }
 
-            bestSupplierId = best.supplier?.id || null;
-            bestSupplierName = best.supplier?.name || null;
-            bestPrice = Number(best.unitPrice);
-
-            saving = lastPrice - bestPrice;
+            bestSupplierId = best.supplierId;
+            bestSupplierName = best.supplierName;
+            bestPrice = best.price;
         }
 
         suggestions.push({
