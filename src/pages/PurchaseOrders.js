@@ -187,13 +187,15 @@ const PurchaseOrders = () => {
         const fetchSuggestions = async () => {
             try {
                 const res = await api.get("/api/purchase-suggestions");
-                console.log(res.data.data.items);
-                setSuggestions(res.data.data.items || []);
+
+                console.log(res.data.items);
+
+                setSuggestions(res.data.items || []);
+
             } catch (err) {
                 console.error(err);
             }
         };
-
         fetchSuggestions();
 
     }, []);
