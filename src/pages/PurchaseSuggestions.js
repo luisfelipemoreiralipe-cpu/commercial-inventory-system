@@ -10,6 +10,7 @@ const PurchaseSuggestions = () => {
     const [selectedSuppliers, setSelectedSuppliers] = useState({});
     const [suggestions, setSuggestions] = useState([]);
     const [adjustedQtys, setAdjustedQtys] = useState({});
+    const [targetDays, setTargetDays] = useState(7);
 
     const getAdjusted = (s) => {
         return adjustedQtys[s.productId] ?? s.suggestedQuantity;
@@ -88,18 +89,9 @@ const PurchaseSuggestions = () => {
 
         });
 
-        Object.entries(groupedBySupplier).forEach(([supplierId, items]) => {
 
-            dispatch({
-                type: ACTIONS.ADD_PURCHASE_ORDER,
-                payload: {
-                    supplierId,
-                    supplierName: getSupplierById(supplierId)?.name || "Fornecedor",
-                    items
-                }
-            });
 
-        });
+
 
         Object.entries(groupedBySupplier).forEach(([supplierId, items]) => {
 
@@ -115,6 +107,27 @@ const PurchaseSuggestions = () => {
         });
 
     };
+
+    const groupedSuggestions = useMemo(() => {
+
+        const groups = {};
+
+        suggestions.forEach((s) => {
+
+            const supplierId =
+                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+
+            if (!groups[supplierId]) {
+                groups[supplierId] = [];
+            }
+
+            groups[supplierId].push(s);
+
+        });
+
+        return groups;
+
+    }, [suggestions, selectedSuppliers]);
 
     return (
         <div>
@@ -162,6 +175,25 @@ const PurchaseSuggestions = () => {
 
             </div>
 
+            <div style={{ marginTop: 15, marginBottom: 10 }}>
+
+                <label style={{ fontWeight: 500 }}>
+                    Dias de estoque desejado:
+                </label>
+
+                <input
+                    type="number"
+                    value={targetDays}
+                    onChange={(e) => setTargetDays(Number(e.target.value))}
+                    style={{
+                        marginLeft: 10,
+                        width: 60,
+                        padding: 4
+                    }}
+                />
+
+            </div>
+
             <table style={{ width: "100%", marginTop: 20 }}>
 
                 <thead>
@@ -179,111 +211,146 @@ const PurchaseSuggestions = () => {
 
                 <tbody>
 
-                    {suggestions.map(s => {
+                    {Object.entries(groupedSuggestions).map(([supplierId, items]) => {
 
-                        const product = state.products.find(
-                            p => p.id === s.productId
-                        );
+                        const supplierName =
+                            getSupplierById(supplierId)?.name || "Fornecedor";
 
-                        /* fornecedor selecionado */
-                        const supplierId =
-                            selectedSuppliers[s.productId] ?? s.bestSupplierId;
-
-                        /* encontrar fornecedor selecionado */
-                        const supplier = s.suppliers?.find(
-                            sup => sup.supplierId === supplierId
-                        );
-
-                        /* preço correto baseado no fornecedor */
-                        const price = Number(supplier?.price ?? s.bestPrice ?? 0);
-
-                        /* quantidade ajustada */
-                        const qty = getAdjusted(s);
-
-                        /* total do item */
-                        const total = qty * price;
-                        const highestPrice = Math.max(
-                            ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
-                        );
-                        const savingPerUnit = highestPrice - price;
-                        const savingTotal = savingPerUnit * qty;
                         return (
 
-                            <tr key={s.productId}>
+                            <React.Fragment key={supplierId}>
 
-                                <td>{s.productName}</td>
+                                <tr>
+                                    <td colSpan="8" style={{
+                                        background: "#f3f4f6",
+                                        fontWeight: 600,
+                                        padding: 10
+                                    }}>
+                                        Fornecedor: {supplierName}
+                                    </td>
+                                </tr>
 
-                                <td style={{ textAlign: "center" }}>
-                                    {product?.quantity}
-                                </td>
+                                {items.map(s => {
 
-                                <td style={{ textAlign: "center" }}>
-                                    {product?.minQuantity}
-                                </td>
+                                    const product = state.products.find(
+                                        p => p.id === s.productId
+                                    );
 
-                                <td style={{ textAlign: "center" }}>
+                                    const currentStock = Number(product?.quantity || 0);
+                                    const minStock = Number(product?.minQuantity || 0);
 
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={qty}
-                                        onChange={(e) =>
-                                            setAdjustedQtys({
-                                                ...adjustedQtys,
-                                                [s.productId]: Number(e.target.value)
-                                            })
-                                        }
-                                        style={{
-                                            width: 60,
-                                            padding: 4,
-                                            textAlign: "center"
-                                        }}
-                                    />
+                                    /* cálculo baseado nos dias desejados */
+                                    const targetStock = (minStock / 3) * targetDays;
 
-                                </td>
+                                    const calculatedSuggestion = Math.max(
+                                        0,
+                                        Math.ceil(targetStock - currentStock)
+                                    );
 
-                                <td style={{ textAlign: "center" }}>
-                                    R$ {price.toFixed(2)}
-                                </td>
+                                    /* quantidade final */
+                                    const qty =
+                                        adjustedQtys[s.productId] ?? calculatedSuggestion;
 
-                                <td style={{ textAlign: "center", fontWeight: 600 }}>
-                                    R$ {total.toFixed(2)}
-                                </td>
-                                <td style={{ textAlign: "center", color: savingTotal > 0 ? "#059669" : "inherit" }}>
-                                    {savingTotal > 0
-                                        ? `R$ ${savingTotal.toFixed(2)}`
-                                        : "-"}
-                                </td>
+                                    const selectedSupplierId =
+                                        selectedSuppliers[s.productId] ?? s.bestSupplierId;
 
-                                <td style={{ textAlign: "center" }}>
+                                    const supplier = s.suppliers?.find(
+                                        sup => sup.supplierId === selectedSupplierId
+                                    );
 
-                                    <select
-                                        value={supplierId}
-                                        onChange={(e) =>
-                                            setSelectedSuppliers({
-                                                ...selectedSuppliers,
-                                                [s.productId]: e.target.value
-                                            })
-                                        }
-                                        style={{
-                                            padding: 4,
-                                            borderRadius: 4
-                                        }}
-                                    >
+                                    const price = Number(supplier?.price || 0);
 
-                                        {s.suppliers?.map((sup) => (
+                                    const total = qty * price;
 
-                                            <option key={sup.supplierId} value={sup.supplierId}>
-                                                {sup.supplierName} — R$ {Number(sup.price).toFixed(2)}
-                                            </option>
+                                    const highestPrice = Math.max(
+                                        ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
+                                    );
 
-                                        ))}
+                                    const savingTotal = (highestPrice - price) * qty;
 
-                                    </select>
+                                    return (
 
-                                </td>
+                                        <tr key={s.productId}>
 
-                            </tr>
+                                            <td>{s.productName}</td>
+
+                                            <td style={{ textAlign: "center" }}>
+                                                {product?.quantity}
+                                            </td>
+
+                                            <td style={{ textAlign: "center" }}>
+                                                {product?.minQuantity}
+                                            </td>
+
+                                            <td style={{ textAlign: "center" }}>
+
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={qty(s)}
+                                                    onChange={(e) =>
+                                                        setAdjustedQtys({
+                                                            ...adjustedQtys,
+                                                            [s.productId]: Number(e.target.value)
+                                                        })
+                                                    }
+                                                    style={{
+                                                        width: 60,
+                                                        padding: 4,
+                                                        textAlign: "center"
+                                                    }}
+                                                />
+
+                                            </td>
+
+                                            <td style={{ textAlign: "center" }}>
+                                                R$ {price.toFixed(2)}
+                                            </td>
+
+                                            <td style={{ textAlign: "center", fontWeight: 600 }}>
+                                                R$ {total.toFixed(2)}
+                                            </td>
+
+                                            <td style={{
+                                                textAlign: "center",
+                                                color: savingTotal > 0 ? "#059669" : "#6b7280"
+                                            }}>
+                                                {savingTotal > 0
+                                                    ? `R$ ${savingTotal.toFixed(2)}`
+                                                    : "R$ 0.00"}
+                                            </td>
+
+                                            <td style={{ textAlign: "center" }}>
+
+                                                <select
+                                                    value={selectedSuppliers[s.productId] ?? s.bestSupplierId}
+                                                    onChange={(e) =>
+                                                        setSelectedSuppliers({
+                                                            ...selectedSuppliers,
+                                                            [s.productId]: e.target.value
+                                                        })
+                                                    }
+                                                >
+
+                                                    {s.suppliers?.map((sup) => (
+
+                                                        <option key={sup.supplierId} value={sup.supplierId}>
+                                                            {sup.supplierName} — R$ {Number(sup.price).toFixed(2)}
+                                                        </option>
+
+                                                    ))}
+
+                                                </select>
+
+                                            </td>
+
+                                        </tr>
+
+                                    );
+
+                                })}
+
+                            </React.Fragment>
 
                         );
 
