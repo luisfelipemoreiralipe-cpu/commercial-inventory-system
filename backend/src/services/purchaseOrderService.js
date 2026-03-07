@@ -69,6 +69,19 @@ const completeOrder = async (orderId, establishmentId) => {
                 data: { quantity: newQty }
             });
 
+            // Atualiza preço do fornecedor
+            if (item.supplierId) {
+                await tx.productSupplier.updateMany({
+                    where: {
+                        productId: item.productId,
+                        supplierId: item.supplierId
+                    },
+                    data: {
+                        price: item.unitPrice
+                    }
+                });
+            }
+
             await tx.stockMovement.create({
                 data: {
                     productId: item.productId,
