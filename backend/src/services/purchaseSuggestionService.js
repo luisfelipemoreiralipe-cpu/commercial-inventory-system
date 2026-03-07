@@ -21,8 +21,7 @@ const getPurchaseSuggestions = async (establishmentId) => {
             price: Number(ps.price)
         }));
 
-
-
+        suppliers.sort((a, b) => a.price - b.price);
 
         let bestSupplierId = null;
         let bestSupplierName = null;
@@ -32,17 +31,16 @@ const getPurchaseSuggestions = async (establishmentId) => {
 
         if (suppliers.length > 0) {
 
-            let best = suppliers[0];
+            const cheapest = suppliers[0];
+            const mostExpensive = suppliers[suppliers.length - 1];
 
-            for (const s of suppliers) {
-                if (Number(s.price) < Number(best.price)) {
-                    best = s;
-                }
+            bestSupplierId = cheapest.supplierId;
+            bestSupplierName = cheapest.supplierName;
+            bestPrice = cheapest.price;
+
+            if (suppliers.length > 1) {
+                saving = mostExpensive.price - cheapest.price;
             }
-
-            bestSupplierId = best.supplierId;
-            bestSupplierName = best.supplierName;
-            bestPrice = best.price;
         }
 
         suggestions.push({
