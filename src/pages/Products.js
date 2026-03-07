@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore, MdWarning } from 'react-icons/md';
 import { useApp, ACTIONS } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
@@ -224,6 +224,19 @@ const Products = () => {
     const [supplierPrice, setSupplierPrice] = useState("");
 
     // Derived
+    const totalProducts = state.products.length;
+
+    const lowStockProducts = state.products.filter(
+        p => Number(p.quantity) < Number(p.minQuantity)
+    ).length;
+
+    const productsWithoutSupplier = state.products.filter(
+        p => !p.productSuppliers || p.productSuppliers.length === 0
+    ).length;
+
+    const totalStockValue = state.products.reduce((sum, p) => {
+        return sum + (Number(p.unitPrice) * Number(p.quantity));
+    }, 0);
     const categories = state.categories || [];
 
     const availableSuppliers = state.suppliers.filter((supplier) => {
@@ -403,7 +416,52 @@ const Products = () => {
                     <MdAdd /> Novo Produto
                 </Button>
             </PageHeader>
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: "16px",
+                    marginBottom: "24px"
+                }}
+            >
 
+                <Card>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Produtos cadastrados
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {totalProducts}
+                    </div>
+                </Card>
+
+                <Card>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Estoque baixo
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {lowStockProducts}
+                    </div>
+                </Card>
+
+                <Card>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Sem fornecedor
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {productsWithoutSupplier}
+                    </div>
+                </Card>
+
+                <Card>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Valor do estoque
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {formatCurrency(totalStockValue)}
+                    </div>
+                </Card>
+
+            </div>
             {/* Filters */}
             <SearchRow>
                 <SearchBox>
@@ -443,6 +501,8 @@ const Products = () => {
                                     <Th>Preço Unit.</Th>
                                     <Th>Qtd.</Th>
                                     <Th>Mín.</Th>
+                                    <Th>Fornec</Th>
+                                    <Th>Melhor Preço</Th>
                                     <Th>Valor Total</Th>
                                     <Th>Status</Th>
                                     <Th>Ações</Th>
@@ -462,10 +522,30 @@ const Products = () => {
                                             <Td>{p.category?.name || 'N/A'}</Td>
                                             <Td>{p.unit}</Td>
                                             <Td>{formatCurrency(p.unitPrice)}</Td>
-                                            <Td style={{ color: isLow ? '#ef4444' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
+                                            <Td style={{ color: isLow ? '#413232ff' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
                                                 {p.quantity}
                                             </Td>
                                             <Td>{p.minQuantity}</Td>
+
+                                            <Td>
+                                                {p.suppliers?.length ? (
+                                                    <span>{p.suppliers.length}</span>
+                                                ) : (
+                                                    <Badge variant="warning">
+                                                        <MdWarning style={{ marginRight: 4 }} />
+                                                        Sem fornecedor
+                                                    </Badge>
+                                                )}
+                                            </Td>
+
+                                            <Td>
+                                                {p.productSuppliers && p.productSuppliers.length > 0
+                                                    ? formatCurrency(
+                                                        Math.min(...p.productSuppliers.map(s => Number(s.price)))
+                                                    )
+                                                    : "-"}
+                                            </Td>
+
                                             <Td>{formatCurrency(p.unitPrice * p.quantity)}</Td>
                                             <Td>
                                                 {isLow ? (
