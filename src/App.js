@@ -5,6 +5,7 @@ import Login from "./pages/login";
 import { AppProvider } from './context/AppContext';
 import GlobalStyles from './styles/GlobalStyles';
 import { theme } from './styles/theme';
+import PurchaseSuggestions from "./pages/PurchaseSuggestions";
 
 import SidebarLayout from './components/SidebarLayout';
 import Dashboard from './pages/Dashboard';
@@ -32,6 +33,7 @@ function App() {
               <Route path="/activity-log" element={<ActivityLog />} />
               <Route path="*" element={<Dashboard />} />
               <Route path="/price-comparison" element={<PriceComparison />} />
+              <Route path="/purchase-suggestions" element={<PurchaseSuggestions />} />
             </Routes>
           </SidebarLayout>
         </BrowserRouter>
