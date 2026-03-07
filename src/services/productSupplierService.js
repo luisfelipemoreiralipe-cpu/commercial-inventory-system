@@ -13,7 +13,7 @@ export const getProductSuppliers = async (productId) => {
     return res.json();
 };
 
-export const addProductSupplier = async (productId, supplierId) => {
+export const addProductSupplier = async (productId, supplierId, price) => {
 
     const res = await fetch(`${API}/products/${productId}/suppliers`, {
         method: "POST",
@@ -21,7 +21,10 @@ export const addProductSupplier = async (productId, supplierId) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${getToken()}`
         },
-        body: JSON.stringify({ supplierId })
+        body: JSON.stringify({
+            supplierId,
+            price
+        })
     });
 
     return res.json();

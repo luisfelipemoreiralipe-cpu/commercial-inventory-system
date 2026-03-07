@@ -229,7 +229,7 @@ const Products = () => {
     const availableSuppliers = state.suppliers.filter((supplier) => {
 
         return !productSuppliers.some(
-            (ps) => ps.id === supplier.id
+            (ps) => ps.id === supplier.id || ps.supplierId === supplier.id
         );
 
     });
@@ -615,8 +615,8 @@ const Products = () => {
                                 }}
                             >
 
-                                <span>
-                                    {s.name} — {formatCurrency(s.price || 0)}
+                                <span style={{ fontWeight: 500 }}>
+                                    {s.name} — {formatCurrency(s.price)}
                                 </span>
 
                                 <Button
@@ -665,6 +665,7 @@ const Products = () => {
                 <Button
                     style={{ marginTop: 10 }}
                     onClick={handleAddSupplier}
+                    disabled={!selectedSupplier || !supplierPrice}
                 >
 
                     Adicionar fornecedor

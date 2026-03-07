@@ -98,9 +98,12 @@ const getSupplierComparison = asyncHandler(async (req, res) => {
 
 const addSupplier = asyncHandler(async (req, res) => {
 
+    const { supplierId, price } = req.body;
+
     const data = await productSupplierService.addSupplierToProduct(
         req.params.id,
-        req.body.supplierId,
+        supplierId,
+        price,
         req.user.establishmentId
     );
 
