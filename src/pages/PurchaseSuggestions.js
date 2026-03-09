@@ -1,11 +1,63 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { MdRefresh, MdWarning } from "react-icons/md";
+import Card from "../components/Card";
 
 import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
+import styled from "styled-components";
+
+const PageHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 32px;
+`;
+
+
+const PageTitle = styled.h1`
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+`;
+
+const PageSubtitle = styled.p`
+  color: #6b7280;
+  font-size: 14px;
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+`;
+
+const StatCard = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+`;
+
+const StatLabel = styled.div`
+  font-size: 13px;
+  color: #6b7280;
+`;
+
+const StatValue = styled.div`
+  font-size: 22px;
+  font-weight: 600;
+`;
+
+const TableCard = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+`;
 
 const PurchaseSuggestions = () => {
-
+    const [generatedSuggestions, setGeneratedSuggestions] = useState({});
     const { state, dispatch, getSupplierById } = useApp();
     const [selectedSuppliers, setSelectedSuppliers] = useState({});
     const [suggestions, setSuggestions] = useState([]);
@@ -37,7 +89,53 @@ const PurchaseSuggestions = () => {
         );
     }, [state.products]);
 
-    const totalEstimatedCost = suggestions.reduce((acc, s) => {
+    const productsMap = useMemo(() => {
+
+        const map = {};
+
+        state.products.forEach((p) => {
+            map[p.id] = p;
+        });
+
+
+        return map;
+
+    }, [state.products]);
+
+
+
+    const newSuggestions = useMemo(() => {
+        return suggestions.filter(s => !s.hasOpenOrder);
+    }, [suggestions]);
+
+    const openOrderSuggestions = useMemo(() => {
+        return suggestions.filter(s => s.hasOpenOrder);
+    }, [suggestions]);
+
+    // 👇 ADICIONE ESTE BLOCO AQUI
+    const groupedNewSuggestions = useMemo(() => {
+
+        const groups = {};
+
+        newSuggestions.forEach((s) => {
+
+            const supplierId =
+                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+
+            if (!groups[supplierId]) {
+                groups[supplierId] = [];
+            }
+
+            groups[supplierId].push(s);
+
+        });
+
+        return groups;
+
+    }, [newSuggestions, selectedSuppliers]);
+
+    // 👇 continua normal
+    const totalEstimatedCost = (suggestions || []).reduce((acc, s) => {
 
         const qty = getAdjusted(s);
 
@@ -54,44 +152,59 @@ const PurchaseSuggestions = () => {
 
     }, 0);
 
-    const handleGenerate = () => {
+    const totalEstimatedSaving = (suggestions || []).reduce((acc, s) => {
 
-        if (lowStockProducts.length === 0) return;
+        const qty = getAdjusted(s);
+
+        const selectedSupplierId =
+            selectedSuppliers[s.productId] ?? s.bestSupplierId;
+
+        const supplier = s.suppliers?.find(
+            sup => sup.supplierId === selectedSupplierId
+        );
+
+        const price = Number(supplier?.price || 0);
+
+        const highestPrice = Math.max(
+            ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
+        );
+
+        const saving = (highestPrice - price) * qty;
+
+        return acc + saving;
+
+    }, 0);
+
+    const handleGenerate = () => {
 
         const groupedBySupplier = {};
 
-        lowStockProducts.forEach((p) => {
+        newSuggestions.forEach((s) => {
 
-            const suggestion = suggestions.find(
-                s => s.productId === p.id
+            const p = state.products.find(
+                prod => prod.id === s.productId
             );
 
             const supplierId =
-                selectedSuppliers[p.id] ||
-                suggestion?.bestSupplierId ||
-                p.supplierId;
+                selectedSuppliers[s.productId] ||
+                s.bestSupplierId ||
+                p?.supplierId;
 
             if (!groupedBySupplier[supplierId]) {
                 groupedBySupplier[supplierId] = [];
             }
 
             groupedBySupplier[supplierId].push({
-
-                productId: p.id,
-                productName: p.name,
-                unit: p.unit,
-                unitPrice: suggestion?.bestPrice || Number(p.unitPrice),
-                suggestedQuantity: suggestion?.suggestedQuantity || 1,
-                adjustedQuantity: adjustedQtys[p.id] ?? suggestion?.suggestedQuantity ?? 1,
+                productId: s.productId,
+                productName: s.productName,
+                unit: p?.unit,
+                unitPrice: s.bestPrice,
+                suggestedQuantity: s.suggestedQuantity,
+                adjustedQuantity: getAdjusted(s),
                 supplierId
-
             });
 
         });
-
-
-
-
 
         Object.entries(groupedBySupplier).forEach(([supplierId, items]) => {
 
@@ -105,14 +218,20 @@ const PurchaseSuggestions = () => {
             });
 
         });
+        const generated = {};
 
+        suggestions.forEach((s) => {
+            generated[s.productId] = true;
+        });
+
+        setGeneratedSuggestions(generated);
     };
 
     const groupedSuggestions = useMemo(() => {
 
         const groups = {};
 
-        suggestions.forEach((s) => {
+        (suggestions || []).forEach((s) => {
 
             const supplierId =
                 selectedSuppliers[s.productId] ?? s.bestSupplierId;
@@ -132,21 +251,79 @@ const PurchaseSuggestions = () => {
     return (
         <div>
 
-            <h1>Compras Inteligentes</h1>
+            <PageHeader>
 
-            <p>
-                Produtos abaixo do estoque mínimo: {lowStockProducts.length}
-            </p>
+                <PageTitle>
+                    Compras Inteligentes
+                </PageTitle>
 
-            <p>
-                Sugestões encontradas: {suggestions.length}
-            </p>
+                <PageSubtitle>
+                    Sugestões automáticas de compra baseadas no estoque mínimo
+                </PageSubtitle>
 
-            <p>
-                Custo estimado: <strong>
-                    R$ {totalEstimatedCost.toFixed(2)}
-                </strong>
-            </p>
+            </PageHeader>
+
+            <StatsGrid>
+
+                <div style={{
+                    background: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    padding: 16
+                }}>
+                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                        Produtos abaixo do mínimo
+                    </div>
+
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {lowStockProducts.length}
+                    </div>
+                </div>
+
+                <div style={{
+                    background: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    padding: 16
+                }}>
+                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                        Sugestões encontradas
+                    </div>
+
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        {suggestions.length}
+                    </div>
+                </div>
+
+                <div style={{
+                    background: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    padding: 16
+                }}>
+                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                        Custo estimado
+                    </div>
+
+                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                        R$ {totalEstimatedCost.toFixed(2)}
+                    </div>
+                </div>
+                <div style={{
+                    background: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    padding: 16
+                }}>
+                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                        Economia estimada
+                    </div>
+
+                    <div style={{ fontSize: 22, fontWeight: 600, color: "#059669" }}>
+                        R$ {totalEstimatedSaving.toFixed(2)}
+                    </div>
+                </div>
+            </StatsGrid>
 
             <hr style={{ margin: "20px 0" }} />
 
@@ -154,20 +331,21 @@ const PurchaseSuggestions = () => {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginTop: 20
+                marginBottom: 10
             }}>
 
-                <h3>Lista de Compras Automática</h3>
+                <h3 style={{ margin: 0 }}>Lista de Compras</h3>
 
                 <button
                     onClick={handleGenerate}
+                    disabled={!newSuggestions.length}
                     style={{
                         background: "#111827",
                         color: "white",
                         border: "none",
                         padding: "10px 16px",
                         borderRadius: 6,
-                        cursor: "pointer"
+                        cursor: !newSuggestions.length ? "not-allowed" : "pointer"
                     }}
                 >
                     Gerar Ordens de Compra
@@ -206,6 +384,7 @@ const PurchaseSuggestions = () => {
                         <th>Total</th>
                         <th>Economia</th>
                         <th>Fornecedor</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
 
@@ -215,41 +394,59 @@ const PurchaseSuggestions = () => {
 
                         const supplierName =
                             getSupplierById(supplierId)?.name || "Fornecedor";
+                        const supplierTotal = items.reduce((acc, s) => {
+
+                            const qty = getAdjusted(s);
+
+                            const selectedSupplierId =
+                                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+
+                            const supplier = s.suppliers?.find(
+                                sup => sup.supplierId === selectedSupplierId
+                            );
+
+                            const price = Number(supplier?.price || 0);
+
+                            return acc + qty * price;
+
+                        }, 0);
 
                         return (
 
                             <React.Fragment key={supplierId}>
 
-                                <tr>
-                                    <td colSpan="8" style={{
-                                        background: "#f3f4f6",
-                                        fontWeight: 600,
-                                        padding: 10
-                                    }}>
-                                        Fornecedor: {supplierName}
+                                <tr style={{ background: "#f9fafb" }}>
+                                    <td colSpan="9" style={{ padding: 12 }}>
+
+                                        <div style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center"
+                                        }}>
+
+                                            <strong>{supplierName}</strong>
+
+                                            <div style={{ display: "flex", gap: 15, fontSize: 12, color: "#6b7280" }}>
+
+                                                <span>
+                                                    {items.length} produtos
+                                                </span>
+
+                                                <span style={{ fontWeight: 600 }}>
+                                                    Total: R$ {supplierTotal.toFixed(2)}
+                                                </span>
+
+                                            </div>
+
+                                        </div>
+
                                     </td>
                                 </tr>
 
                                 {items.map(s => {
 
-                                    const product = state.products.find(
-                                        p => p.id === s.productId
-                                    );
 
-                                    const currentStock = Number(product?.quantity || 0);
-                                    const minStock = Number(product?.minQuantity || 0);
-
-                                    /* cálculo baseado nos dias desejados */
-                                    const targetStock = (minStock / 3) * targetDays;
-
-                                    const calculatedSuggestion = Math.max(
-                                        0,
-                                        Math.ceil(targetStock - currentStock)
-                                    );
-
-                                    /* quantidade final */
-                                    const qty =
-                                        adjustedQtys[s.productId] ?? calculatedSuggestion;
+                                    const qty = getAdjusted(s);
 
                                     const selectedSupplierId =
                                         selectedSuppliers[s.productId] ?? s.bestSupplierId;
@@ -267,6 +464,8 @@ const PurchaseSuggestions = () => {
                                     );
 
                                     const savingTotal = (highestPrice - price) * qty;
+
+                                    const product = productsMap[s.productId];
 
                                     return (
 
@@ -287,7 +486,7 @@ const PurchaseSuggestions = () => {
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    value={qty(s)}
+                                                    value={getAdjusted(s)}
                                                     onChange={(e) =>
                                                         setAdjustedQtys({
                                                             ...adjustedQtys,
@@ -323,7 +522,7 @@ const PurchaseSuggestions = () => {
                                             <td style={{ textAlign: "center" }}>
 
                                                 <select
-                                                    value={selectedSuppliers[s.productId] ?? s.bestSupplierId}
+                                                    value={selectedSuppliers[s.productId] ?? s.bestSupplierId ?? ""}
                                                     onChange={(e) =>
                                                         setSelectedSuppliers({
                                                             ...selectedSuppliers,
@@ -338,12 +537,36 @@ const PurchaseSuggestions = () => {
                                                             {sup.supplierName} — R$ {Number(sup.price).toFixed(2)}
                                                         </option>
 
+
                                                     ))}
 
                                                 </select>
 
                                             </td>
-
+                                            <td style={{ textAlign: "center" }}>
+                                                {s.hasOpenOrder ? (
+                                                    <span style={{
+                                                        background: "#e0f2fe",
+                                                        color: "#0369a1",
+                                                        padding: "4px 8px",
+                                                        borderRadius: 6,
+                                                        fontSize: 12,
+                                                        fontWeight: 500
+                                                    }}>
+                                                        Pedido gerado
+                                                    </span>
+                                                ) : (
+                                                    <span style={{
+                                                        background: "#f3f4f6",
+                                                        color: "#6b7280",
+                                                        padding: "4px 8px",
+                                                        borderRadius: 6,
+                                                        fontSize: 12
+                                                    }}>
+                                                        Sugestão
+                                                    </span>
+                                                )}
+                                            </td>
                                         </tr>
 
                                     );

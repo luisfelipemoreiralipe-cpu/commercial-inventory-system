@@ -1,6 +1,6 @@
 const purchaseSuggestionRepo = require('../repositories/purchaseSuggestionRepository');
 const productRepo = require('../repositories/productRepository');
-
+const purchaseOrderRepo = require('../repositories/purchaseOrderRepository');
 // ─── PURCHASE SUGGESTIONS ─────────────────────────
 
 const getPurchaseSuggestions = async (establishmentId) => {
@@ -10,7 +10,7 @@ const getPurchaseSuggestions = async (establishmentId) => {
     const suggestions = [];
 
     for (const product of products) {
-
+        const hasOpenOrder = await purchaseOrderRepo.productHasOpenPendingOrder(product.id);
         const suggestedQuantity = product.minQuantity - product.quantity;
 
         if (suggestedQuantity <= 0) continue;
@@ -56,7 +56,8 @@ const getPurchaseSuggestions = async (establishmentId) => {
             bestSupplierName,
             bestPrice,
             lastPrice,
-            saving
+            saving,
+            hasOpenOrder
         });
 
     }

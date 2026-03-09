@@ -69,17 +69,70 @@ const completeOrder = async (orderId, establishmentId) => {
                 data: { quantity: newQty }
             });
 
-            // Atualiza preço do fornecedor
+
             if (item.supplierId) {
-                await tx.productSupplier.updateMany({
+                await tx.productSupplier.update({
                     where: {
-                        productId: item.productId,
-                        supplierId: item.supplierId
+                        productId_supplierId: {
+                            productId: item.productId,
+                            supplierId: item.supplierId
+                        }
                     },
                     data: {
                         price: item.unitPrice
                     }
                 });
+            }
+            await tx.supplierPriceHistory.create({
+                data: {
+                    productId: item.productId,
+                    supplierId: item.supplierId,
+                    price: item.unitPrice,
+                    purchaseOrderId: orderId
+                }
+            });
+
+            // Atualiza preço do fornecedor
+            if (item.supplierId) {
+
+                // Atualiza preço atual do fornecedor
+                await tx.productSupplier.update({
+                    where: {
+                        productId_supplierId: {
+                            productId: item.productId,
+                            supplierId: item.supplierId
+                        }
+                    },
+                    data: {
+                        price: item.unitPrice
+                    }
+                });
+
+                // Busca último preço registrado
+                const lastPrice = await tx.supplierPriceHistory.findFirst({
+                    where: {
+                        productId: item.productId,
+                        supplierId: item.supplierId
+                    },
+                    orderBy: {
+                        createdAt: "desc"
+                    }
+                });
+
+                // Salva histórico apenas se o preço mudou
+                if (!lastPrice || Number(lastPrice.price) !== Number(item.unitPrice)) {
+
+                    await tx.supplierPriceHistory.create({
+                        data: {
+                            productId: item.productId,
+                            supplierId: item.supplierId,
+                            price: item.unitPrice,
+                            purchaseOrderId: orderId
+                        }
+                    });
+
+                }
+
             }
 
             await tx.stockMovement.create({

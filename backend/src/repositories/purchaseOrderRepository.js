@@ -151,11 +151,27 @@ const remove = (id) =>
         where: { id }
     });
 
+const productHasOpenPendingOrder = async (productId) => {
+
+    const item = await prisma.purchaseOrderItem.findFirst({
+        where: {
+            productId,
+            purchaseOrder: {
+                status: 'pending'
+            }
+        }
+    });
+
+
+
+    return !!item;
+};
 
 module.exports = {
     findAll,
     findById,
     create,
     markCompleted,
-    remove
+    remove,
+    productHasOpenPendingOrder
 };

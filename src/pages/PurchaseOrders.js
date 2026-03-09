@@ -181,6 +181,8 @@ const PurchaseOrders = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [adjustedQtys, setAdjustedQtys] = useState({});
     const [selectedSuppliers, setSelectedSuppliers] = useState({});
+    const [receivedQty, setReceivedQty] = useState({});
+    const [receivedPrice, setReceivedPrice] = useState({});
 
     useEffect(() => {
 
@@ -306,6 +308,55 @@ const PurchaseOrders = () => {
     /* -------------------------------------------------------------------------- */
     /*                                   UI                                       */
     /* -------------------------------------------------------------------------- */
+    const handleCompleteOrder = async () => {
+
+        if (!selectedOrder) return;
+
+        try {
+
+            // Atualiza quantidades e preços recebidos no estado local
+            const updatedItems = selectedOrder.items.map(item => {
+
+                const qty =
+                    receivedQty[item.productId] ?? item.adjustedQuantity;
+
+                const price =
+                    receivedPrice[item.productId] ?? item.unitPrice;
+
+                return {
+                    ...item,
+                    adjustedQuantity: qty,
+                    unitPrice: price
+                };
+
+            });
+
+            // Atualiza a ordem localmente antes de finalizar
+            await dispatch({
+                type: ACTIONS.UPDATE_PURCHASE_ORDER,
+                payload: {
+                    ...selectedOrder,
+                    items: updatedItems
+                }
+            });
+
+            // Finaliza a ordem (backend vai atualizar estoque)
+            await dispatch({
+                type: ACTIONS.COMPLETE_PURCHASE_ORDER,
+                payload: selectedOrder.id
+            });
+
+            // Fecha modal
+            setSelectedOrder(null);
+
+        } catch (err) {
+
+            console.error("Erro ao concluir recebimento:", err);
+
+        }
+
+    };
+
 
     return (
         <>
@@ -578,10 +629,7 @@ const PurchaseOrders = () => {
                                                         <Button
                                                             size="sm"
                                                             variant="success"
-                                                            onClick={() => dispatch({
-                                                                type: ACTIONS.COMPLETE_PURCHASE_ORDER,
-                                                                payload: order.id
-                                                            })}
+                                                            onClick={() => setSelectedOrder(order)}
                                                         >
                                                             <MdCheckCircle />
                                                         </Button>
@@ -642,7 +690,7 @@ const PurchaseOrders = () => {
 
                     <div>
 
-                        <p style={{ marginBottom: 12 }}>
+                        <p style={{ marginBottom: 16 }}>
                             <strong>Fornecedor:</strong>{" "}
                             {getSupplierById(selectedOrder.supplierId)?.name || selectedOrder.supplierName || "Fornecedor"}
                         </p>
@@ -650,8 +698,7 @@ const PurchaseOrders = () => {
                         <table
                             style={{
                                 width: "100%",
-                                borderCollapse: "collapse",
-                                marginTop: 10
+                                borderCollapse: "collapse"
                             }}
                         >
 
@@ -665,9 +712,9 @@ const PurchaseOrders = () => {
                                 >
 
                                     <th style={{ padding: "8px" }}>Produto</th>
-                                    <th style={{ padding: "8px" }}>Quantidade</th>
-                                    <th style={{ padding: "8px" }}>Preço</th>
-                                    <th style={{ padding: "8px" }}>Total</th>
+                                    <th style={{ padding: "8px", width: 150 }}>Quantidade</th>
+                                    <th style={{ padding: "8px", width: 160 }}>Preço</th>
+                                    <th style={{ padding: "8px", width: 120 }}>Total</th>
 
                                 </tr>
 
@@ -675,38 +722,216 @@ const PurchaseOrders = () => {
 
                             <tbody>
 
-                                {selectedOrder.items?.map(item => (
+                                {selectedOrder.items?.map(item => {
 
-                                    <tr
-                                        key={item.productId}
-                                        style={{
-                                            borderBottom: "1px solid #F1F5F9"
-                                        }}
-                                    >
+                                    const qty =
+                                        receivedQty[item.productId] ?? item.adjustedQuantity;
 
-                                        <td style={{ padding: "8px" }}>
-                                            {item.productName}
-                                        </td>
+                                    const price =
+                                        receivedPrice[item.productId] ?? item.unitPrice;
 
-                                        <td style={{ padding: "8px" }}>
-                                            {item.adjustedQuantity} {item.unit}
-                                        </td>
+                                    return (
 
-                                        <td style={{ padding: "8px" }}>
-                                            {formatCurrency(item.unitPrice)}
-                                        </td>
+                                        <tr
+                                            key={item.productId}
+                                            style={{
+                                                borderBottom: "1px solid #F1F5F9"
+                                            }}
+                                        >
 
-                                        <td style={{ padding: "8px", fontWeight: 600 }}>
-                                            {formatCurrency(item.unitPrice * item.adjustedQuantity)}
-                                        </td>
+                                            <td style={{ padding: "10px 8px" }}>
+                                                {item.productName}
+                                            </td>
 
-                                    </tr>
+                                            {/* QUANTIDADE */}
 
-                                ))}
+                                            <td style={{ padding: "10px 8px" }}>
+
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+
+                                                    <span style={{
+                                                        fontSize: 11,
+                                                        color: "#64748B"
+                                                    }}>
+                                                        Pedido: {item.adjustedQuantity} {item.unit}
+                                                    </span>
+
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={qty}
+                                                        onChange={(e) =>
+                                                            setReceivedQty({
+                                                                ...receivedQty,
+                                                                [item.productId]: Number(e.target.value)
+                                                            })
+                                                        }
+                                                        style={{
+                                                            width: 90,
+                                                            padding: "6px 8px",
+                                                            border: "1px solid #E5E7EB",
+                                                            borderRadius: 6,
+                                                            fontSize: 13
+                                                        }}
+                                                    />
+
+                                                </div>
+
+                                            </td>
+
+                                            {/* PREÇO */}
+
+                                            <td style={{ padding: "10px 8px" }}>
+
+                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+
+                                                    <span style={{
+                                                        fontSize: 13,
+                                                        color: "#64748B"
+                                                    }}>
+                                                        R$
+                                                    </span>
+
+                                                    <input
+                                                        type="text"
+                                                        value={
+                                                            price === 0
+                                                                ? ""
+                                                                : price.toString().replace(".", ",")
+                                                        }
+                                                        onChange={(e) => {
+
+                                                            const raw = e.target.value
+                                                                .replace(",", ".")
+                                                                .replace(/[^\d.]/g, "");
+
+                                                            const value = Number(raw);
+
+                                                            setReceivedPrice({
+                                                                ...receivedPrice,
+                                                                [item.productId]: value
+                                                            });
+
+                                                        }}
+                                                        style={{
+                                                            width: 90,
+                                                            padding: "6px 8px",
+                                                            border: "1px solid #E5E7EB",
+                                                            borderRadius: 6,
+                                                            fontSize: 13
+                                                        }}
+                                                    />
+
+                                                </div>
+
+                                            </td>
+
+                                            {/* TOTAL */}
+
+                                            <td
+                                                style={{
+                                                    padding: "10px 8px",
+                                                    fontWeight: 600,
+                                                    color: "#059669",
+                                                    fontSize: 14
+                                                }}
+                                            >
+                                                {formatCurrency(price * qty)}
+                                            </td>
+
+                                        </tr>
+
+                                    );
+
+                                })}
 
                             </tbody>
 
                         </table>
+
+
+                        {/* RESUMO DO PEDIDO */}
+
+                        <div
+                            style={{
+                                marginTop: 20,
+                                paddingTop: 12,
+                                borderTop: "1px solid #E5E7EB",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center"
+                            }}
+                        >
+
+                            <span style={{ fontSize: 14, color: "#64748B" }}>
+                                Total do pedido
+                            </span>
+
+                            <span style={{
+                                fontSize: 18,
+                                fontWeight: 700,
+                                color: "#059669"
+                            }}>
+                                {formatCurrency(
+
+                                    selectedOrder.items.reduce((sum, item) => {
+
+                                        const qty =
+                                            receivedQty[item.productId] ?? item.adjustedQuantity;
+
+                                        const price =
+                                            receivedPrice[item.productId] ?? item.unitPrice;
+
+                                        return sum + qty * price;
+
+                                    }, 0)
+
+                                )}
+                            </span>
+
+                        </div>
+
+
+                        {/* BOTÕES */}
+
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                gap: 10,
+                                marginTop: 20
+                            }}
+                        >
+
+                            <button
+                                onClick={() => setSelectedOrder(null)}
+                                style={{
+                                    padding: "8px 14px",
+                                    border: "1px solid #E5E7EB",
+                                    background: "white",
+                                    borderRadius: 6,
+                                    cursor: "pointer"
+                                }}
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                onClick={handleCompleteOrder}
+                                style={{
+                                    padding: "8px 16px",
+                                    background: "#059669",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                    fontWeight: 600
+                                }}
+                            >
+                                Concluir Recebimento
+                            </button>
+
+                        </div>
 
                     </div>
 
