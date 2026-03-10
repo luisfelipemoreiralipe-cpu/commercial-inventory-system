@@ -12,6 +12,7 @@ const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
 const purchaseSuggestionRoutes = require('./routes/purchaseSuggestionRoutes');
+const recipeRoutes = require('./routes/recipeRoutes'); // ← NOVA ROTA
 
 // Middlewares
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
@@ -32,6 +33,7 @@ app.use('/categories', categoryRoutes);
 app.use('/auth', authRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/reports', reportsRoutes);
+app.use('/recipes', recipeRoutes); // ← REGISTRO DA ROTA
 
 // Nova rota da engine de compras
 app.use('/api', purchaseSuggestionRoutes);
