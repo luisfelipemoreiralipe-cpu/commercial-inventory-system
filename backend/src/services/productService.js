@@ -1,6 +1,7 @@
 const productRepo = require('../repositories/productRepository');
 const categoryRepo = require('../repositories/categoryRepository');
 const supplierRepo = require('../repositories/supplierRepository');
+const prisma = require('../config/prisma');
 const stockMovementRepo = require('../repositories/stockMovementRepository');
 const auditLogRepo = require('../repositories/auditLogRepository');
 const AppError = require('../utils/AppError');
@@ -123,6 +124,22 @@ const deleteProduct = async (id, establishmentId) => {
 
     const product = await getProductById(id, establishmentId);
 
+    const recipeItem = await prisma.recipeItem.findFirst({
+        where: {
+            productId: id,
+            recipe: {
+                establishmentId
+            }
+        }
+    });
+
+    if (recipeItem) {
+        throw new AppError(
+            'Este produto está sendo utilizado em uma ficha técnica e não pode ser excluído.',
+            400
+        );
+    }
+
     await productRepo.removeByEstablishment(id, establishmentId);
 
     await auditLogRepo.create(
@@ -134,7 +151,6 @@ const deleteProduct = async (id, establishmentId) => {
         )
     );
 };
-
 // ─── UPDATE STOCK ──────────────────────────────────────────────────────
 
 const updateProductQuantity = async (id, newQuantity, establishmentId) => {

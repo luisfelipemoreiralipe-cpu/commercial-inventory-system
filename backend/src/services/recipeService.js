@@ -1,6 +1,6 @@
 const recipeRepo = require('../repositories/recipeRepository');
 const AppError = require('../utils/AppError');
-
+const productRepo = require('../repositories/productRepository');
 const createRecipe = async (productId, establishmentId) => {
 
     const existing = await recipeRepo.findByProductId(productId);
@@ -70,25 +70,28 @@ const calculateRecipeCost = async (recipeId) => {
 
     let totalCost = 0;
 
-    const ingredients = items.map(item => {
+    const ingredients = [];
 
-        const price = Number(item.product.unitPrice || 0);
+    for (const item of items) {
+
+        const price = await productRepo.getLastPurchasePrice(item.productId);
+
         const quantity = Number(item.quantity);
 
         const cost = price * quantity;
 
         totalCost += cost;
 
-        return {
+        ingredients.push({
             productId: item.productId,
             name: item.product.name,
             quantity,
             unit: item.product.unit,
             unitPrice: price,
             cost
-        };
+        });
 
-    });
+    }
 
     return {
         recipeId,

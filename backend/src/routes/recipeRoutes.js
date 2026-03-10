@@ -17,7 +17,7 @@ router.post('/items', recipeController.addRecipeItem);
 router.get('/product/:productId', recipeController.getRecipeByProduct);
 
 // calcular custo da receita
-router.get('/cost/:recipeId', recipeController.calculateRecipeCost);
+router.get('/:recipeId/cost', recipeController.calculateRecipeCost);
 
 // remover item da receita
 router.delete('/items/:id', recipeController.removeRecipeItem);

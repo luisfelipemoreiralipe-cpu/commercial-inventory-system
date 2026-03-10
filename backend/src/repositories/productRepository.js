@@ -68,11 +68,37 @@ const getPriceHistory = (productId) => {
     });
 };
 
+const getLastPurchasePrice = async (productId) => {
+
+    const history = await prisma.supplierPriceHistory.findFirst({
+        where: { productId },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    if (history) {
+        return Number(history.price);
+    }
+
+    const supplier = await prisma.productSupplier.findFirst({
+        where: { productId },
+        orderBy: { price: 'asc' }
+    });
+
+    if (supplier) {
+        return Number(supplier.price);
+    }
+
+    return 0;
+};
+
+
+
 module.exports = {
     findAllByEstablishment,
     findByIdAndEstablishment,
     create,
     updateByEstablishment,
     removeByEstablishment,
-    getPriceHistory
+    getPriceHistory,
+    getLastPurchasePrice
 };
