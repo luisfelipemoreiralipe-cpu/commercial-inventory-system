@@ -1,55 +1,55 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import api from '../services/api';
-
-// ─── Styled ─────────────────────────────────────────────
+import React, { useState } from "react";
+import styled from "styled-components";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 const Wrapper = styled.div`
-  min-height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
-  background: ${({ theme }) => theme.colors.bg};
+  align-items: center;
+  min-height: 100vh;
 `;
 
 const Card = styled.div`
   background: ${({ theme }) => theme.colors.bgCard};
-  padding: 40px;
   border-radius: ${({ theme }) => theme.radii.lg};
   box-shadow: ${({ theme }) => theme.shadows.card};
-  width: 100%;
-  max-width: 400px;
+  padding: ${({ theme }) => theme.spacing.xl};
+  width: 420px;
 `;
 
-const Title = styled.h1`
-  font-size: ${({ theme }) => theme.fontSizes['2xl']};
+const Title = styled.h2`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
+  font-size: ${({ theme }) => theme.fontSizes["2xl"]};
   text-align: center;
 `;
 
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.md};
+`;
+
 const Input = styled.input`
-  width: 100%;
   padding: 12px;
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.radii.sm};
+  border-radius: ${({ theme }) => theme.radii.md};
   border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.bgInput};
   font-size: ${({ theme }) => theme.fontSizes.sm};
-  outline: none;
 
   &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.borderFocus};
   }
 `;
 
 const Button = styled.button`
-  width: 100%;
+  margin-top: ${({ theme }) => theme.spacing.sm};
   padding: 12px;
-  border-radius: ${({ theme }) => theme.radii.sm};
+  border-radius: ${({ theme }) => theme.radii.md};
   background: ${({ theme }) => theme.colors.primary};
   color: white;
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
   transition: ${({ theme }) => theme.transition};
 
   &:hover {
@@ -57,79 +57,97 @@ const Button = styled.button`
   }
 `;
 
-const ErrorMsg = styled.p`
-  color: ${({ theme }) => theme.colors.danger};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  text-align: center;
+const RegisterLink = styled.span`
+  color: ${({ theme }) => theme.colors.info};
+  cursor: pointer;
 `;
 
-// ─── Component ──────────────────────────────────────────
+const Footer = styled.p`
+  margin-top: ${({ theme }) => theme.spacing.lg};
+  text-align: center;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
 
-const Login = () => {
+export default function Login() {
 
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+  const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
-        e.preventDefault();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-        setError('');
+  async function handleLogin(e) {
 
-        try {
+    e.preventDefault();
 
-            const response = await api.post('/auth/login', {
-                email,
-                password
-            });
+    try {
 
-            // salva token
-            localStorage.setItem('token', response.token);
+      setLoading(true);
 
-            // redireciona
-            window.location.href = '/dashboard';
+      const response = await api.post("/auth/login", {
+        email,
+        password
+      });
 
-        } catch (err) {
-            setError(err.message);
-        }
-    };
+      localStorage.setItem("token", response.token);
 
-    return (
-        <Wrapper>
+      navigate("/");
 
-            <Card>
+    } catch (err) {
 
-                <Title>Login</Title>
+      alert(err.message);
 
-                <form onSubmit={handleLogin}>
+    } finally {
 
-                    {error && <ErrorMsg>{error}</ErrorMsg>}
+      setLoading(false);
 
-                    <Input
-                        type="email"
-                        placeholder="Seu email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                    />
+    }
 
-                    <Input
-                        type="password"
-                        placeholder="Sua senha"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
+  }
 
-                    <Button type="submit">
-                        Entrar
-                    </Button>
+  return (
 
-                </form>
+    <Wrapper>
 
-            </Card>
+      <Card>
 
-        </Wrapper>
-    );
-};
+        <Title>Entrar</Title>
 
-export default Login;
+        <Form onSubmit={handleLogin}>
+
+          <Input
+            placeholder="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <Input
+            placeholder="Senha"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <Button type="submit" disabled={loading}>
+            {loading ? "Entrando..." : "Entrar"}
+          </Button>
+
+        </Form>
+
+        <Footer>
+          Não tem conta?{" "}
+          <RegisterLink onClick={() => navigate("/register")}>
+            Criar conta
+          </RegisterLink>
+        </Footer>
+
+      </Card>
+
+    </Wrapper>
+
+  );
+
+}

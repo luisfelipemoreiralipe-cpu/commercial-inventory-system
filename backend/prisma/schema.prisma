@@ -64,10 +64,14 @@ model Product {
   unit      String
   unitPrice Decimal? @db.Decimal(12, 2)
 
-  quantity    Int @default(0)
-  minQuantity Int @default(0)
+  quantity    Decimal @db.Decimal(12,3) @default(0)
+minQuantity Decimal @db.Decimal(12,3) @default(0)
 
   type ProductType @default(INVENTORY)
+
+  // 🔹 NOVOS CAMPOS
+  purchaseUnit String?
+  conversionFactor Decimal? @db.Decimal(10,2)
 
   // Soft delete
   isActive Boolean @default(true)
@@ -81,7 +85,6 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // relações
   orderItems       PurchaseOrderItem[]
   stockMovements   StockMovement[]
   productSuppliers ProductSupplier[]
@@ -181,8 +184,6 @@ model AuditLog {
 model Establishment {
   id String @id @default(uuid()) @db.Uuid
 
-  user_id String @unique @db.Uuid
-
   nome_fantasia String
   cnpj          String?
   telefone      String?
@@ -190,7 +191,7 @@ model Establishment {
   cidade        String?
   estado        String?
 
-  users users @relation(fields: [user_id], references: [id])
+  users users[]
 
   products   Product[]
   categories Category[]
@@ -209,10 +210,12 @@ model users {
   email      String @unique
   senha_hash String
 
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  establishmentId String @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
-  establishment   Establishment?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   purchase_orders PurchaseOrder[]
 }
 

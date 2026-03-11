@@ -47,13 +47,25 @@ const updateByEstablishment = (id, establishmentId, data) => {
     });
 };
 
-const removeByEstablishment = (id, establishmentId) => {
-    return prisma.product.deleteMany({
+const removeByEstablishment = async (id, establishmentId) => {
+
+    const product = await prisma.product.findFirst({
         where: {
             id,
             establishmentId
         }
     });
+
+    if (!product) {
+        throw new Error("Produto não encontrado");
+    }
+
+    return prisma.product.delete({
+        where: {
+            id: product.id
+        }
+    });
+
 };
 
 const getPriceHistory = (productId) => {

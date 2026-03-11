@@ -7,8 +7,11 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
+import toast from "react-hot-toast";
 import EmptyState from '../components/EmptyState';
+import RecipeModal from "../components/RecipeModal";
 import { Input, Select } from '../components/FormFields';
+import { MdMenuBook } from "react-icons/md";
 import {
     getProductSuppliers,
     addProductSupplier,
@@ -20,6 +23,7 @@ const UNITS = ['unidade', 'kg', 'litro', 'caixa', 'pacote', 'saco', 'rolo', 'met
 const EMPTY_FORM = {
     name: '',
     categoryId: '',
+    type: 'INVENTORY',
     unit: 'unidade',
     unitPrice: '',
     quantity: '',
@@ -222,9 +226,12 @@ const Products = () => {
     const [productSuppliers, setProductSuppliers] = useState([]);
     const [selectedSupplier, setSelectedSupplier] = useState("");
     const [supplierPrice, setSupplierPrice] = useState("");
+    const [recipeModal, setRecipeModal] = useState(null);
 
     // Derived
     const totalProducts = state.products.length;
+
+
 
     const lowStockProducts = state.products.filter(
         p => Number(p.quantity) < Number(p.minQuantity)
@@ -260,14 +267,29 @@ const Products = () => {
     });
 
     const validate = () => {
+
         const e = {};
+
         if (!form.name.trim()) e.name = 'Campo obrigatório';
+
         if (!form.categoryId) e.categoryId = 'Campo obrigatório';
-        if (!form.unitPrice || isNaN(form.unitPrice) || Number(form.unitPrice) < 0) e.unitPrice = 'Preço inválido';
-        if (!form.quantity || isNaN(form.quantity) || Number(form.quantity) < 0) e.quantity = 'Qtd. inválida';
-        if (!form.minQuantity || isNaN(form.minQuantity) || Number(form.minQuantity) < 0) e.minQuantity = 'Qtd. mínima inválida';
+
+        if (form.type !== "PRODUCTION") {
+
+            if (form.quantity === "" || isNaN(form.quantity) || Number(form.quantity) < 0) {
+                e.quantity = 'Qtd. inválida';
+            }
+
+            if (form.minQuantity === "" || isNaN(form.minQuantity) || Number(form.minQuantity) < 0) {
+                e.minQuantity = 'Qtd. mínima inválida';
+            }
+
+        }
+
         setErrors(e);
+
         return Object.keys(e).length === 0;
+
     };
 
 
@@ -346,24 +368,57 @@ const Products = () => {
     };
 
     const handleSubmit = () => {
+
+        console.log("handleSubmit disparou");
+
         if (!validate()) return;
+
         const payload = {
             ...form,
-            unitPrice: Number(form.unitPrice),
-            quantity: Number(form.quantity),
-            minQuantity: Number(form.minQuantity),
+            unitPrice: 0,
+            quantity: Number(form.quantity || 0),
+            minQuantity: Number(form.minQuantity || 0),
         };
+
+        console.log("payload final", payload);
+
         if (editTarget) {
-            dispatch({ type: ACTIONS.UPDATE_PRODUCT, payload: { ...payload, id: editTarget.id } });
+
+            dispatch({
+                type: ACTIONS.UPDATE_PRODUCT,
+                payload: { ...payload, id: editTarget.id }
+            });
+
         } else {
-            dispatch({ type: ACTIONS.ADD_PRODUCT, payload });
+
+            dispatch({
+                type: ACTIONS.ADD_PRODUCT,
+                payload
+            });
+
         }
+
         setModalOpen(false);
     };
+    const handleDelete = async () => {
 
-    const handleDelete = () => {
-        dispatch({ type: ACTIONS.DELETE_PRODUCT, payload: deleteModal.id });
-        setDeleteModal(null);
+        try {
+
+            await dispatch({
+                type: ACTIONS.DELETE_PRODUCT,
+                payload: deleteModal.id
+            });
+
+            setDeleteModal(null);
+
+            toast.success("Produto removido com sucesso");
+
+        } catch (err) {
+
+            toast.error(err.message);
+
+        }
+
     };
 
     const handleQtyUpdate = () => {
@@ -557,6 +612,13 @@ const Products = () => {
                                             <Td>
                                                 <ActionRow>
                                                     <IconBtn
+                                                        title="Ficha Técnica"
+                                                        onClick={() => setRecipeModal(p)}
+                                                    >
+                                                        <MdMenuBook />
+                                                    </IconBtn>
+
+                                                    <IconBtn
                                                         title="Fornecedores"
                                                         onClick={() => handleOpenSuppliers(p)}
                                                     >
@@ -593,33 +655,90 @@ const Products = () => {
                 title={editTarget ? 'Editar Produto' : 'Novo Produto'}
                 footer={
                     <>
-                        <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleSubmit}>{editTarget ? 'Salvar' : 'Criar Produto'}</Button>
+                        <Button
+                            variant="secondary"
+                            onClick={() => setModalOpen(false)}
+                        >
+                            Cancelar
+                        </Button>
+
+                        <Button onClick={handleSubmit}>
+                            {editTarget ? 'Salvar' : 'Criar Produto'}
+                        </Button>
                     </>
                 }
             >
                 <FormGrid>
+
                     <FormFull>
-                        <Input label="Nome do Produto *" placeholder="Ex: Farinha de Trigo" {...field('name')} />
+                        <Input
+                            label="Nome do Produto *"
+                            placeholder="Ex: Farinha de Trigo"
+                            {...field('name')}
+                        />
                     </FormFull>
+
+                    {/* TIPO DE PRODUTO */}
+                    <Select label="Tipo de Produto *" {...field('type')}>
+                        <option value="INVENTORY">Insumo / Estoque</option>
+                        <option value="PRODUCTION">Produto de Produção</option>
+                    </Select>
+
                     <Select label="Categoria *" {...field('categoryId')}>
                         <option value="">-- Selecione uma categoria --</option>
-                        {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+
+                        {categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                                {c.name}
+                            </option>
+                        ))}
                     </Select>
+
                     <Select label="Unidade de Compra" {...field('unit')}>
-                        {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                        {UNITS.map((u) => (
+                            <option key={u} value={u}>
+                                {u}
+                            </option>
+                        ))}
                     </Select>
-                    <Input label="Preço Unitário (R$) *" type="number" min="0" step="0.01" placeholder="0,00" {...field('unitPrice')} />
-                    <Input label="Qtd. em Estoque *" type="number" min="0" placeholder="0" {...field('quantity')} />
-                    <Input label="Qtd. Mínima *" type="number" min="0" placeholder="0" {...field('minQuantity')} />
-                    <FormFull>
-                        <Select label="Fornecedor Vinculado" {...field('supplierId')}>
-                            <option value="">-- Selecione um fornecedor --</option>
-                            {state.suppliers.map((s) => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </Select>
-                    </FormFull>
+
+                    {/* PREÇO SOMENTE PARA INSUMOS */}
+
+
+
+                    {/* ESTOQUE SOMENTE PARA INSUMOS */}
+                    {form.type !== 'PRODUCTION' && (
+                        <>
+                            <Input
+                                label="Qtd. em Estoque"
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                {...field('quantity')}
+                            />
+
+                            <Input
+                                label="Qtd. Mínima"
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                {...field('minQuantity')}
+                            />
+
+                            <FormFull>
+                                <Select label="Fornecedor Vinculado" {...field('supplierId')}>
+                                    <option value="">-- Selecione um fornecedor --</option>
+
+                                    {state.suppliers.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </FormFull>
+                        </>
+                    )}
+
                 </FormGrid>
             </Modal>
 
@@ -753,6 +872,12 @@ const Products = () => {
                 </Button>
 
             </Modal>
+            <RecipeModal
+                product={recipeModal}
+                isOpen={!!recipeModal}
+                onClose={() => setRecipeModal(null)}
+                products={state.products || []}
+            />
         </>
     );
 };

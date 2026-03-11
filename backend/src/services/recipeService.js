@@ -3,7 +3,7 @@ const AppError = require('../utils/AppError');
 const productRepo = require('../repositories/productRepository');
 const createRecipe = async (productId, establishmentId) => {
 
-    const existing = await recipeRepo.findByProductId(productId);
+    const existing = await recipeRepo.findByProductId(productId, establishmentId);
 
     if (existing) {
         throw new AppError('Este produto já possui ficha técnica.', 400);
@@ -40,6 +40,14 @@ const removeRecipeItem = async (id) => {
 
     if (!removed) {
         throw new AppError('Ingrediente não encontrado.', 404);
+    }
+
+    const recipeId = removed.recipeId;
+
+    const remaining = await recipeRepo.countItemsByRecipe(recipeId);
+
+    if (remaining === 0) {
+        await recipeRepo.deleteRecipe(recipeId);
     }
 
     return removed;
@@ -83,6 +91,7 @@ const calculateRecipeCost = async (recipeId) => {
         totalCost += cost;
 
         ingredients.push({
+            id: item.id,
             productId: item.productId,
             name: item.product.name,
             quantity,

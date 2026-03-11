@@ -1,12 +1,11 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
+import Register from "./pages/Register";
 import Login from "./pages/login";
 import { AppProvider } from './context/AppContext';
 import GlobalStyles from './styles/GlobalStyles';
 import { theme } from './styles/theme';
-import PurchaseSuggestions from "./pages/PurchaseSuggestions";
-
 import SidebarLayout from './components/SidebarLayout';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -15,30 +14,56 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import StockHistory from './pages/StockHistory';
 import ActivityLog from './pages/ActivityLog';
 import PriceComparison from "./pages/PriceComparison";
+import PurchaseSuggestions from "./pages/PurchaseSuggestions";
+import { Toaster } from "react-hot-toast";
 
 function App() {
+
   return (
+
     <ThemeProvider theme={theme}>
+
       <GlobalStyles />
+
       <AppProvider>
+
         <BrowserRouter>
-          <SidebarLayout>
-            <Routes>
-              <Route path="/login" element={<Login />} />
+          <Toaster position="top-right" />
+          <Routes>
+
+            {/* ROTAS PUBLICAS */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* ROTAS DO SISTEMA */}
+            <Route element={<SidebarLayout />}>
+
               <Route path="/" element={<Dashboard />} />
+
               <Route path="/products" element={<Products />} />
+
               <Route path="/suppliers" element={<Suppliers />} />
+
               <Route path="/purchase-orders" element={<PurchaseOrders />} />
+
               <Route path="/stock-history" element={<StockHistory />} />
+
               <Route path="/activity-log" element={<ActivityLog />} />
-              <Route path="*" element={<Dashboard />} />
+
               <Route path="/price-comparison" element={<PriceComparison />} />
+
               <Route path="/purchase-suggestions" element={<PurchaseSuggestions />} />
-            </Routes>
-          </SidebarLayout>
+
+            </Route>
+
+          </Routes>
+
         </BrowserRouter>
+
       </AppProvider>
+
     </ThemeProvider>
+
   );
 }
 

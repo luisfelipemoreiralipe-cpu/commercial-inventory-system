@@ -21,23 +21,27 @@ async function register({ nome, email, password }) {
     // 2️⃣ Hash da senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3️⃣ Transação: criar usuário + establishment
+    // 3️⃣ Transação
     const result = await prisma.$transaction(async (tx) => {
 
+        // Criar estabelecimento
+        const establishment = await tx.establishment.create({
+            data: {
+                nome_fantasia: `${nome} Restaurante`
+            }
+        });
+
+        // Criar usuário
         const user = await tx.users.create({
             data: {
                 nome: nome,
                 email: email,
-                senha_hash: hashedPassword
+                senha_hash: hashedPassword,
+                establishmentId: establishment.id
             }
         });
 
-        const establishment = await tx.establishment.create({
-            data: {
-                user_id: user.id,
-                nome_fantasia: `${nome} Restaurante`
-            }
-        });
+        // Criar categorias padrão
         await tx.category.createMany({
             data: [
                 { name: 'Bebidas', establishmentId: establishment.id },
@@ -52,7 +56,7 @@ async function register({ nome, email, password }) {
         return { user, establishment };
     });
 
-    // 4️⃣ Retorna dados seguros (sem senha)
+    // 4️⃣ Retorno seguro
     return {
         id: result.user.id,
         nome: result.user.nome,
@@ -85,12 +89,8 @@ async function login({ email, password }) {
         throw new Error('Credenciais inválidas');
     }
 
-    // 3️⃣ Buscar establishment
-    const establishment = await prisma.establishment.findFirst({
-        where: { user_id: user.id }
-    });
-
-    if (!establishment) {
+    // 3️⃣ Verificar estabelecimento
+    if (!user.establishmentId) {
         throw new Error('Estabelecimento não encontrado');
     }
 
@@ -98,7 +98,7 @@ async function login({ email, password }) {
     const token = jwt.sign(
         {
             userId: user.id,
-            establishmentId: establishment.id
+            establishmentId: user.establishmentId
         },
         process.env.JWT_SECRET,
         { expiresIn: '1d' }
@@ -111,11 +111,17 @@ async function login({ email, password }) {
             id: user.id,
             nome: user.nome,
             email: user.email,
-            establishmentId: establishment.id
+            establishmentId: user.establishmentId
         }
     };
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| EXPORTS
+|--------------------------------------------------------------------------
+*/
 module.exports = {
     register,
     login

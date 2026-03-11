@@ -12,6 +12,8 @@ const router = Router();
 
 router.get('/', authMiddleware, controller.getAll);
 
+router.get('/:id/cmv', authMiddleware, controller.getCMV);
+
 // ─── PRICE HISTORY ─────────────────────────────────────────────────────
 router.get('/:id/price-history', authMiddleware, controller.getPriceHistory);
 

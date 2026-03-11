@@ -1,12 +1,25 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+
 const prisma = new PrismaClient();
 
 async function main() {
 
+  const passwordHash = await bcrypt.hash('123456', 10);
+
   const establishment = await prisma.establishment.create({
     data: {
       nome_fantasia: "Restaurante Teste",
-      cnpj: "00000000000100"
+      cnpj: "00000000000100",
+
+      users: {
+        create: {
+          name: "Administrador",
+          email: "admin@teste.com",
+          password: passwordHash
+        }
+      }
+
     }
   });
 

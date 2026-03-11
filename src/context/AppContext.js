@@ -148,9 +148,20 @@ export const AppProvider = ({ children }) => {
             console.log("CATEGORIES:", cRes.data);
             console.log("PRODUCTS:", pRes.data);
             console.log("SUPPLIERS:", sRes.data);
-        } catch (err) {
-            console.error(err);
-            dispatchRaw({ type: 'SET_ERROR', payload: err.message || 'Erro de comunicação.' });
+        }
+
+        catch (err) {
+
+            console.error("Dispatch API Error:", err);
+
+            const message =
+                err.response?.data?.message ||
+                err.response?.data?.error ||
+                err.message ||
+                "Erro inesperado";
+
+            throw new Error(message);
+
         }
     }, []);
 
@@ -235,9 +246,17 @@ export const AppProvider = ({ children }) => {
                     dispatchRaw(action); // Operações locais restritas à interface (sem fetch)
             }
         } catch (err) {
+
             console.error("Dispatch API Error:", err);
-            // Alerta silencioso simplificado para comunicar recusa de chamadas ou payloads (Zod Error 422 HTTP)
-            alert(err.message || 'Erro de comunicação ao realizar a operação de banco de dados.');
+
+            const message =
+                err.response?.data?.message ||
+                err.response?.data?.error ||
+                err.message ||
+                "Erro inesperado";
+
+            throw new Error(message);
+
         }
     }, [fetchAllData, fetchSideEffects]);
 

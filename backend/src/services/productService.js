@@ -45,6 +45,30 @@ const getProductById = async (id, establishmentId) => {
 
 // ─── CREATE ─────────────────────────────────────────────────────────────
 
+const recipeRepo = require('../repositories/recipeRepository');
+const recipeService = require('./recipeService');
+
+const getProductCMV = async (productId) => {
+
+    const recipe = await recipeRepo.findByProductWithItems(productId);
+
+    // se não tiver ficha técnica
+    if (!recipe) {
+        return {
+            productId,
+            cost: 0
+        };
+    }
+
+    const costData = await recipeService.calculateRecipeCost(recipe.id);
+
+    return {
+        productId,
+        cost: costData.totalCost
+    };
+
+};
+
 const createProduct = async (data, establishmentId) => {
 
     if (!data.categoryId) {
@@ -344,5 +368,5 @@ module.exports = {
     getBestSupplier,
     getSupplierComparison,
     getPurchaseSavings,
-
+    getProductCMV
 };

@@ -40,6 +40,19 @@ const findItemsWithProductPrice = (recipeId) => {
     });
 };
 
+const countItemsByRecipe = (recipeId) => {
+    return prisma.recipeItem.count({
+        where: { recipeId }
+    });
+};
+
+const deleteRecipe = (recipeId) => {
+    return prisma.recipe.delete({
+        where: { id: recipeId }
+    });
+};
+
+
 const findByProductWithItems = (productId) => {
     return prisma.recipe.findUnique({
         where: { productId },
@@ -60,5 +73,7 @@ module.exports = {
     addItem,
     removeItem,
     updateItemQuantity,
-    findItemsWithProductPrice
+    findItemsWithProductPrice,
+    countItemsByRecipe,
+    deleteRecipe
 };

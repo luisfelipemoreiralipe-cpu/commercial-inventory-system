@@ -81,6 +81,17 @@ const getBestSupplier = asyncHandler(async (req, res) => {
     res.json({ success: true, data });
 });
 
+const getCMV = asyncHandler(async (req, res) => {
+
+    const data = await productService.getProductCMV(
+        req.params.id
+    );
+
+    res.json({ success: true, data });
+
+});
+
+
 // ─── SUPPLIER COMPARISON ───────────────────────────────────────────────
 
 const getSupplierComparison = asyncHandler(async (req, res) => {
@@ -144,6 +155,7 @@ module.exports = {
     getPriceHistory,
     getBestSupplier,
     getSupplierComparison,
+    getCMV,
 
     addSupplier,
     getSuppliers,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import {
   MdDashboard,
   MdInventory2,
@@ -326,7 +326,9 @@ const SidebarLayout = ({ children }) => {
       </Sidebar>
 
       <Main collapsed={collapsed}>
-        <PageWrapper>{children}</PageWrapper>
+        <PageWrapper>
+          <Outlet />
+        </PageWrapper>
       </Main>
     </Layout>
   );
