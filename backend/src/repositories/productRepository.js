@@ -5,6 +5,7 @@ const findAllByEstablishment = (establishmentId) => {
         where: { establishmentId },
         include: {
             category: true,
+            Recipe: true,
             productSuppliers: {
                 include: {
                     supplier: true
