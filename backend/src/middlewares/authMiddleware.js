@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
+const prisma = require('../config/prisma');
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
+
     try {
 
         const authHeader = req.headers.authorization;
@@ -17,8 +19,24 @@ function authMiddleware(req, res, next) {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // agora usamos o decoded do token
-        req.user = decoded;
+        // 🔎 validar se o usuário tem acesso ao estabelecimento
+        const relation = await prisma.userEstablishment.findFirst({
+            where: {
+                userId: decoded.userId,
+                establishmentId: decoded.establishmentId
+            }
+        });
+
+        if (!relation) {
+            return res.status(403).json({
+                error: 'Usuário não tem acesso a este estabelecimento'
+            });
+        }
+
+        req.user = {
+            userId: decoded.userId,
+            establishmentId: decoded.establishmentId
+        };
 
         next();
 
@@ -29,6 +47,7 @@ function authMiddleware(req, res, next) {
         });
 
     }
+
 }
 
 module.exports = authMiddleware;

@@ -59,6 +59,33 @@ async function login(req, res) {
     }
 }
 
+
+async function switchEstablishment(req, res) {
+
+    try {
+
+        const { establishmentId } = req.body;
+
+        const result = await authService.switchEstablishment({
+            userId: req.user.userId,
+            establishmentId
+        });
+
+        res.json({
+            success: true,
+            token: result.token
+        });
+
+    } catch (error) {
+
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+}
 /*
 |--------------------------------------------------------------------------
 | ME (rota protegida para validar token)
@@ -74,5 +101,6 @@ async function me(req, res) {
 module.exports = {
     register,
     login,
-    me
+    me,
+    switchEstablishment
 };

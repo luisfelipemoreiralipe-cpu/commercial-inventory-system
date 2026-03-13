@@ -9,7 +9,6 @@ const jwt = require('jsonwebtoken');
 */
 async function register({ nome, email, password }) {
 
-    // 1️⃣ Verifica se email já existe
     const existingUser = await prisma.users.findUnique({
         where: { email }
     });
@@ -18,30 +17,35 @@ async function register({ nome, email, password }) {
         throw new Error('Email já cadastrado');
     }
 
-    // 2️⃣ Hash da senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3️⃣ Transação
     const result = await prisma.$transaction(async (tx) => {
 
-        // Criar estabelecimento
+        // 1️⃣ Criar estabelecimento
         const establishment = await tx.establishment.create({
             data: {
                 nome_fantasia: `${nome} Restaurante`
             }
         });
 
-        // Criar usuário
+        // 2️⃣ Criar usuário
         const user = await tx.users.create({
             data: {
-                nome: nome,
-                email: email,
-                senha_hash: hashedPassword,
+                nome,
+                email,
+                senha_hash: hashedPassword
+            }
+        });
+
+        // 3️⃣ Criar relação usuário ↔ estabelecimento
+        await tx.userEstablishment.create({
+            data: {
+                userId: user.id,
                 establishmentId: establishment.id
             }
         });
 
-        // Criar categorias padrão
+        // 4️⃣ Criar categorias padrão
         await tx.category.createMany({
             data: [
                 { name: 'Bebidas', establishmentId: establishment.id },
@@ -56,7 +60,6 @@ async function register({ nome, email, password }) {
         return { user, establishment };
     });
 
-    // 4️⃣ Retorno seguro
     return {
         id: result.user.id,
         nome: result.user.nome,
@@ -65,7 +68,6 @@ async function register({ nome, email, password }) {
     };
 }
 
-
 /*
 |--------------------------------------------------------------------------
 | LOGIN
@@ -73,49 +75,83 @@ async function register({ nome, email, password }) {
 */
 async function login({ email, password }) {
 
-    // 1️⃣ Buscar usuário
     const user = await prisma.users.findUnique({
-        where: { email }
+        where: { email },
+        include: {
+            userEstablishments: {
+                include: {
+                    establishment: true
+                }
+            }
+        }
     });
 
     if (!user) {
         throw new Error('Credenciais inválidas');
     }
 
-    // 2️⃣ Validar senha
     const passwordMatch = await bcrypt.compare(password, user.senha_hash);
 
     if (!passwordMatch) {
         throw new Error('Credenciais inválidas');
     }
 
-    // 3️⃣ Verificar estabelecimento
-    if (!user.establishmentId) {
-        throw new Error('Estabelecimento não encontrado');
-    }
+    const establishments = user.userEstablishments.map((ue) => ({
+        id: ue.establishment.id,
+        nome_fantasia: ue.establishment.nome_fantasia
+    }));
 
-    // 4️⃣ Gerar token
+    const defaultEstablishment = establishments[0];
+
     const token = jwt.sign(
         {
             userId: user.id,
-            establishmentId: user.establishmentId
+            establishmentId: defaultEstablishment?.id
         },
         process.env.JWT_SECRET,
         { expiresIn: '1d' }
     );
 
-    // 5️⃣ Retorno
     return {
         token,
         user: {
             id: user.id,
             nome: user.nome,
-            email: user.email,
-            establishmentId: user.establishmentId
-        }
+            email: user.email
+        },
+        establishments
     };
 }
 
+/*
+|--------------------------------------------------------------------------
+| SWITCH ESTABLISHMENT
+|--------------------------------------------------------------------------
+*/
+async function switchEstablishment({ userId, establishmentId }) {
+
+    const relation = await prisma.userEstablishment.findFirst({
+        where: {
+            userId,
+            establishmentId
+        }
+    });
+
+    if (!relation) {
+        throw new Error('Usuário não tem acesso a este estabelecimento');
+    }
+
+    const token = jwt.sign(
+        {
+            userId,
+            establishmentId
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '1d' }
+    );
+
+    return { token };
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -124,5 +160,6 @@ async function login({ email, password }) {
 */
 module.exports = {
     register,
-    login
+    login,
+    switchEstablishment
 };
