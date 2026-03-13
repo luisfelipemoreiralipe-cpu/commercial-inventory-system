@@ -227,6 +227,7 @@ const Products = () => {
     const [selectedSupplier, setSelectedSupplier] = useState("");
     const [supplierPrice, setSupplierPrice] = useState("");
     const [recipeModal, setRecipeModal] = useState(null);
+    const [filterType, setFilterType] = useState("ALL");
 
     // Derived
     const totalProducts = state.products.length;
@@ -255,15 +256,30 @@ const Products = () => {
     });
 
     const filtered = state.products.filter((p) => {
+
         const matchSearch =
             p.name?.toLowerCase().includes(search.toLowerCase()) ||
             p.category?.name?.toLowerCase().includes(search.toLowerCase());
-        const matchCat = !filterCategory || p.categoryId === filterCategory;
+
+        const matchType =
+            filterType === "ALL"
+                ? true
+                : filterType === "PRODUCTION"
+                    ? !!p.Recipe
+                    : !p.Recipe;
+
+        const matchCat =
+            !filterCategory || p.categoryId === filterCategory;
+
         const matchStock =
-            filterStock === 'all' ? true :
-                filterStock === 'low' ? Number(p.quantity) < Number(p.minQuantity) :
-                    Number(p.quantity) >= Number(p.minQuantity);
-        return matchSearch && matchCat && matchStock;
+            filterStock === 'all'
+                ? true
+                : filterStock === 'low'
+                    ? Number(p.quantity) < Number(p.minQuantity)
+                    : Number(p.quantity) >= Number(p.minQuantity);
+
+        return matchSearch && matchCat && matchStock && matchType;
+
     });
 
     const validate = () => {
@@ -367,7 +383,7 @@ const Products = () => {
 
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
 
         console.log("handleSubmit disparou");
 
@@ -380,18 +396,28 @@ const Products = () => {
             minQuantity: Number(form.minQuantity || 0),
         };
 
-        console.log("payload final", payload);
+        const category = state.categories.find(
+            (c) => c.id === payload.categoryId
+        );
+
+        const productComplete = {
+            ...payload,
+            id: editTarget ? editTarget.id : Date.now().toString(),
+            category,
+            productSuppliers: editTarget?.productSuppliers || [],
+            createdAt: editTarget?.createdAt || new Date().toISOString(),
+        };
 
         if (editTarget) {
 
-            dispatch({
+            await dispatch({
                 type: ACTIONS.UPDATE_PRODUCT,
-                payload: { ...payload, id: editTarget.id }
+                payload: productComplete
             });
 
         } else {
 
-            dispatch({
+            await dispatch({
                 type: ACTIONS.ADD_PRODUCT,
                 payload
             });
@@ -421,16 +447,21 @@ const Products = () => {
 
     };
 
-    const handleQtyUpdate = () => {
+    const handleQtyUpdate = async () => {
+
         if (qtyValue === '' || isNaN(qtyValue) || Number(qtyValue) < 0) return;
-        dispatch({
+
+        await dispatch({
             type: ACTIONS.UPDATE_PRODUCT_QUANTITY,
             payload: { id: qtyModal.id, quantity: Number(qtyValue) },
         });
+
+        toast.success("Estoque atualizado");
+
         setQtyModal(null);
         setQtyValue('');
-    };
 
+    };
     const handleRemoveSupplier = async (supplierId) => {
 
         try {
@@ -518,6 +549,36 @@ const Products = () => {
 
             </div>
             {/* Filters */}
+
+
+            {/* FILTRO POR TIPO */}
+
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+
+                <Button
+                    variant={filterType === "ALL" ? "primary" : "secondary"}
+                    onClick={() => setFilterType("ALL")}
+                >
+                    Todos
+                </Button>
+
+                <Button
+                    variant={filterType === "INVENTORY" ? "primary" : "secondary"}
+                    onClick={() => setFilterType("INVENTORY")}
+                >
+                    Insumos
+                </Button>
+
+                <Button
+                    variant={filterType === "PRODUCTION" ? "primary" : "secondary"}
+                    onClick={() => setFilterType("PRODUCTION")}
+                >
+                    Produção
+                </Button>
+
+            </div>
+
+            {/* Filters */}
             <SearchRow>
                 <SearchBox>
                     <MdSearch />
@@ -553,7 +614,7 @@ const Products = () => {
                                     <Th>Nome</Th>
                                     <Th>Categoria</Th>
                                     <Th>Unidade</Th>
-                                    <Th>Preço Unit.</Th>
+                                    <Th>Custo Atual</Th>
                                     <Th>Qtd.</Th>
                                     <Th>Mín.</Th>
                                     <Th>Fornec</Th>
@@ -566,7 +627,14 @@ const Products = () => {
                             <tbody>
                                 {filtered.map((p) => {
                                     const isLow = Number(p.quantity) < Number(p.minQuantity);
+                                    const bestPrice =
+                                        p.productSuppliers && p.productSuppliers.length > 0
+                                            ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
+                                            : 0;
+
+                                    <Td>{formatCurrency(bestPrice * p.quantity)}</Td>
                                     return (
+
                                         <Tr key={p.id} lowStock={isLow}>
                                             <Td>
                                                 <div style={{ fontWeight: 600 }}>{p.name}</div>
@@ -576,7 +644,7 @@ const Products = () => {
                                             </Td>
                                             <Td>{p.category?.name || 'N/A'}</Td>
                                             <Td>{p.unit}</Td>
-                                            <Td>{formatCurrency(p.unitPrice)}</Td>
+                                            <Td>{bestPrice ? formatCurrency(bestPrice) : "-"}</Td>
                                             <Td style={{ color: isLow ? '#413232ff' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
                                                 {p.quantity}
                                             </Td>
@@ -702,11 +770,6 @@ const Products = () => {
                         ))}
                     </Select>
 
-                    {/* PREÇO SOMENTE PARA INSUMOS */}
-
-
-
-                    {/* ESTOQUE SOMENTE PARA INSUMOS */}
                     {form.type !== 'PRODUCTION' && (
                         <>
                             <Input

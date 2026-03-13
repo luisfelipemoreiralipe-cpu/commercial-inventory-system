@@ -12,7 +12,7 @@ const Card = styled.div`
   ${({ fullHeight }) => fullHeight && "height: 100%;"}
 
   &:hover {
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 10px #0f2a4433;
     transform: translateY(-1px);
   }
 `;

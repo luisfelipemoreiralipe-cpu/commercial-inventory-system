@@ -8,7 +8,7 @@ export const theme = {
         bgSidebar: '#F3F4F6',
 
         // ── Brand — Commercial blue ──────────────────────────────────────────────
-        primary: '#111827',
+        primary: '#0F2A44',
         primaryHover: '#1F2937',
         primaryLight: 'rgba(17, 24, 39, 0.06)',
         primaryGlow: 'rgba(17, 24, 39, 0.15)',

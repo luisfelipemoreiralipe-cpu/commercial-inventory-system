@@ -33,6 +33,13 @@ const baseInputStyles = ({ theme }) => `
 
 const StyledInput = styled.input`
   ${({ theme }) => baseInputStyles({ theme })}
+
+  ${({ size }) =>
+    size === "sm" &&
+    `
+    padding: 6px 8px;
+    font-size: 13px;
+  `}
 `;
 
 const StyledSelect = styled.select`
@@ -56,25 +63,25 @@ const ErrorText = styled.span`
 `;
 
 export const Input = ({ label, error, ...props }) => (
-    <Label>
-        {label && <span>{label}</span>}
-        <StyledInput {...props} />
-        {error && <ErrorText>{error}</ErrorText>}
-    </Label>
+  <Label>
+    {label && <span>{label}</span>}
+    <StyledInput {...props} />
+    {error && <ErrorText>{error}</ErrorText>}
+  </Label>
 );
 
 export const Select = ({ label, error, children, ...props }) => (
-    <Label>
-        {label && <span>{label}</span>}
-        <StyledSelect {...props}>{children}</StyledSelect>
-        {error && <ErrorText>{error}</ErrorText>}
-    </Label>
+  <Label>
+    {label && <span>{label}</span>}
+    <StyledSelect {...props}>{children}</StyledSelect>
+    {error && <ErrorText>{error}</ErrorText>}
+  </Label>
 );
 
 export const Textarea = ({ label, error, ...props }) => (
-    <Label>
-        {label && <span>{label}</span>}
-        <StyledTextarea {...props} />
-        {error && <ErrorText>{error}</ErrorText>}
-    </Label>
+  <Label>
+    {label && <span>{label}</span>}
+    <StyledTextarea {...props} />
+    {error && <ErrorText>{error}</ErrorText>}
+  </Label>
 );

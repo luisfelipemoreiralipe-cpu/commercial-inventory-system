@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import logo from "../assets/logobds.png"
 
 const Wrapper = styled.div`
   display: flex;
@@ -17,7 +18,11 @@ const Card = styled.div`
   padding: ${({ theme }) => theme.spacing.xl};
   width: 420px;
 `;
-
+const Logo = styled.img`
+  width: 120px;
+  margin: 0 auto ${({ theme }) => theme.spacing.lg};
+  display: block;
+`;
 const Title = styled.h2`
   margin-bottom: ${({ theme }) => theme.spacing.lg};
   font-size: ${({ theme }) => theme.fontSizes["2xl"]};
@@ -105,11 +110,15 @@ export default function Login() {
 
   }
 
+
+
   return (
 
     <Wrapper>
 
       <Card>
+
+        <Logo src={logo} alt="BDS Logo" />
 
         <Title>Entrar</Title>
 

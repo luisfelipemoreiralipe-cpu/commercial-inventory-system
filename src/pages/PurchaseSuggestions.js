@@ -6,6 +6,7 @@ import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
 import styled from "styled-components";
 
+
 const PageHeader = styled.div`
   display: flex;
   flex-direction: column;
@@ -55,6 +56,52 @@ const TableCard = styled.div`
   border-radius: 10px;
   padding: 20px;
 `;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+`;
+
+const Th = styled.th`
+  text-align: left;
+  padding: 14px 16px;
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  color: ${({ theme }) => theme.colors.textMuted};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: ${({ theme }) => theme.colors.bgHover};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+   white-space: nowrap;
+`;
+
+const Td = styled.td`
+  padding: 14px 16px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  vertical-align: middle;
+`;
+
+const Tr = styled.tr`
+  transition: ${({ theme }) => theme.transition};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgHover};
+  }
+`;
+
+const SupplierRow = styled.tr`
+  background: ${({ theme }) => theme.colors.bgHover};
+`;
+
+const SupplierHeader = styled.td`
+  padding: 14px 16px;
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
 
 const PurchaseSuggestions = () => {
     const [generatedSuggestions, setGeneratedSuggestions] = useState({});
@@ -372,11 +419,11 @@ const PurchaseSuggestions = () => {
 
             </div>
 
-            <table style={{ width: "100%", marginTop: 20 }}>
+            <table>
 
                 <thead>
                     <tr>
-                        <th style={{ textAlign: "left" }}>Produto</th>
+                        <th>Produto</th>
                         <th>Estoque</th>
                         <th>Mínimo</th>
                         <th>Ajustar</th>
@@ -415,8 +462,8 @@ const PurchaseSuggestions = () => {
 
                             <React.Fragment key={supplierId}>
 
-                                <tr style={{ background: "#f9fafb" }}>
-                                    <td colSpan="9" style={{ padding: 12 }}>
+                                <SupplierRow>
+                                    <SupplierHeader colSpan="9">
 
                                         <div style={{
                                             display: "flex",
@@ -440,8 +487,8 @@ const PurchaseSuggestions = () => {
 
                                         </div>
 
-                                    </td>
-                                </tr>
+                                    </SupplierHeader>
+                                </SupplierRow>
 
                                 {items.map(s => {
 
@@ -469,19 +516,19 @@ const PurchaseSuggestions = () => {
 
                                     return (
 
-                                        <tr key={s.productId}>
+                                        <Tr key={s.productId}>
 
-                                            <td>{s.productName}</td>
+                                            <Td>{s.productName}</Td>
 
-                                            <td style={{ textAlign: "center" }}>
+                                            <Td style={{ textAlign: "center" }}>
                                                 {product?.quantity}
-                                            </td>
+                                            </Td>
 
-                                            <td style={{ textAlign: "center" }}>
+                                            <Td style={{ textAlign: "center" }}>
                                                 {product?.minQuantity}
-                                            </td>
+                                            </Td>
 
-                                            <td style={{ textAlign: "center" }}>
+                                            <Td style={{ textAlign: "center" }}>
 
                                                 <input
                                                     type="number"
@@ -500,26 +547,26 @@ const PurchaseSuggestions = () => {
                                                     }}
                                                 />
 
-                                            </td>
+                                            </Td>
 
-                                            <td style={{ textAlign: "center" }}>
+                                            <Td style={{ textAlign: "center" }}>
                                                 R$ {price.toFixed(2)}
-                                            </td>
+                                            </Td>
 
-                                            <td style={{ textAlign: "center", fontWeight: 600 }}>
+                                            <Td style={{ textAlign: "center", fontWeight: 600 }}>
                                                 R$ {total.toFixed(2)}
-                                            </td>
+                                            </Td>
 
-                                            <td style={{
+                                            <Td style={{
                                                 textAlign: "center",
                                                 color: savingTotal > 0 ? "#059669" : "#6b7280"
                                             }}>
                                                 {savingTotal > 0
                                                     ? `R$ ${savingTotal.toFixed(2)}`
                                                     : "R$ 0.00"}
-                                            </td>
+                                            </Td>
 
-                                            <td style={{ textAlign: "center" }}>
+                                            <Td style={{ textAlign: "center" }}>
 
                                                 <select
                                                     value={selectedSuppliers[s.productId] ?? s.bestSupplierId ?? ""}
@@ -542,8 +589,8 @@ const PurchaseSuggestions = () => {
 
                                                 </select>
 
-                                            </td>
-                                            <td style={{ textAlign: "center" }}>
+                                            </Td>
+                                            <Td style={{ textAlign: "center" }}>
                                                 {s.hasOpenOrder ? (
                                                     <span style={{
                                                         background: "#e0f2fe",
@@ -566,8 +613,8 @@ const PurchaseSuggestions = () => {
                                                         Sugestão
                                                     </span>
                                                 )}
-                                            </td>
-                                        </tr>
+                                            </Td>
+                                        </Tr>
 
                                     );
 

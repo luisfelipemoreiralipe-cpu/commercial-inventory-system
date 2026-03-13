@@ -10,6 +10,7 @@ import {
   MdEventNote,
   MdMenu,
   MdClose,
+  MdLightbulb,
 } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 
@@ -246,6 +247,8 @@ const NAV_GROUPS = [
       { to: '/products', label: 'Produtos', icon: <MdInventory2 />, badge: true },
       { to: '/suppliers', label: 'Fornecedores', icon: <MdPeople /> },
       { to: '/purchase-orders', label: 'Ordens de Compra', icon: <MdShoppingCart /> },
+      { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
+
     ],
   },
   {

@@ -78,24 +78,6 @@ font-weight:${({ theme }) => theme.fontWeights.semibold};
 margin-bottom:${({ theme }) => theme.spacing.md};
 `;
 
-const InfoBanner = styled.div`
-display:flex;
-align-items:center;
-gap:10px;
-background:${({ theme }) => theme.colors.warningLight};
-border:1px solid ${({ theme }) => theme.colors.warning};
-border-radius:${({ theme }) => theme.radii.md};
-padding:12px 16px;
-color:${({ theme }) => theme.colors.warning};
-font-size:${({ theme }) => theme.fontSizes.sm};
-margin-bottom:${({ theme }) => theme.spacing.xl};
-`;
-
-const SummaryBar = styled.div`
-display:flex;
-justify-content:flex-end;
-margin-bottom:${({ theme }) => theme.spacing.lg};
-`;
 
 const TableOverflow = styled.div`
 overflow-x:auto;
@@ -130,12 +112,6 @@ background:${({ theme }) => theme.colors.bgHover};
 }
 `;
 
-const QtyInput = styled.input`
-width:80px;
-padding:6px;
-border:1px solid ${({ theme }) => theme.colors.border};
-border-radius:${({ theme }) => theme.radii.sm};
-`;
 
 const StatusBadge = styled.span`
 padding:4px 10px;
@@ -163,12 +139,6 @@ gap:6px;
 /*                               Business logic                               */
 /* -------------------------------------------------------------------------- */
 
-
-
-const calcSuggested = (p) => {
-    const result = (Number(p.minQuantity) * 2) - Number(p.quantity);
-    return Math.max(1, result);
-};
 
 /* -------------------------------------------------------------------------- */
 /*                                Component                                   */
@@ -214,8 +184,6 @@ const PurchaseOrders = () => {
         );
     }, [state.products]);
 
-    const getAdjusted = (p) => adjustedQtys[p.id] ?? calcSuggested(p);
-
     const totalEstimated = useMemo(() => {
 
         return lowStockProducts.reduce((sum, p) => {
@@ -226,7 +194,7 @@ const PurchaseOrders = () => {
 
             const price = suggestion?.bestPrice || Number(p.unitPrice);
 
-            return sum + getAdjusted(p) * price;
+            return sum;
 
         }, 0);
 
@@ -272,8 +240,6 @@ const PurchaseOrders = () => {
                 productName: p.name,
                 unit: p.unit,
                 unitPrice: suggestion?.bestPrice || Number(p.unitPrice),
-                suggestedQuantity: suggestion?.suggestedQuantity || calcSuggested(p),
-                adjustedQuantity: getAdjusted(p),
                 supplierId
 
             });
@@ -389,181 +355,6 @@ const PurchaseOrders = () => {
 
             </StatsGrid>
 
-            <SectionTitle>Lista de Compras Automática</SectionTitle>
-
-            {lowStockProducts.length === 0 ? (
-
-                <InfoBanner>
-                    <MdWarning />
-                    Todos os produtos estão com estoque adequado.
-                </InfoBanner>
-
-            ) : (
-
-                <>
-
-                    <SummaryBar>
-
-                        <Button onClick={handleGenerate}>
-                            <MdRefresh /> Gerar Ordem de Compra
-                        </Button>
-
-                    </SummaryBar>
-
-                    <Card padding="0">
-
-                        <TableOverflow>
-
-                            <Table>
-
-                                <thead>
-                                    <tr>
-
-                                        <Th>Produto</Th>
-                                        <Th>Estoque</Th>
-                                        <Th>Mínimo</Th>
-                                        <Th>Sugerido</Th>
-                                        <Th>Ajustar</Th>
-                                        <Th>Custo</Th>
-                                        <Th>Melhor preço</Th>
-                                        <Th>Economia</Th>
-                                        <Th>Fornecedor</Th>
-
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-
-                                    {lowStockProducts.map((p) => {
-
-                                        const suggestion = suggestions.find(
-                                            s => s.productId === p.id
-                                        );
-                                        const price = suggestion?.bestPrice || p.unitPrice;
-
-                                        const adj = getAdjusted(p);
-                                        const selectedSupplierId =
-                                            selectedSuppliers[p.id] ||
-                                            suggestion?.bestSupplierId ||
-                                            p.supplierId;
-
-
-                                        return (
-
-                                            <Tr key={p.id}>
-
-                                                <Td>{p.name}</Td>
-
-                                                <Td
-                                                    style={{
-                                                        color: p.quantity < p.minQuantity ? "#ef4444" : "inherit",
-                                                        fontWeight: p.quantity < p.minQuantity ? 600 : 400
-                                                    }}
-                                                >
-                                                    {p.quantity} {p.unit}
-                                                </Td>
-
-                                                <Td>{p.minQuantity}</Td>
-
-                                                <Td>
-                                                    {suggestion?.suggestedQuantity ?? calcSuggested(p)}
-                                                </Td>
-
-                                                <Td>
-
-                                                    <QtyInput
-                                                        type="number"
-                                                        min="1"
-                                                        value={adj}
-                                                        onChange={(e) => {
-
-                                                            setAdjustedQtys(prev => ({
-                                                                ...prev,
-                                                                [p.id]: Number(e.target.value)
-                                                            }));
-
-                                                        }}
-                                                    />
-
-                                                </Td>
-
-                                                <Td>
-                                                    {formatCurrency(adj * price)}
-                                                </Td>
-
-                                                <Td>
-                                                    {suggestion?.bestPrice
-                                                        ? formatCurrency(suggestion.bestPrice)
-                                                        : "—"}
-                                                </Td>
-
-                                                <Td>
-                                                    {suggestion?.saving > 0
-                                                        ? formatCurrency(suggestion.saving)
-                                                        : "—"}
-                                                </Td>
-
-                                                <Td>
-
-                                                    {suggestion?.suppliers?.length ? (
-
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-
-                                                            {suggestion.suppliers.map(s => {
-
-                                                                const supplier = getSupplierById(s.supplierId);
-
-                                                                return (
-
-                                                                    <span
-                                                                        key={s.supplierId}
-                                                                        style={{
-                                                                            fontSize: "12px",
-                                                                            fontWeight:
-                                                                                s.supplierId === suggestion.bestSupplierId ? 600 : 400,
-                                                                            color:
-                                                                                s.supplierId === suggestion.bestSupplierId
-                                                                                    ? "#059669"
-                                                                                    : "#64748B"
-                                                                        }}
-                                                                    >
-                                                                        {s.supplierName || supplier?.name || "Fornecedor"} — {formatCurrency(s.price)}
-                                                                    </span>
-
-                                                                );
-
-                                                            })}
-
-                                                        </div>
-
-                                                    ) : (
-
-                                                        suggestion?.bestSupplierName ||
-                                                        getSupplierById(p.supplierId)?.name ||
-                                                        "—"
-
-                                                    )}
-
-                                                </Td>
-
-                                            </Tr>
-
-                                        )
-
-                                    })}
-
-                                </tbody>
-
-                            </Table>
-
-                        </TableOverflow>
-
-                    </Card>
-
-                </>
-
-            )}
-
             {pendingOrders.length > 0 && (
 
                 <>
@@ -610,7 +401,9 @@ const PurchaseOrders = () => {
 
                                                 <Td>#{order.id.slice(-4)}</Td>
 
-                                                <Td>{order.supplierName}</Td>
+                                                <Td>
+                                                    {getSupplierById(order.supplierId)?.name || "Fornecedor"}
+                                                </Td>
 
                                                 <Td>{order.items.length}</Td>
 

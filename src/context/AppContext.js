@@ -47,9 +47,14 @@ const appReducer = (state, action) => {
         case ACTIONS.UPDATE_PRODUCT_QUANTITY:
             return {
                 ...state,
-                products: state.products.map((x) =>
-                    x.id === action.payload.id ? action.payload : x
-                ),
+                products: state.products.map((x) => {
+                    if (x.id !== action.payload.id) return x;
+
+                    return {
+                        ...x,
+                        quantity: action.payload.quantity
+                    };
+                }),
             };
         case ACTIONS.DELETE_PRODUCT:
             return {
@@ -160,7 +165,7 @@ export const AppProvider = ({ children }) => {
                 err.message ||
                 "Erro inesperado";
 
-            throw new Error(message);
+            dispatchRaw({ type: 'SET_ERROR', payload: message });
 
         }
     }, []);
@@ -183,8 +188,16 @@ export const AppProvider = ({ children }) => {
                     break;
                 }
                 case ACTIONS.UPDATE_PRODUCT: {
-                    const res = await api.put(`/products/${action.payload.id}`, action.payload);
-                    dispatchRaw({ type: ACTIONS.UPDATE_PRODUCT, payload: res.data });
+
+                    await api.put(`/products/${action.payload.id}`, action.payload);
+
+                    const updated = await api.get(`/products/${action.payload.id}`);
+
+                    dispatchRaw({
+                        type: ACTIONS.UPDATE_PRODUCT,
+                        payload: updated.data
+                    });
+
                     fetchSideEffects();
                     break;
                 }
@@ -195,8 +208,19 @@ export const AppProvider = ({ children }) => {
                     break;
                 }
                 case ACTIONS.UPDATE_PRODUCT_QUANTITY: {
-                    const res = await api.patch(`/products/${action.payload.id}/quantity`, { quantity: action.payload.quantity });
-                    dispatchRaw({ type: ACTIONS.UPDATE_PRODUCT_QUANTITY, payload: res.data });
+
+                    await api.patch(
+                        `/products/${action.payload.id}/quantity`,
+                        { quantity: action.payload.quantity }
+                    );
+
+                    const updated = await api.get(`/products/${action.payload.id}`);
+
+                    dispatchRaw({
+                        type: ACTIONS.UPDATE_PRODUCT,
+                        payload: updated.data
+                    });
+
                     fetchSideEffects();
                     break;
                 }

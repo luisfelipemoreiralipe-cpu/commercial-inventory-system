@@ -13,7 +13,6 @@ import Suppliers from './pages/Suppliers';
 import PurchaseOrders from './pages/PurchaseOrders';
 import StockHistory from './pages/StockHistory';
 import ActivityLog from './pages/ActivityLog';
-import PriceComparison from "./pages/PriceComparison";
 import PurchaseSuggestions from "./pages/PurchaseSuggestions";
 import { Toaster } from "react-hot-toast";
 
@@ -50,7 +49,6 @@ function App() {
 
               <Route path="/activity-log" element={<ActivityLog />} />
 
-              <Route path="/price-comparison" element={<PriceComparison />} />
 
               <Route path="/purchase-suggestions" element={<PurchaseSuggestions />} />
 
