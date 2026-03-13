@@ -16,5 +16,10 @@ router.post(
     authMiddleware,
     authController.switchEstablishment
 );
+router.get(
+    "/context",
+    authMiddleware,
+    authController.context
+);
 
 module.exports = router;

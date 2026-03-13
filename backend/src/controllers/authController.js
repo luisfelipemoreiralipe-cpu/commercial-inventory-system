@@ -59,6 +59,30 @@ async function login(req, res) {
     }
 }
 
+async function context(req, res) {
+
+    try {
+
+        const result = await authService.getContext({
+            userId: req.user.userId,
+            establishmentId: req.user.establishmentId
+        });
+
+        res.json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+}
 
 async function switchEstablishment(req, res) {
 
@@ -102,5 +126,6 @@ module.exports = {
     register,
     login,
     me,
-    switchEstablishment
+    switchEstablishment,
+    context
 };

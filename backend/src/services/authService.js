@@ -68,6 +68,53 @@ async function register({ nome, email, password }) {
     };
 }
 
+
+async function getContext({ userId, establishmentId }) {
+
+    const user = await prisma.users.findUnique({
+        where: { id: userId },
+        include: {
+            userEstablishments: {
+                include: {
+                    establishment: {
+                        include: {
+                            organization: true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    if (!user) {
+        throw new Error("Usuário não encontrado");
+    }
+
+    const currentEstablishment = user.userEstablishments.find(
+        ue => ue.establishment.id === establishmentId
+    );
+
+    const establishments = user.userEstablishments.map(ue => ({
+        id: ue.establishment.id,
+        nome_fantasia: ue.establishment.nome_fantasia
+    }));
+
+    return {
+        user: {
+            id: user.id,
+            nome: user.nome,
+            email: user.email
+        },
+        establishment: {
+            id: currentEstablishment.establishment.id,
+            nome_fantasia: currentEstablishment.establishment.nome_fantasia
+        },
+        organization: currentEstablishment.establishment.organization,
+        establishments
+    };
+
+}
+
 /*
 |--------------------------------------------------------------------------
 | LOGIN
@@ -161,5 +208,6 @@ async function switchEstablishment({ userId, establishmentId }) {
 module.exports = {
     register,
     login,
-    switchEstablishment
+    switchEstablishment,
+    getContext
 };
