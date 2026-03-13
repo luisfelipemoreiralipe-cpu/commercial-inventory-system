@@ -198,6 +198,11 @@ model Establishment {
   suppliers  Supplier[]
   auditLogs  AuditLog[]
   recipes    Recipe[]
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 ////////////////////////////////////////////////////////////
@@ -299,4 +304,30 @@ model RecipeItem {
 
   @@unique([recipeId, productId])
   @@map("recipe_items")
+}
+
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  establishments Establishment[]
+}
+
+model StockTransfer {
+  id                    String   @id @default(uuid())
+
+  productId             String
+  quantity              Float
+
+  fromEstablishmentId   String
+  toEstablishmentId     String
+
+  createdBy             String
+  createdAt             DateTime @default(now())
+
+  product               Product        @relation(fields: [productId], references: [id])
+  fromEstablishment     Establishment  @relation("TransferFrom", fields: [fromEstablishmentId], references: [id])
+  toEstablishment       Establishment  @relation("TransferTo", fields: [toEstablishmentId], references: [id])
 }

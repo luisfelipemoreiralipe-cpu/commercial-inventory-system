@@ -172,8 +172,14 @@ export const AppProvider = ({ children }) => {
 
     // Sync / App Mount 
     useEffect(() => {
-        fetchAllData();
-    }, [fetchAllData]);
+
+        const token = localStorage.getItem("token");
+
+        if (token) {
+            fetchAllData();
+        }
+
+    }, []);
 
     // Dispatch Assíncrono Personalizado — Interceptador Centralizado de Requisições
     const dispatch = useCallback(async (action) => {

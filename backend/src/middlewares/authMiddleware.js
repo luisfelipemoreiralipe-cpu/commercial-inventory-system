@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 
 function authMiddleware(req, res, next) {
     try {
+
         const authHeader = req.headers.authorization;
 
         if (!authHeader) {
@@ -16,17 +17,17 @@ function authMiddleware(req, res, next) {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        req.user = {
-            id: decoded.userId || decoded.id,
-            establishmentId: decoded.establishmentId
-        };
+        // agora usamos o decoded do token
+        req.user = decoded;
 
         next();
 
     } catch (error) {
+
         return res.status(401).json({
             error: 'Token inválido ou expirado'
         });
+
     }
 }
 
