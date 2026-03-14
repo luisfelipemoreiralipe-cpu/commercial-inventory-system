@@ -94,9 +94,28 @@ export default function Login() {
         password
       });
 
-      localStorage.setItem("token", response.token);
+      const { token, establishments } = response;
 
-      navigate("/");
+      localStorage.setItem("token", token);
+
+      if (establishments.length === 1) {
+
+        await api.post("/auth/switch-establishment", {
+          establishmentId: establishments[0].id
+        });
+
+        navigate("/");
+
+      } else {
+
+        localStorage.setItem(
+          "establishments",
+          JSON.stringify(establishments)
+        );
+
+        navigate("/select-establishment");
+
+      }
 
     } catch (err) {
 
@@ -109,7 +128,6 @@ export default function Login() {
     }
 
   }
-
 
 
   return (

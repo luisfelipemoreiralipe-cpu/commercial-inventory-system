@@ -1,15 +1,33 @@
-import axios from 'axios';
+import axios from "axios";
 
 const api = axios.create({
-    baseURL: 'http://localhost:3333',
+    baseURL: "http://localhost:3333",
     timeout: 10000,
     headers: {
-        'Content-Type': 'application/json',
-    },
+        "Content-Type": "application/json"
+    }
 });
 
+// 🔐 Adiciona token automaticamente
+api.interceptors.request.use((config) => {
+
+    const token = localStorage.getItem("token");
+
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+
+});
+
+// 📡 Interceptador de respostas
 api.interceptors.response.use(
-    (response) => response,
+
+    (response) => {
+        return response.data;
+    },
+
     (error) => {
 
         if (error.response?.status === 401) {
@@ -17,32 +35,15 @@ api.interceptors.response.use(
             window.location.href = "/login";
         }
 
-        return Promise.reject(error);
-    }
-);
-
-// 🔐 Adiciona token automaticamente
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-});
-
-// Interceptador de respostas
-api.interceptors.response.use(
-    (response) => {
-        return response.data;
-    },
-    (error) => {
         const message =
             error.response?.data?.message ||
-            'Erro de comunicação com o servidor.';
+            error.response?.data?.error ||
+            "Erro de comunicação com o servidor.";
+
         return Promise.reject(new Error(message));
+
     }
+
 );
 
 export default api;
