@@ -1,6 +1,10 @@
 const prisma = require('../config/prisma');
 
-const transferStock = async ({
+
+// =============================
+// CRIAR TRANSFERÊNCIA (PENDING)
+// =============================
+const createTransfer = async ({
     productId,
     quantity,
     fromEstablishmentId,
@@ -8,9 +12,135 @@ const transferStock = async ({
     userId
 }) => {
 
+    if (!productId) {
+        throw new Error("Produto é obrigatório");
+    }
+
+    if (!quantity || quantity <= 0) {
+        throw new Error("Quantidade inválida");
+    }
+
+    if (fromEstablishmentId === toEstablishmentId) {
+        throw new Error("Não é possível transferir para o mesmo estabelecimento");
+    }
+
+    const transfer = await prisma.stockTransfer.create({
+        data: {
+            productId,
+            quantity: Number(quantity),
+            fromEstablishmentId,
+            toEstablishmentId,
+            createdBy: userId,
+            status: "PENDING"
+        }
+    });
+
+    return transfer;
+};
+const getSentTransfers = async (establishmentId) => {
+
+    return prisma.stockTransfer.findMany({
+
+        where: {
+            fromEstablishmentId: establishmentId
+        },
+
+        include: {
+            product: {
+                select: {
+                    id: true,
+                    name: true,
+                    unit: true
+                }
+            },
+
+            toEstablishment: {
+                select: {
+                    id: true,
+                    nome_fantasia: true
+                }
+            }
+
+        },
+
+        orderBy: {
+            createdAt: "desc"
+        }
+
+    });
+
+
+
+};
+
+const getReceivedTransfers = async (establishmentId) => {
+
+    return prisma.stockTransfer.findMany({
+
+        where: {
+            toEstablishmentId: establishmentId
+        },
+
+        include: {
+
+            product: {
+                select: {
+                    id: true,
+                    name: true,
+                    unit: true
+                }
+            },
+
+            fromEstablishment: {
+                select: {
+                    id: true,
+                    nome_fantasia: true
+                }
+            }
+
+        },
+
+        orderBy: {
+            createdAt: "desc"
+        }
+
+    });
+
+};
+// =============================
+// APROVAR TRANSFERÊNCIA
+// =============================
+
+
+const approveTransfer = async (transferId, userId) => {
+
+    if (!transferId) {
+        throw new Error("Transferência inválida");
+    }
+
     return prisma.$transaction(async (tx) => {
 
-        // 1️⃣ Buscar produto origem
+        // 1️⃣ Buscar transferência
+        const transfer = await tx.stockTransfer.findUnique({
+            where: { id: transferId }
+        });
+
+        if (!transfer) {
+            throw new Error("Transferência não encontrada");
+        }
+
+        if (transfer.status !== "PENDING") {
+            throw new Error("Transferência já processada");
+        }
+
+        const {
+            productId,
+            quantity,
+            fromEstablishmentId,
+            toEstablishmentId
+        } = transfer;
+
+        // 2️⃣ Buscar produto origem
         const product = await tx.product.findFirst({
             where: {
                 id: productId,
@@ -26,7 +156,7 @@ const transferStock = async ({
             throw new Error("Estoque insuficiente para transferência");
         }
 
-        // 2️⃣ Buscar ou criar produto no destino
+        // 3️⃣ Buscar ou criar produto no destino
         let destinationProduct = await tx.product.findFirst({
             where: {
                 name: product.name,
@@ -35,6 +165,7 @@ const transferStock = async ({
         });
 
         if (!destinationProduct) {
+
             destinationProduct = await tx.product.create({
                 data: {
                     name: product.name,
@@ -47,18 +178,8 @@ const transferStock = async ({
                     establishmentId: toEstablishmentId
                 }
             });
-        }
 
-        // 3️⃣ Criar registro de transferência
-        const transfer = await tx.stockTransfer.create({
-            data: {
-                productId,
-                quantity,
-                fromEstablishmentId,
-                toEstablishmentId,
-                createdBy: userId
-            }
-        });
+        }
 
         // 4️⃣ Atualizar estoque origem
         const newOriginQuantity = Number(product.quantity) - Number(quantity);
@@ -90,7 +211,7 @@ const transferStock = async ({
                 quantity,
                 previousQuantity: product.quantity,
                 newQuantity: newOriginQuantity,
-                reference: `Transferência para estabelecimento ${toEstablishmentId}`
+                reference: `Transferência aprovada para ${toEstablishmentId}`
             }
         });
 
@@ -107,11 +228,62 @@ const transferStock = async ({
             }
         });
 
-        return transfer;
+        // 8️⃣ Atualizar status da transferência
+        const updatedTransfer = await tx.stockTransfer.update({
+            where: { id: transferId },
+            data: {
+                status: "APPROVED",
+                approvedBy: userId,
+                approvedAt: new Date()
+            }
+        });
+
+        return updatedTransfer;
+
     });
 
 };
 
+
+// =============================
+// REJEITAR TRANSFERÊNCIA
+// =============================
+const rejectTransfer = async (transferId, userId) => {
+
+    if (!transferId) {
+        throw new Error("Transferência inválida");
+    }
+
+    const transfer = await prisma.stockTransfer.findUnique({
+        where: { id: transferId }
+    });
+
+    if (!transfer) {
+        throw new Error("Transferência não encontrada");
+    }
+
+    if (transfer.status !== "PENDING") {
+        throw new Error("Transferência já processada");
+    }
+
+    const updatedTransfer = await prisma.stockTransfer.update({
+        where: { id: transferId },
+        data: {
+            status: "REJECTED",
+            approvedBy: userId,
+            approvedAt: new Date()
+        }
+    });
+
+    return updatedTransfer;
+
+};
+
+
 module.exports = {
-    transferStock
+    createTransfer,
+    approveTransfer,
+    rejectTransfer,
+    getSentTransfers,
+    getReceivedTransfers
 };

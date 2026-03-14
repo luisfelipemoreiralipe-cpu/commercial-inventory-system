@@ -329,14 +329,20 @@ model StockTransfer {
   fromEstablishmentId String @db.Uuid
   toEstablishmentId String @db.Uuid
 
+  status TransferStatus @default(PENDING)
+
   createdBy String @db.Uuid
+  approvedBy String? @db.Uuid
+
   createdAt DateTime @default(now())
+  approvedAt DateTime?
 
   product Product @relation(fields: [productId], references: [id])
 
   fromEstablishment Establishment @relation("TransferFrom", fields: [fromEstablishmentId], references: [id])
   toEstablishment Establishment @relation("TransferTo", fields: [toEstablishmentId], references: [id])
 }
+
 
 model UserEstablishment {
 
@@ -353,4 +359,10 @@ model UserEstablishment {
   createdAt DateTime @default(now())
 
   @@unique([userId, establishmentId])
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
