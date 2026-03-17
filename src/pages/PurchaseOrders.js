@@ -201,45 +201,25 @@ const PurchaseOrders = () => {
 
     const handleCompleteOrder = async () => {
 
-        if (!selectedOrder) return;
-
         try {
 
-            const updatedItems = selectedOrder.items.map(item => {
+            const items = selectedOrder.items.map(item => ({
+                id: item.id,
+                adjustedQuantity:
+                    receivedQty[item.productId] ?? item.adjustedQuantity,
+                unitPrice:
+                    receivedPrice[item.productId] ?? item.unitPrice
+            }));
 
-                const qty =
-                    receivedQty[item.productId] ?? item.adjustedQuantity;
-
-                const price =
-                    receivedPrice[item.productId] ?? item.unitPrice;
-
-                return {
-                    ...item,
-                    adjustedQuantity: qty,
-                    unitPrice: price
-                };
-
-            });
-
-            dispatch({
-                type: ACTIONS.UPDATE_PURCHASE_ORDER,
-                payload: {
-                    ...selectedOrder,
-                    items: updatedItems
-                }
-            });
-
-            dispatch({
-                type: ACTIONS.COMPLETE_PURCHASE_ORDER,
-                payload: selectedOrder.id
+            await api.put(`/api/purchase-orders/${selectedOrder.id}/complete`, {
+                items
             });
 
             setSelectedOrder(null);
 
         } catch (err) {
-
-            console.error("Erro ao concluir:", err);
-
+            console.error(err);
+            alert("Erro ao finalizar pedido");
         }
 
     };
@@ -391,14 +371,45 @@ const PurchaseOrders = () => {
                                 receivedPrice[item.productId] ?? item.unitPrice;
 
                             return (
+                                <div key={item.productId} style={{ marginBottom: 12 }}>
 
-                                <div key={item.productId}>
+                                    <div><strong>{item.productName}</strong></div>
 
-                                    {item.productName}
+                                    <div style={{ display: 'flex', gap: 10 }}>
+
+                                        {/* Quantidade */}
+                                        <input
+                                            type="number"
+                                            value={qty}
+                                            min="0"
+                                            onChange={(e) =>
+                                                setReceivedQty(prev => ({
+                                                    ...prev,
+                                                    [item.productId]: Number(e.target.value)
+                                                }))
+                                            }
+                                            placeholder="Quantidade"
+                                        />
+
+                                        {/* Preço */}
+                                        <input
+                                            type="number"
+                                            value={price}
+                                            min="0"
+                                            step="0.01"
+                                            onChange={(e) =>
+                                                setReceivedPrice(prev => ({
+                                                    ...prev,
+                                                    [item.productId]: Number(e.target.value)
+                                                }))
+                                            }
+                                            placeholder="Preço"
+                                        />
+
+                                    </div>
 
                                 </div>
-
-                            )
+                            );
 
                         })}
 

@@ -53,9 +53,13 @@ exports.create = async (req, res) => {
     try {
 
         const { sectorId } = req.body;
+        console.log("REQ.USER:", req.user);
 
-        const establishmentId = req.user.establishmentId;
-        const userId = req.user.userId;
+        const establishmentId = req.user?.establishmentId;
+
+        const userId = req.user?.id;
+        console.log("REQ.USER:", req.user);
+
 
         // 🚨 impedir duas auditorias abertas no mesmo setor
         const existingAudit = await prisma.stockAudit.findFirst({
@@ -74,9 +78,15 @@ exports.create = async (req, res) => {
 
         const audit = await prisma.stockAudit.create({
             data: {
-                sectorId,
-                establishmentId,
-                createdBy: userId,
+                sector: {
+                    connect: { id: sectorId }
+                },
+                establishment: {
+                    connect: { id: establishmentId }
+                },
+                user: {
+                    connect: { id: userId }
+                },
                 status: "OPEN"
             }
         });

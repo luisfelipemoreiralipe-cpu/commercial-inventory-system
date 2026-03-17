@@ -142,13 +142,20 @@ const completeOrder = async (orderId, establishmentId) => {
 
             await tx.stockMovement.create({
                 data: {
-                    productId: item.productId,
+                    product: {
+                        connect: { id: item.productId }
+                    },
+
                     productName: item.productName,
-                    type: 'entry',
+
+                    type: 'IN',
+
                     quantity: item.adjustedQuantity,
                     previousQuantity: prevQty,
                     newQuantity: newQty,
-                    reference: ref
+
+                    reference: ref,
+
                 }
             });
 
