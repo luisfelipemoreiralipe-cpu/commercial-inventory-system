@@ -69,10 +69,17 @@ async function register({ nome, email, password }) {
 }
 
 
-async function getContext({ userId, establishmentId }) {
+async function getContext({ userId, id, establishmentId }) {
+
+    // 🔧 garante compatibilidade com versões antigas e novas
+    const uid = userId || id;
+
+    if (!uid) {
+        throw new Error("Usuário não identificado no contexto");
+    }
 
     const user = await prisma.users.findUnique({
-        where: { id: userId },
+        where: { id: uid },
         include: {
             userEstablishments: {
                 include: {
@@ -89,6 +96,9 @@ async function getContext({ userId, establishmentId }) {
     if (!user) {
         throw new Error("Usuário não encontrado");
     }
+
+    return user;
+
 
     const currentEstablishment = user.userEstablishments.find(
         ue => ue.establishment.id === establishmentId

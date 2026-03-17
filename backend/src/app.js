@@ -31,7 +31,7 @@ app.use(express.json());
 // Routes
 app.use('/products', productRoutes);
 app.use('/suppliers', supplierRoutes);
-app.use('/purchase-orders', purchaseOrderRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/stock-movements', stockMovementRoutes);
 app.use('/audit-logs', auditLogRoutes);
 app.use('/categories', categoryRoutes);

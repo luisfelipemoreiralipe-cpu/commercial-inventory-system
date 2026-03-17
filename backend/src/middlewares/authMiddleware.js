@@ -37,9 +37,8 @@ async function authMiddleware(req, res, next) {
             where: { id: decoded.userId },
             select: { role: true }
         });
-
         req.user = {
-            userId: decoded.userId,
+            id: decoded.userId,
             establishmentId: decoded.establishmentId,
             role: user.role
         };

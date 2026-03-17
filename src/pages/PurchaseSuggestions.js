@@ -222,7 +222,7 @@ const PurchaseSuggestions = () => {
 
     }, 0);
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
 
         const groupedBySupplier = {};
 
@@ -244,27 +244,34 @@ const PurchaseSuggestions = () => {
             groupedBySupplier[supplierId].push({
                 productId: s.productId,
                 productName: s.productName,
-                unit: p?.unit,
                 unitPrice: s.bestPrice,
-                suggestedQuantity: s.suggestedQuantity,
                 adjustedQuantity: getAdjusted(s),
                 supplierId
             });
 
         });
 
-        Object.entries(groupedBySupplier).forEach(([supplierId, items]) => {
+        for (const items of Object.values(groupedBySupplier)) {
 
-            dispatch({
-                type: ACTIONS.ADD_PURCHASE_ORDER,
-                payload: {
-                    supplierId,
-                    supplierName: getSupplierById(supplierId)?.name || "Fornecedor",
-                    items
-                }
+            await api.post("/api/purchase-orders", {
+                items
             });
 
-        });
+        }
+        for (const items of Object.values(groupedBySupplier)) {
+
+            await api.post("/api/purchase-orders", {
+                items
+            });
+
+        }
+
+        // 🔄 recarregar sugestões
+        const res = await api.get("/api/purchase-suggestions");
+        setSuggestions(res.data.items || []);
+
+
+
         const generated = {};
 
         suggestions.forEach((s) => {
@@ -272,6 +279,7 @@ const PurchaseSuggestions = () => {
         });
 
         setGeneratedSuggestions(generated);
+
     };
 
     const groupedSuggestions = useMemo(() => {

@@ -1,27 +1,20 @@
 import React, { useState, useMemo, useEffect } from "react";
 import styled from "styled-components";
 import {
-    MdRefresh,
     MdCheckCircle,
     MdDelete,
-    MdShoppingCart,
-    MdWarning
+    MdShoppingCart
 } from "react-icons/md";
-import Modal from '../components/Modal';
 
+import Modal from '../components/Modal';
 import { useApp, ACTIONS } from "../context/AppContext";
 import { formatCurrency } from "../utils/formatCurrency";
 
 import Card from "../components/Card";
 import Button from "../components/Button";
-import Badge from "../components/Badge";
 import EmptyState from "../components/EmptyState";
 
 import api from "../services/api";
-
-
-
-
 
 /* -------------------------------------------------------------------------- */
 /*                                Styled UI                                   */
@@ -30,57 +23,32 @@ import api from "../services/api";
 const StatsGrid = styled.div`
 display:grid;
 grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-gap:${({ theme }) => theme.spacing.md};
-margin-bottom:${({ theme }) => theme.spacing.xl};
-`;
-
-
-
-const StatCard = styled(Card)`
-display:flex;
-flex-direction:column;
-gap:4px;
-padding:20px;
-`;
-
-const StatLabel = styled.span`
-font-size:${({ theme }) => theme.fontSizes.sm};
-color:${({ theme }) => theme.colors.textMuted};
-`;
-
-const StatValue = styled.span`
-font-size:${({ theme }) => theme.fontSizes["2xl"]};
-font-weight:${({ theme }) => theme.fontWeights.semibold};
-color:${({ theme }) => theme.colors.textPrimary};
+gap:16px;
+margin-bottom:24px;
 `;
 
 const PageHeader = styled.div`
 display:flex;
 justify-content:space-between;
 align-items:flex-start;
-margin-bottom:${({ theme }) => theme.spacing.xl};
+margin-bottom:24px;
 `;
 
 const PageTitle = styled.h1`
-font-size:${({ theme }) => theme.fontSizes["3xl"]};
-font-weight:${({ theme }) => theme.fontWeights.bold};
+font-size:28px;
+font-weight:700;
 `;
 
 const PageSubtitle = styled.p`
-color:${({ theme }) => theme.colors.textSecondary};
-font-size:${({ theme }) => theme.fontSizes.sm};
+color:#64748B;
+font-size:14px;
 margin-top:4px;
 `;
 
 const SectionTitle = styled.h2`
-font-size:${({ theme }) => theme.fontSizes.xl};
-font-weight:${({ theme }) => theme.fontWeights.semibold};
-margin-bottom:${({ theme }) => theme.spacing.md};
-`;
-
-
-const TableOverflow = styled.div`
-overflow-x:auto;
+font-size:18px;
+font-weight:600;
+margin-bottom:16px;
 `;
 
 const Table = styled.table`
@@ -91,54 +59,30 @@ border-collapse:collapse;
 const Th = styled.th`
 text-align:left;
 padding:14px 16px;
-font-size:${({ theme }) => theme.fontSizes.xs};
-font-weight:${({ theme }) => theme.fontWeights.semibold};
-color:${({ theme }) => theme.colors.textMuted};
-text-transform:uppercase;
-letter-spacing:0.05em;
-background:${({ theme }) => theme.colors.bgHover};
-border-bottom:1px solid ${({ theme }) => theme.colors.border};
+font-size:12px;
+background:#F8FAFC;
+border-bottom:1px solid #E5E7EB;
 `;
 
 const Td = styled.td`
 padding:14px 16px;
-font-size:${({ theme }) => theme.fontSizes.sm};
-border-bottom:1px solid ${({ theme }) => theme.colors.border};
+border-bottom:1px solid #E5E7EB;
 `;
 
 const Tr = styled.tr`
 &:hover{
-background:${({ theme }) => theme.colors.bgHover};
+background:#F8FAFC;
 }
 `;
-
 
 const StatusBadge = styled.span`
 padding:4px 10px;
 border-radius:999px;
 font-size:12px;
 font-weight:600;
-
-background:${({ status, theme }) =>
-        status === "pending"
-            ? theme.colors.warningLight
-            : theme.colors.successLight};
-
-color:${({ status, theme }) =>
-        status === "pending"
-            ? theme.colors.warning
-            : theme.colors.success};
+background:#FEF3C7;
+color:#D97706;
 `;
-
-const ActionRow = styled.div`
-display:flex;
-gap:6px;
-`;
-
-/* -------------------------------------------------------------------------- */
-/*                               Business logic                               */
-/* -------------------------------------------------------------------------- */
-
 
 /* -------------------------------------------------------------------------- */
 /*                                Component                                   */
@@ -149,39 +93,80 @@ const PurchaseOrders = () => {
     const { state, dispatch, getSupplierById } = useApp();
 
     const [suggestions, setSuggestions] = useState([]);
-    const [adjustedQtys, setAdjustedQtys] = useState({});
-    const [selectedSuppliers, setSelectedSuppliers] = useState({});
     const [receivedQty, setReceivedQty] = useState({});
     const [receivedPrice, setReceivedPrice] = useState({});
+    const [selectedOrder, setSelectedOrder] = useState(null);
+
+    /* -------------------------------------------------------------------------- */
+    /*                                   EFFECT                                   */
+    /* -------------------------------------------------------------------------- */
 
     useEffect(() => {
 
         const fetchSuggestions = async () => {
+
             try {
+
                 const res = await api.get("/api/purchase-suggestions");
 
-                console.log(res.data.items);
+                console.log("SUGGESTIONS RAW:", res);
+                console.log("SUGGESTIONS PARSED:", res.data?.data);
 
-                setSuggestions(res.data.items || []);
+                setSuggestions(res.data?.data || []);
 
             } catch (err) {
-                console.error(err);
+
+                console.error("Erro suggestions:", err);
+
             }
+
         };
+
         fetchSuggestions();
 
     }, []);
 
+    useEffect(() => {
+
+        const fetchOrders = async () => {
+
+            try {
+
+                const res = await api.get("/api/purchase-orders");
+
+                console.log("ORDERS RAW:", res);
+
+                const orders = res.data?.data || res.data || [];
+
+                console.log("ORDERS PARSED:", orders);
+
+                dispatch({
+                    type: ACTIONS.SET_PURCHASE_ORDERS,
+                    payload: orders
+                });
+
+            } catch (err) {
+
+                console.error("Erro ao buscar ordens:", err);
+
+            }
+
+        };
+
+        fetchOrders();
+
+    }, []);
+
+    /* -------------------------------------------------------------------------- */
+    /*                                   MEMOS                                    */
     /* -------------------------------------------------------------------------- */
 
-
-
-    const [selectedOrder, setSelectedOrder] = useState(null);
-
     const lowStockProducts = useMemo(() => {
+
         return state.products.filter(
             p => Number(p.quantity) < Number(p.minQuantity)
         );
+
     }, [state.products]);
 
     const totalEstimated = useMemo(() => {
@@ -194,93 +179,32 @@ const PurchaseOrders = () => {
 
             const price = suggestion?.bestPrice || Number(p.unitPrice);
 
-            return sum;
+            return sum + price;
 
         }, 0);
 
-    }, [lowStockProducts, adjustedQtys, suggestions]);
+    }, [lowStockProducts, suggestions]);
 
-    const totalSaving = useMemo(() => {
+    const pendingOrders = useMemo(() => {
 
-        return suggestions.reduce((sum, s) => {
-            if (!s.saving) return sum;
-            return sum + (s.saving * s.suggestedQuantity);
-        }, 0);
+        console.log("STATE PURCHASE ORDERS:", state.purchaseOrders);
 
-    }, [suggestions]);
+        return state.purchaseOrders.filter(
+            o => o.status === "pending"
+        );
 
-    /* -------------------------------------------------------------------------- */
-
-
-
-    const handleGenerate = () => {
-
-        if (lowStockProducts.length === 0) return;
-
-        const groupedBySupplier = {};
-
-        lowStockProducts.forEach((p) => {
-
-            const suggestion = suggestions.find(
-                s => s.productId === p.id
-            );
-
-            const supplierId =
-                suggestion?.bestSupplierId ||
-                p.supplierId ||
-                "unknown";
-
-            if (!groupedBySupplier[supplierId]) {
-                groupedBySupplier[supplierId] = [];
-            }
-
-            groupedBySupplier[supplierId].push({
-
-                productId: p.id,
-                productName: p.name,
-                unit: p.unit,
-                unitPrice: suggestion?.bestPrice || Number(p.unitPrice),
-                supplierId
-
-            });
-
-        });
-
-        Object.entries(groupedBySupplier).forEach(([supplierId, items]) => {
-
-            dispatch({
-                type: ACTIONS.ADD_PURCHASE_ORDER,
-                payload: {
-                    supplierId,
-                    supplierName: getSupplierById(supplierId)?.name || "Fornecedor",
-                    items
-                }
-            });
-
-        });
-
-    };
+    }, [state.purchaseOrders]);
 
     /* -------------------------------------------------------------------------- */
-
-    const pendingOrders = state.purchaseOrders.filter(
-        o => o.status === "pending"
-    );
-
-    const completedOrders = state.purchaseOrders.filter(
-        o => o.status === "completed"
-    );
-
+    /*                                  HANDLERS                                  */
     /* -------------------------------------------------------------------------- */
-    /*                                   UI                                       */
-    /* -------------------------------------------------------------------------- */
+
     const handleCompleteOrder = async () => {
 
         if (!selectedOrder) return;
 
         try {
 
-            // Atualiza quantidades e preços recebidos no estado local
             const updatedItems = selectedOrder.items.map(item => {
 
                 const qty =
@@ -297,8 +221,7 @@ const PurchaseOrders = () => {
 
             });
 
-            // Atualiza a ordem localmente antes de finalizar
-            await dispatch({
+            dispatch({
                 type: ACTIONS.UPDATE_PURCHASE_ORDER,
                 payload: {
                     ...selectedOrder,
@@ -306,54 +229,41 @@ const PurchaseOrders = () => {
                 }
             });
 
-            // Finaliza a ordem (backend vai atualizar estoque)
-            await dispatch({
+            dispatch({
                 type: ACTIONS.COMPLETE_PURCHASE_ORDER,
                 payload: selectedOrder.id
             });
 
-            // Fecha modal
             setSelectedOrder(null);
 
         } catch (err) {
 
-            console.error("Erro ao concluir recebimento:", err);
+            console.error("Erro ao concluir:", err);
 
         }
 
     };
 
+    /* -------------------------------------------------------------------------- */
+    /*                                   RENDER                                   */
+    /* -------------------------------------------------------------------------- */
 
     return (
         <>
 
             <PageHeader>
+
                 <div>
+
                     <PageTitle>Ordens de Compra</PageTitle>
+
                     <PageSubtitle>
                         Gerencie e acompanhe suas ordens de reposição
                     </PageSubtitle>
+
                 </div>
+
             </PageHeader>
-
-            <StatsGrid>
-
-                <StatCard>
-                    <StatLabel>Produtos críticos</StatLabel>
-                    <StatValue>{lowStockProducts.length}</StatValue>
-                </StatCard>
-
-                <StatCard>
-                    <StatLabel>Custo estimado</StatLabel>
-                    <StatValue>{formatCurrency(totalEstimated)}</StatValue>
-                </StatCard>
-
-                <StatCard>
-                    <StatLabel>Economia possível</StatLabel>
-                    <StatValue>{formatCurrency(totalSaving)}</StatValue>
-                </StatCard>
-
-            </StatsGrid>
 
             {pendingOrders.length > 0 && (
 
@@ -363,96 +273,88 @@ const PurchaseOrders = () => {
 
                     <Card padding="0">
 
-                        <TableOverflow>
+                        <Table>
 
-                            <Table>
+                            <thead>
 
-                                <thead>
+                                <tr>
 
-                                    <tr>
+                                    <Th>Pedido</Th>
+                                    <Th>Fornecedor</Th>
+                                    <Th>Itens</Th>
+                                    <Th>Total</Th>
+                                    <Th>Status</Th>
+                                    <Th>Ações</Th>
 
-                                        <Th>Pedido</Th>
-                                        <Th>Fornecedor</Th>
-                                        <Th>Itens</Th>
-                                        <Th>Total</Th>
-                                        <Th>Status</Th>
-                                        <Th>Ações</Th>
+                                </tr>
 
-                                    </tr>
+                            </thead>
 
-                                </thead>
+                            <tbody>
 
-                                <tbody>
+                                {pendingOrders.map(order => {
 
-                                    {pendingOrders.map(order => {
+                                    const total = order.items.reduce(
+                                        (s, i) => s + i.adjustedQuantity * i.unitPrice,
+                                        0
+                                    );
 
-                                        const total = order.items.reduce(
-                                            (s, i) => s + i.adjustedQuantity * i.unitPrice,
-                                            0
-                                        );
+                                    return (
 
-                                        return (
+                                        <Tr key={order.id}>
 
-                                            <Tr
-                                                key={order.id}
-                                                onClick={() => setSelectedOrder(order)}
-                                                style={{ cursor: "pointer" }}
-                                            >
+                                            <Td>#{order.id.slice(-4)}</Td>
 
-                                                <Td>#{order.id.slice(-4)}</Td>
+                                            <Td>
+                                                {getSupplierById(order.supplierId)?.name || "Fornecedor"}
+                                            </Td>
 
-                                                <Td>
-                                                    {getSupplierById(order.supplierId)?.name || "Fornecedor"}
-                                                </Td>
+                                            <Td>{order.items.length}</Td>
 
-                                                <Td>{order.items.length}</Td>
+                                            <Td>{formatCurrency(total)}</Td>
 
-                                                <Td>{formatCurrency(total)}</Td>
+                                            <Td>
 
-                                                <Td>
-                                                    <StatusBadge status="pending">
-                                                        Pendente
-                                                    </StatusBadge>
-                                                </Td>
+                                                <StatusBadge>
+                                                    Pendente
+                                                </StatusBadge>
 
-                                                <Td>
+                                            </Td>
 
-                                                    <ActionRow>
+                                            <Td>
 
-                                                        <Button
-                                                            size="sm"
-                                                            variant="success"
-                                                            onClick={() => setSelectedOrder(order)}
-                                                        >
-                                                            <MdCheckCircle />
-                                                        </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="success"
+                                                    onClick={() => setSelectedOrder(order)}
+                                                >
+                                                    <MdCheckCircle />
+                                                </Button>
 
-                                                        <Button
-                                                            size="sm"
-                                                            variant="danger"
-                                                            onClick={() => dispatch({
-                                                                type: ACTIONS.DELETE_PURCHASE_ORDER,
-                                                                payload: order.id
-                                                            })}
-                                                        >
-                                                            <MdDelete />
-                                                        </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="danger"
+                                                    onClick={() =>
+                                                        dispatch({
+                                                            type: ACTIONS.DELETE_PURCHASE_ORDER,
+                                                            payload: order.id
+                                                        })
+                                                    }
+                                                >
+                                                    <MdDelete />
+                                                </Button>
 
-                                                    </ActionRow>
+                                            </Td>
 
-                                                </Td>
+                                        </Tr>
 
-                                            </Tr>
+                                    )
 
-                                        )
+                                })}
 
-                                    })}
+                            </tbody>
 
-                                </tbody>
-
-                            </Table>
-
-                        </TableOverflow>
+                        </Table>
 
                     </Card>
 
@@ -470,261 +372,39 @@ const PurchaseOrders = () => {
 
             )}
 
-
-            {/* ───── Modal de Detalhes do Pedido ───── */}
-
             <Modal
                 isOpen={!!selectedOrder}
                 onClose={() => setSelectedOrder(null)}
-                title={`Pedido #${selectedOrder?.id.slice(-4).toUpperCase()}`}
+                title={`Pedido #${selectedOrder?.id.slice(-4)}`}
             >
 
                 {selectedOrder && (
 
                     <div>
 
-                        <p style={{ marginBottom: 16 }}>
-                            <strong>Fornecedor:</strong>{" "}
-                            {getSupplierById(selectedOrder.supplierId)?.name || selectedOrder.supplierName || "Fornecedor"}
-                        </p>
+                        {selectedOrder.items.map(item => {
 
-                        <table
-                            style={{
-                                width: "100%",
-                                borderCollapse: "collapse"
-                            }}
-                        >
+                            const qty =
+                                receivedQty[item.productId] ?? item.adjustedQuantity;
 
-                            <thead>
+                            const price =
+                                receivedPrice[item.productId] ?? item.unitPrice;
 
-                                <tr
-                                    style={{
-                                        textAlign: "left",
-                                        borderBottom: "1px solid #E5E7EB"
-                                    }}
-                                >
+                            return (
 
-                                    <th style={{ padding: "8px" }}>Produto</th>
-                                    <th style={{ padding: "8px", width: 150 }}>Quantidade</th>
-                                    <th style={{ padding: "8px", width: 160 }}>Preço</th>
-                                    <th style={{ padding: "8px", width: 120 }}>Total</th>
+                                <div key={item.productId}>
 
-                                </tr>
+                                    {item.productName}
 
-                            </thead>
+                                </div>
 
-                            <tbody>
+                            )
 
-                                {selectedOrder.items?.map(item => {
+                        })}
 
-                                    const qty =
-                                        receivedQty[item.productId] ?? item.adjustedQuantity;
-
-                                    const price =
-                                        receivedPrice[item.productId] ?? item.unitPrice;
-
-                                    return (
-
-                                        <tr
-                                            key={item.productId}
-                                            style={{
-                                                borderBottom: "1px solid #F1F5F9"
-                                            }}
-                                        >
-
-                                            <td style={{ padding: "10px 8px" }}>
-                                                {item.productName}
-                                            </td>
-
-                                            {/* QUANTIDADE */}
-
-                                            <td style={{ padding: "10px 8px" }}>
-
-                                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-
-                                                    <span style={{
-                                                        fontSize: 11,
-                                                        color: "#64748B"
-                                                    }}>
-                                                        Pedido: {item.adjustedQuantity} {item.unit}
-                                                    </span>
-
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        value={qty}
-                                                        onChange={(e) =>
-                                                            setReceivedQty({
-                                                                ...receivedQty,
-                                                                [item.productId]: Number(e.target.value)
-                                                            })
-                                                        }
-                                                        style={{
-                                                            width: 90,
-                                                            padding: "6px 8px",
-                                                            border: "1px solid #E5E7EB",
-                                                            borderRadius: 6,
-                                                            fontSize: 13
-                                                        }}
-                                                    />
-
-                                                </div>
-
-                                            </td>
-
-                                            {/* PREÇO */}
-
-                                            <td style={{ padding: "10px 8px" }}>
-
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-
-                                                    <span style={{
-                                                        fontSize: 13,
-                                                        color: "#64748B"
-                                                    }}>
-                                                        R$
-                                                    </span>
-
-                                                    <input
-                                                        type="text"
-                                                        value={
-                                                            price === 0
-                                                                ? ""
-                                                                : price.toString().replace(".", ",")
-                                                        }
-                                                        onChange={(e) => {
-
-                                                            const raw = e.target.value
-                                                                .replace(",", ".")
-                                                                .replace(/[^\d.]/g, "");
-
-                                                            const value = Number(raw);
-
-                                                            setReceivedPrice({
-                                                                ...receivedPrice,
-                                                                [item.productId]: value
-                                                            });
-
-                                                        }}
-                                                        style={{
-                                                            width: 90,
-                                                            padding: "6px 8px",
-                                                            border: "1px solid #E5E7EB",
-                                                            borderRadius: 6,
-                                                            fontSize: 13
-                                                        }}
-                                                    />
-
-                                                </div>
-
-                                            </td>
-
-                                            {/* TOTAL */}
-
-                                            <td
-                                                style={{
-                                                    padding: "10px 8px",
-                                                    fontWeight: 600,
-                                                    color: "#059669",
-                                                    fontSize: 14
-                                                }}
-                                            >
-                                                {formatCurrency(price * qty)}
-                                            </td>
-
-                                        </tr>
-
-                                    );
-
-                                })}
-
-                            </tbody>
-
-                        </table>
-
-
-                        {/* RESUMO DO PEDIDO */}
-
-                        <div
-                            style={{
-                                marginTop: 20,
-                                paddingTop: 12,
-                                borderTop: "1px solid #E5E7EB",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center"
-                            }}
-                        >
-
-                            <span style={{ fontSize: 14, color: "#64748B" }}>
-                                Total do pedido
-                            </span>
-
-                            <span style={{
-                                fontSize: 18,
-                                fontWeight: 700,
-                                color: "#059669"
-                            }}>
-                                {formatCurrency(
-
-                                    selectedOrder.items.reduce((sum, item) => {
-
-                                        const qty =
-                                            receivedQty[item.productId] ?? item.adjustedQuantity;
-
-                                        const price =
-                                            receivedPrice[item.productId] ?? item.unitPrice;
-
-                                        return sum + qty * price;
-
-                                    }, 0)
-
-                                )}
-                            </span>
-
-                        </div>
-
-
-                        {/* BOTÕES */}
-
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                gap: 10,
-                                marginTop: 20
-                            }}
-                        >
-
-                            <button
-                                onClick={() => setSelectedOrder(null)}
-                                style={{
-                                    padding: "8px 14px",
-                                    border: "1px solid #E5E7EB",
-                                    background: "white",
-                                    borderRadius: 6,
-                                    cursor: "pointer"
-                                }}
-                            >
-                                Cancelar
-                            </button>
-
-                            <button
-                                onClick={handleCompleteOrder}
-                                style={{
-                                    padding: "8px 16px",
-                                    background: "#059669",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: 6,
-                                    cursor: "pointer",
-                                    fontWeight: 600
-                                }}
-                            >
-                                Concluir Recebimento
-                            </button>
-
-                        </div>
+                        <button onClick={handleCompleteOrder}>
+                            Concluir Recebimento
+                        </button>
 
                     </div>
 

@@ -60,6 +60,9 @@ const appReducer = (state, action) => {
             };
 
         // Products
+
+
+
         case ACTIONS.SET_PRODUCTS:
             return {
                 ...state,
@@ -78,11 +81,6 @@ const appReducer = (state, action) => {
             };
 
 
-        case ACTIONS.SET_PRODUCTS:
-            return {
-                ...state,
-                products: action.payload
-            };
 
         // Suppliers
         case ACTIONS.ADD_SUPPLIER:
@@ -233,7 +231,7 @@ export const AppProvider = ({ children }) => {
                 api.get('/categories'),
                 api.get('/products'),
                 api.get('/suppliers'),
-                api.get('/purchase-orders'),
+                api.get('/api/purchase-orders'),
                 api.get('/stock-movements'),
                 api.get('/audit-logs'),
             ]);
@@ -269,14 +267,18 @@ export const AppProvider = ({ children }) => {
     // ─── App Init ───────────────────────────────────────────────────────────
     useEffect(() => {
 
-        const token = localStorage.getItem("token");
+        const init = async () => {
 
-        if (token) {
+            const token = localStorage.getItem("token");
 
-            fetchContext();   // carrega user + establishment
-            fetchAllData();   // carrega dados do sistema
+            if (!token) return;
 
-        }
+            await fetchContext();   // 🔥 primeiro
+            await fetchAllData();   // 🔥 depois
+
+        };
+
+        init();
 
     }, []);
 
@@ -320,6 +322,8 @@ export const AppProvider = ({ children }) => {
                     fetchSideEffects();
                     break;
                 }
+
+
 
                 case ACTIONS.UPDATE_PRODUCT: {
 
