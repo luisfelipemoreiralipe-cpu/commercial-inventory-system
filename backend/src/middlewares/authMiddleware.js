@@ -33,9 +33,15 @@ async function authMiddleware(req, res, next) {
             });
         }
 
+        const user = await prisma.users.findUnique({
+            where: { id: decoded.userId },
+            select: { role: true }
+        });
+
         req.user = {
             userId: decoded.userId,
-            establishmentId: decoded.establishmentId
+            establishmentId: decoded.establishmentId,
+            role: user.role
         };
 
         next();

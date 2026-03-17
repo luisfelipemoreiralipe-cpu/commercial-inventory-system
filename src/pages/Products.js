@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore, MdWarning } from 'react-icons/md';
 import { useApp, ACTIONS } from '../context/AppContext';
@@ -9,8 +9,10 @@ import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import toast from "react-hot-toast";
 import EmptyState from '../components/EmptyState';
+import api from "../services/api";
 import RecipeModal from "../components/RecipeModal";
 import { Input, Select } from '../components/FormFields';
+import { useLocation } from "react-router-dom";
 import { MdMenuBook } from "react-icons/md";
 import {
     getProductSuppliers,
@@ -210,7 +212,7 @@ const TableOverflow = styled.div`
 // ─── Page Component ─────────────────────────────────────────────────────────────
 const Products = () => {
     const { state, dispatch } = useApp();
-
+    const location = useLocation();
     const [search, setSearch] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterStock, setFilterStock] = useState('all');
@@ -229,8 +231,34 @@ const Products = () => {
     const [recipeModal, setRecipeModal] = useState(null);
     const [filterType, setFilterType] = useState("ALL");
 
+    useEffect(() => {
+
+        const loadProducts = async () => {
+
+            try {
+
+                const products = await api.get("/products");
+
+                dispatch({
+                    type: ACTIONS.SET_PRODUCTS,
+                    payload: products
+                });
+
+            } catch (error) {
+
+                console.error("Erro ao carregar produtos:", error);
+
+            }
+
+        };
+
+        loadProducts();
+
+    }, []);
+
     // Derived
     const totalProducts = state.products.length;
+
 
 
 
@@ -254,6 +282,8 @@ const Products = () => {
         );
 
     });
+
+
 
     const filtered = state.products.filter((p) => {
 
@@ -382,6 +412,8 @@ const Products = () => {
         }
 
     };
+
+
 
     const handleSubmit = async () => {
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "styled-components";
+import StockAuditHistory from "./pages/StockAuditHistory";
 
 import Register from "./pages/Register";
 import Login from "./pages/login";
@@ -13,6 +14,8 @@ import ActivityLog from "./pages/ActivityLog";
 import PurchaseSuggestions from "./pages/PurchaseSuggestions";
 import SelectEstablishment from "./pages/SelectEstablishment";
 import StockTransfers from "./pages/StockTransfers";
+import StockAudits from "./pages/StockAudits";
+import StockAuditDetail from "./pages/StockAuditDetail";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -60,6 +63,15 @@ function App() {
               <Route path="/stock-history" element={<StockHistory />} />
 
               <Route path="/activity-log" element={<ActivityLog />} />
+
+              <Route path="/stock-audits" element={<StockAudits />} />
+
+              <Route
+                path="/stock-audits/history"
+                element={<StockAuditHistory />}
+              />
+
+              <Route path="/stock-audits/:id" element={<StockAuditDetail />} />
 
               <Route path="/stock-transfers" element={<StockTransfers />} />
 

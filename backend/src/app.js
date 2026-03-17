@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 
 // Routes
+const stockSectorRoutes = require('./routes/stockSectorRoutes');
 const productRoutes = require('./routes/productRoutes');
 const supplierRoutes = require('./routes/supplierRoutes');
 const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
@@ -15,6 +16,8 @@ const purchaseSuggestionRoutes = require('./routes/purchaseSuggestionRoutes');
 const recipeRoutes = require('./routes/recipeRoutes'); // ← NOVA ROTA
 const establishmentRoutes = require('./routes/establishmentRoutes');
 const stockTransferRoutes = require('./routes/stockTransferRoutes');
+const stockAuditRoutes = require('./routes/stockAuditRoutes');
+
 
 // Middlewares
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
@@ -37,10 +40,13 @@ app.use('/dashboard', dashboardRoutes);
 app.use('/api', stockTransferRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/recipes', recipeRoutes); // ← REGISTRO DA ROTA
+app.use('/stock-sectors', stockSectorRoutes);
 
 // Nova rota da engine de compras
 app.use('/api', purchaseSuggestionRoutes);
 app.use('/establishments', establishmentRoutes);
+app.use('/stock-audits', stockAuditRoutes);
+
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);

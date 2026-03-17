@@ -60,8 +60,13 @@ const appReducer = (state, action) => {
             };
 
         // Products
-        case ACTIONS.ADD_PRODUCT:
-            return { ...state, products: [...state.products, action.payload] };
+        case ACTIONS.SET_PRODUCTS:
+            return {
+                ...state,
+                products: Array.isArray(action.payload)
+                    ? action.payload
+                    : action.payload?.data || []
+            };
 
         case ACTIONS.UPDATE_PRODUCT:
         case ACTIONS.UPDATE_PRODUCT_QUANTITY:
@@ -72,10 +77,11 @@ const appReducer = (state, action) => {
                 ),
             };
 
-        case ACTIONS.DELETE_PRODUCT:
+
+        case ACTIONS.SET_PRODUCTS:
             return {
                 ...state,
-                products: state.products.filter((x) => x.id !== action.payload),
+                products: action.payload
             };
 
         // Suppliers
@@ -125,6 +131,25 @@ const AppContext = createContext(null);
 export const AppProvider = ({ children }) => {
 
     const [state, dispatchRaw] = useReducer(appReducer, initialState);
+
+    const loadProducts = async () => {
+
+        try {
+
+            const products = await api.get("/products");
+
+            dispatch({
+                type: ACTIONS.SET_PRODUCTS,
+                payload: products
+            });
+
+        } catch (error) {
+
+            console.error("Erro ao carregar produtos:", error);
+
+        }
+
+    };
 
     // ─── Fetch Context (Auth) ───────────────────────────────────────────────
     const fetchContext = useCallback(async () => {
@@ -376,7 +401,9 @@ export const AppProvider = ({ children }) => {
                 getLowStockProducts,
                 getTotalInventoryValue,
                 getSupplierById,
-                getProductById
+                getProductById,
+                loadProducts
+
             }}
         >
             {children}

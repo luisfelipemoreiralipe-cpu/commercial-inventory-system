@@ -17,6 +17,34 @@ const Title = styled.h1`
   font-weight: ${({ theme }) => theme.fontWeights.bold};
 `;
 
+const KpiGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: ${({ theme }) => theme.spacing.md};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const KpiCard = styled.div`
+  background: ${({ theme }) => theme.colors.bgCard};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const KpiTitle = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const KpiValue = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes["2xl"]};
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+`;
+
 const Tabs = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing.sm};
@@ -400,15 +428,25 @@ export default function StockTransfers() {
 
                 {tab === "sent" && topProduct && (
 
-                    <div style={{ marginBottom: "20px", fontWeight: "600" }}>
-                        Produto mais transferido:
-                        {" "}
-                        {topProduct.name} — {topProduct.quantity}
+                    <KpiGrid>
 
-                    </div>
+                        <KpiCard>
+
+                            <KpiTitle>Produto mais transferido</KpiTitle>
+
+                            <KpiValue>
+                                {topProduct.name}
+                            </KpiValue>
+
+                            <span>
+                                {topProduct.quantity} transferências
+                            </span>
+
+                        </KpiCard>
+
+                    </KpiGrid>
 
                 )}
-
 
                 {tab === "create" && (
 

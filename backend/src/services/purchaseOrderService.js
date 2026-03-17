@@ -66,7 +66,12 @@ const completeOrder = async (orderId, establishmentId) => {
 
             await tx.product.update({
                 where: { id: item.productId },
-                data: { quantity: newQty }
+                data: {
+                    quantity: newQty,
+
+                    // 🔹 ATUALIZA O CUSTO DO PRODUTO
+                    currentCost: item.unitPrice
+                }
             });
 
 

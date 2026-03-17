@@ -59,19 +59,22 @@ model Category {
 ////////////////////////////////////////////////////////////
 
 model Product {
-  id        String  @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
   name      String
   unit      String
   unitPrice Decimal? @db.Decimal(12, 2)
 
-  quantity    Decimal @db.Decimal(12,3) @default(0)
-minQuantity Decimal @db.Decimal(12,3) @default(0)
+  quantity    Decimal @default(0) @db.Decimal(12, 3)
+  minQuantity Decimal @default(0) @db.Decimal(12, 3)
 
   type ProductType @default(INVENTORY)
 
   // 🔹 NOVOS CAMPOS
-  purchaseUnit String?
-  conversionFactor Decimal? @db.Decimal(10,2)
+  purchaseUnit     String?
+  conversionFactor Decimal? @db.Decimal(10, 2)
+
+  // 🔹 NOVO CAMPO DE CUSTO
+  currentCost Decimal? @db.Decimal(12,2)
 
   // Soft delete
   isActive Boolean @default(true)
@@ -79,12 +82,12 @@ minQuantity Decimal @db.Decimal(12,3) @default(0)
   establishmentId String        @db.Uuid
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
-  categoryId String @db.Uuid
+  categoryId String   @db.Uuid
   category   Category @relation(fields: [categoryId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  auditItems       StockAuditItem[]
   orderItems       PurchaseOrderItem[]
   stockMovements   StockMovement[]
   productSuppliers ProductSupplier[]
@@ -92,7 +95,9 @@ minQuantity Decimal @db.Decimal(12,3) @default(0)
   supplierPriceHistory SupplierPriceHistory[]
   recipeItems          RecipeItem[]
   Recipe               Recipe?
-  transfers StockTransfer[]
+  transfers            StockTransfer[]
+  sectorId             String?      @db.Uuid
+  sector               StockSector? @relation(fields: [sectorId], references: [id])
 
   @@map("products")
 }
@@ -194,19 +199,21 @@ model Establishment {
 
   users users[]
 
-  products   Product[]
-  categories Category[]
-  suppliers  Supplier[]
-  auditLogs  AuditLog[]
-  recipes    Recipe[]
+  products       Product[]
+  categories     Category[]
+  suppliers      Supplier[]
+  auditLogs      AuditLog[]
+  recipes        Recipe[]
+  stockAudits    StockAudit[]
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  transfersFrom   StockTransfer[] @relation("TransferFrom")
-transfersTo     StockTransfer[] @relation("TransferTo")
-userEstablishments UserEstablishment[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now()) @updatedAt
+  transfersFrom      StockTransfer[]     @relation("TransferFrom")
+  transfersTo        StockTransfer[]     @relation("TransferTo")
+  userEstablishments UserEstablishment[]
+  StockSector        StockSector[]
 }
 
 ////////////////////////////////////////////////////////////
@@ -218,14 +225,15 @@ model users {
   nome       String
   email      String @unique
   senha_hash String
+  role       String @default("OPERATOR")
 
-  establishmentId String @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId    String              @db.Uuid
+  establishment      Establishment       @relation(fields: [establishmentId], references: [id])
   userEstablishments UserEstablishment[]
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  purchase_orders PurchaseOrder[]
+  stockAudits        StockAudit[]
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  purchase_orders    PurchaseOrder[]
 }
 
 ////////////////////////////////////////////////////////////
@@ -310,7 +318,6 @@ model RecipeItem {
   @@map("recipe_items")
 }
 
-
 model Organization {
   id        String   @id @default(uuid())
   name      String
@@ -320,40 +327,37 @@ model Organization {
 }
 
 model StockTransfer {
-
   id String @id @default(uuid()) @db.Uuid
 
   productId String @db.Uuid
-  quantity Float
+  quantity  Float
 
   fromEstablishmentId String @db.Uuid
-  toEstablishmentId String @db.Uuid
+  toEstablishmentId   String @db.Uuid
 
   status TransferStatus @default(PENDING)
 
-  createdBy String @db.Uuid
+  createdBy  String  @db.Uuid
   approvedBy String? @db.Uuid
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
   approvedAt DateTime?
 
   product Product @relation(fields: [productId], references: [id])
 
   fromEstablishment Establishment @relation("TransferFrom", fields: [fromEstablishmentId], references: [id])
-  toEstablishment Establishment @relation("TransferTo", fields: [toEstablishmentId], references: [id])
+  toEstablishment   Establishment @relation("TransferTo", fields: [toEstablishmentId], references: [id])
 }
 
-
 model UserEstablishment {
-
   id String @id @default(uuid()) @db.Uuid
 
-  userId String @db.Uuid
+  userId          String @db.Uuid
   establishmentId String @db.Uuid
 
   role String?
 
-  user users @relation(fields: [userId], references: [id])
+  user          users         @relation(fields: [userId], references: [id])
   establishment Establishment @relation(fields: [establishmentId], references: [id])
 
   createdAt DateTime @default(now())
@@ -365,4 +369,62 @@ enum TransferStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model StockAudit {
+  id String @id @default(uuid()) @db.Uuid
+
+  establishmentId String        @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+
+  sectorId String      @db.Uuid
+  sector   StockSector @relation(fields: [sectorId], references: [id])
+
+  createdBy String @db.Uuid
+  user      users  @relation(fields: [createdBy], references: [id])
+
+  status String @default("OPEN")
+
+  createdAt DateTime @default(now())
+
+  items StockAuditItem[]
+
+  @@map("stock_audits")
+}
+
+model StockAuditItem {
+  id String @id @default(uuid()) @db.Uuid
+
+  auditId String     @db.Uuid
+  audit   StockAudit @relation(fields: [auditId], references: [id])
+
+  productId String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id])
+
+  systemQuantity  Decimal @db.Decimal(12, 3)
+
+  countedQuantity Decimal @default(0) @db.Decimal(12, 3)
+
+  difference Decimal @default(0) @db.Decimal(12, 3)
+
+  @@map("stock_audit_items")
+}
+
+model StockSector {
+  id String @id @default(uuid()) @db.Uuid
+
+  name String
+
+  establishmentId String        @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+
+  products Product[]
+
+  audits StockAudit[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([name, establishmentId])
+
+  @@map("stock_sectors")
 }
