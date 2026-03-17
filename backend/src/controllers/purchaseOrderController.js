@@ -23,11 +23,14 @@ const create = asyncHandler(async (req, res) => {
 
 const complete = asyncHandler(async (req, res) => {
 
+    const { items } = req.body; // 👈 TEM QUE EXISTIR
+
     const establishmentId = req.user?.establishmentId;
 
     const data = await purchaseOrderService.completeOrder(
         req.params.id,
-        establishmentId
+        establishmentId,
+        items // 👈 AGORA FUNCIONA
     );
 
     res.json({ success: true, data });

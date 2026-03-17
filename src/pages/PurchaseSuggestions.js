@@ -224,6 +224,8 @@ const PurchaseSuggestions = () => {
 
     const handleGenerate = async () => {
 
+
+
         const groupedBySupplier = {};
 
         newSuggestions.forEach((s) => {
@@ -251,13 +253,8 @@ const PurchaseSuggestions = () => {
 
         });
 
-        for (const items of Object.values(groupedBySupplier)) {
 
-            await api.post("/api/purchase-orders", {
-                items
-            });
 
-        }
         for (const items of Object.values(groupedBySupplier)) {
 
             await api.post("/api/purchase-orders", {

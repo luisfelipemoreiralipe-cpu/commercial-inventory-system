@@ -61,13 +61,15 @@ const completeOrder = async (orderId, establishmentId) => {
 
             if (!product) continue;
 
-            const prevQty = product.quantity;
-            const newQty = prevQty + item.adjustedQuantity;
+            const prevQty = Number(product.quantity);
+            const quantity = Number(item.adjustedQuantity);
+
+            const newQty = prevQty + quantity;
 
             await tx.product.update({
                 where: { id: item.productId },
                 data: {
-                    quantity: newQty,
+                    quantity: Number(newQty),
 
                     // 🔹 ATUALIZA O CUSTO DO PRODUTO
                     currentCost: item.unitPrice
@@ -150,7 +152,7 @@ const completeOrder = async (orderId, establishmentId) => {
 
                     type: 'IN',
 
-                    quantity: item.adjustedQuantity,
+                    quantity: quantity,
                     previousQuantity: prevQty,
                     newQuantity: newQty,
 
@@ -206,6 +208,7 @@ const deleteOrder = async (id, establishmentId) => {
 };
 
 const createOrdersGroupedBySupplier = async (data) => {
+    console.log("🔥 CRIANDO ORDENS DE COMPRA...");
 
     const { items, establishmentId, user_id } = data;
 

@@ -351,7 +351,9 @@ exports.finish = async (req, res) => {
 
                 await prisma.stockMovement.create({
                     data: {
-                        productId: item.productId,
+                        product: {
+                            connect: { id: item.productId }
+                        },
                         productName: product.name,
                         type: "ADJUSTMENT",
                         quantity: item.difference,
