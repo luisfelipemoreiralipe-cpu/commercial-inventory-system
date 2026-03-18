@@ -63,7 +63,6 @@ export default function StockAuditHistory() {
                     <thead>
                         <tr>
                             <Th>Data</Th>
-                            <Th>Setor</Th>
                             <Th>Status</Th>
                             <Th>Impacto</Th>
                             <Th>Ações</Th>
@@ -78,10 +77,6 @@ export default function StockAuditHistory() {
 
                                 <Td>
                                     {new Date(audit.createdAt).toLocaleDateString("pt-BR")}
-                                </Td>
-
-                                <Td>
-                                    {audit.sector?.name}
                                 </Td>
 
                                 <Td>

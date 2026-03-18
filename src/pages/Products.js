@@ -31,6 +31,7 @@ const EMPTY_FORM = {
     quantity: '',
     minQuantity: '',
     supplierId: '',
+    sectorId: '',
 };
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
@@ -221,7 +222,6 @@ const Products = () => {
     const [deleteModal, setDeleteModal] = useState(null);
     const [qtyModal, setQtyModal] = useState(null);
     const [editTarget, setEditTarget] = useState(null);
-    const [form, setForm] = useState(EMPTY_FORM);
     const [qtyValue, setQtyValue] = useState('');
     const [errors, setErrors] = useState({});
     const [supplierModal, setSupplierModal] = useState(null);
@@ -229,7 +229,14 @@ const Products = () => {
     const [selectedSupplier, setSelectedSupplier] = useState("");
     const [supplierPrice, setSupplierPrice] = useState("");
     const [recipeModal, setRecipeModal] = useState(null);
+    const [sectors, setSectors] = useState([]);
     const [filterType, setFilterType] = useState("ALL");
+    const [form, setForm] = useState({
+        name: '',
+        unit: '',
+        categoryId: '',
+        sectorId: ''
+    });
 
     useEffect(() => {
 
@@ -254,6 +261,21 @@ const Products = () => {
 
         loadProducts();
 
+    }, []);
+
+    useEffect(() => {
+        const loadSectors = async () => {
+            try {
+                const res = await api.get('/stock-sectors');
+                console.log("RES COMPLETO:", res);
+                console.log("RES.DATA:", res.data);
+                setSectors(res.data);
+            } catch (err) {
+                console.error("Erro ao carregar setores:", err);
+            }
+        };
+
+        loadSectors();
     }, []);
 
     // Derived
@@ -357,6 +379,8 @@ const Products = () => {
 
     };
 
+
+
     const openAdd = () => {
         setEditTarget(null);
         setForm(EMPTY_FORM);
@@ -374,6 +398,7 @@ const Products = () => {
             quantity: p.quantity,
             minQuantity: p.minQuantity,
             supplierId: p.supplierId || '',
+            sectorId: p.sectorId || '',
         });
         setErrors({});
         setModalOpen(true);
@@ -777,6 +802,20 @@ const Products = () => {
                             {...field('name')}
                         />
                     </FormFull>
+                    <select
+                        value={form.sectorId}
+                        onChange={(e) =>
+                            setForm({ ...form, sectorId: e.target.value })
+                        }
+                    >
+                        <option value="">Selecione um setor</option>
+
+                        {(sectors || []).map((sector) => (
+                            <option key={sector.id} value={sector.id}>
+                                {sector.name}
+                            </option>
+                        ))}
+                    </select>
 
                     {/* TIPO DE PRODUTO */}
                     <Select label="Tipo de Produto *" {...field('type')}>

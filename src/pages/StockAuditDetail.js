@@ -149,7 +149,7 @@ export default function StockAuditDetail() {
             <Header>
                 <h1>Auditoria de Estoque</h1>
                 <p>
-                    <strong>Setor:</strong> {audit.sector?.name}
+                    <strong>Estoque geral:</strong>
                 </p>
 
                 <p>

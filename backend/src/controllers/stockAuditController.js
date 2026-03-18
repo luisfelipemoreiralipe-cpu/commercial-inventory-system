@@ -19,9 +19,7 @@ exports.list = async (req, res) => {
                 establishmentId,
                 status: "OPEN"
             },
-            include: {
-                sector: true
-            },
+
             orderBy: {
                 createdAt: "desc"
             }
@@ -52,7 +50,6 @@ exports.create = async (req, res) => {
 
     try {
 
-        const { sectorId } = req.body;
         console.log("REQ.USER:", req.user);
 
         const establishmentId = req.user?.establishmentId;
@@ -64,7 +61,6 @@ exports.create = async (req, res) => {
         // 🚨 impedir duas auditorias abertas no mesmo setor
         const existingAudit = await prisma.stockAudit.findFirst({
             where: {
-                sectorId,
                 establishmentId,
                 status: "OPEN"
             }
@@ -72,15 +68,13 @@ exports.create = async (req, res) => {
 
         if (existingAudit) {
             return res.status(400).json({
-                error: "Já existe uma auditoria aberta para este setor."
+                error: "Já existe uma auditoria aberta."
             });
         }
 
         const audit = await prisma.stockAudit.create({
             data: {
-                sector: {
-                    connect: { id: sectorId }
-                },
+
                 establishment: {
                     connect: { id: establishmentId }
                 },
@@ -93,7 +87,7 @@ exports.create = async (req, res) => {
 
         const products = await prisma.product.findMany({
             where: {
-                sectorId,
+
                 establishmentId
             },
             select: {
@@ -153,7 +147,6 @@ exports.getById = async (req, res) => {
                 id
             },
             include: {
-                sector: true,
                 items: {
                     include: {
                         product: true
@@ -201,7 +194,6 @@ exports.history = async (req, res) => {
                 status: "CLOSED"
             },
             include: {
-                sector: true,
                 items: {
                     include: {
                         product: true

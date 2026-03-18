@@ -4,16 +4,14 @@ const AppError = require('../utils/AppError');
 /*
 Criar auditoria
 */
-const createAudit = async (sectorId, userId, establishmentId) => {
+const createAudit = async (userId, establishmentId) => {
 
     const audit = await auditRepo.createAudit({
-        sectorId,
         establishmentId,
         createdBy: userId
     });
 
-    const products = await auditRepo.findProductsBySector(
-        sectorId,
+    const products = await auditRepo.findProductsByEstablishment(
         establishmentId
     );
 

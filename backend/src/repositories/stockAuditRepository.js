@@ -34,6 +34,19 @@ const findProductsBySector = (sectorId, establishmentId) => {
     });
 };
 
+const findProductsByEstablishment = (establishmentId) => {
+    return prisma.product.findMany({
+        where: {
+            establishmentId,
+            isActive: true
+        },
+        select: {
+            id: true,
+            name: true,
+            quantity: true
+        }
+    });
+};
 /*
 Buscar auditoria com itens
 */
@@ -154,5 +167,6 @@ module.exports = {
     findAuditItems,
     closeAudit,
     updateProductStock,
-    createStockMovement
+    createStockMovement,
+    findProductsByEstablishment,
 };

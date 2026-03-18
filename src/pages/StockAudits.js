@@ -84,30 +84,6 @@ export default function StockAudits() {
 
     /*
     ========================================
-    CARREGAR SETORES
-    ========================================
-    */
-    async function loadSectors() {
-
-        try {
-
-            const sectors = await api.get("/stock-sectors");
-
-            console.log("🏢 SECTORS API:", sectors);
-
-            setSectors(Array.isArray(sectors) ? sectors : []);
-
-        } catch (error) {
-
-            console.error("❌ Erro ao carregar setores:", error);
-            setSectors([]);
-
-        }
-
-    }
-
-    /*
-    ========================================
     LOAD INICIAL
     ========================================
     */
@@ -116,7 +92,6 @@ export default function StockAudits() {
         console.log("🚀 Carregando auditorias e setores");
 
         loadAudits();
-        loadSectors();
 
     }, []);
 
@@ -126,19 +101,11 @@ export default function StockAudits() {
     ========================================
     */
     async function createAudit() {
-
-        if (!sectorId) {
-            console.warn("⚠️ Nenhum setor selecionado");
-            return;
-        }
-
         try {
 
-            console.log("📤 Criando auditoria para setor:", sectorId);
+            console.log("📤 Criando auditoria");
 
-            const res = await api.post("/stock-audits", {
-                sectorId
-            });
+            const res = await api.post("/stock-audits");
 
             console.log("📤 RESPONSE CREATE AUDIT:", res);
 
@@ -182,7 +149,6 @@ export default function StockAudits() {
                     <thead>
                         <tr>
                             <Th>Data</Th>
-                            <Th>Setor</Th>
                             <Th>Status</Th>
                             <Th>Ações</Th>
                         </tr>
@@ -192,7 +158,7 @@ export default function StockAudits() {
 
                         {(audits || []).length === 0 && (
                             <tr>
-                                <Td colSpan="4">Nenhuma auditoria encontrada</Td>
+                                <Td colSpan="3">Nenhuma auditoria encontrada</Td>
                             </tr>
                         )}
 
@@ -206,7 +172,7 @@ export default function StockAudits() {
                                         : "-"}
                                 </Td>
 
-                                <Td>{audit?.sector?.name || "-"}</Td>
+
 
                                 <Td>
                                     <StatusBadge status={audit.status}>
@@ -259,25 +225,7 @@ export default function StockAudits() {
                     </>
                 }
             >
-
-                <Select
-                    label="Selecionar setor"
-                    value={sectorId}
-                    onChange={(e) => setSectorId(e.target.value)}
-                >
-
-                    <option value="">Selecione</option>
-
-                    {(sectors || []).map((s) => (
-
-                        <option key={s.id} value={s.id}>
-                            {s.name}
-                        </option>
-
-                    ))}
-
-                </Select>
-
+                <p>Deseja iniciar uma auditoria de estoque?</p>
             </Modal>
         </>
     );

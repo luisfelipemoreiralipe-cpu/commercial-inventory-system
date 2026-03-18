@@ -96,9 +96,6 @@ model Product {
   recipeItems          RecipeItem[]
   Recipe               Recipe?
   transfers            StockTransfer[]
-  sectorId             String?      @db.Uuid
-  sector               StockSector? @relation(fields: [sectorId], references: [id])
-
   @@map("products")
 }
 
@@ -213,7 +210,6 @@ model Establishment {
   transfersFrom      StockTransfer[]     @relation("TransferFrom")
   transfersTo        StockTransfer[]     @relation("TransferTo")
   userEstablishments UserEstablishment[]
-  StockSector        StockSector[]
 }
 
 ////////////////////////////////////////////////////////////
@@ -377,9 +373,6 @@ model StockAudit {
   establishmentId String        @db.Uuid
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
-  sectorId String      @db.Uuid
-  sector   StockSector @relation(fields: [sectorId], references: [id])
-
   createdBy String @db.Uuid
   user      users  @relation(fields: [createdBy], references: [id])
 
@@ -410,21 +403,4 @@ model StockAuditItem {
   @@map("stock_audit_items")
 }
 
-model StockSector {
-  id String @id @default(uuid()) @db.Uuid
 
-  name String
-
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
-
-  products Product[]
-
-  audits StockAudit[]
-
-  createdAt DateTime @default(now())
-
-  @@unique([name, establishmentId])
-
-  @@map("stock_sectors")
-}
