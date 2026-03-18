@@ -154,9 +154,15 @@ export const AppProvider = ({ children }) => {
 
         try {
 
-            const res = await api.get("/auth/context");
+            const token = localStorage.getItem("token");
 
-            const data = res.data || res;
+            const res = await api.get("/auth/context", {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            const data = res;
 
             dispatchRaw({
                 type: "SET_CONTEXT",
@@ -183,8 +189,13 @@ export const AppProvider = ({ children }) => {
         const res = await api.post("/auth/switch-establishment", {
             establishmentId
         });
-
+        console.log("SWITCH RESPONSE:", res);
         const { token } = res;
+
+        if (!token) {
+            console.error("ERRO: token não veio", res);
+            throw new Error("Token inválido");
+        }
 
         localStorage.setItem("token", token);
 
@@ -289,7 +300,7 @@ export const AppProvider = ({ children }) => {
 
             const res = await api.get("/auth/context");
 
-            const data = res.data || res;
+            const data = res;
 
             dispatchRaw({
                 type: "SET_CONTEXT",
@@ -302,11 +313,10 @@ export const AppProvider = ({ children }) => {
             });
 
         } catch (err) {
-
-            console.error("Erro ao recarregar contexto:", err);
-
+            console.error("Erro ao carregar contexto:", err);
+            localStorage.removeItem("token"); // força logout limpo
+            window.location.href = "/login";
         }
-
     }
 
     // ─── Dispatch Async ─────────────────────────────────────────────────────

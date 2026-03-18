@@ -87,7 +87,7 @@ const deleteSupplier = async (id, establishmentId) => {
 
     const supplier = await getSupplierById(id, establishmentId);
 
-    await supplierRepo.remove(id);
+    await supplierRepo.remove(id, establishmentId);
 
     await auditLogRepo.create(
         mkLog(

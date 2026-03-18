@@ -64,7 +64,7 @@ async function context(req, res) {
     try {
 
         const result = await authService.getContext({
-            userId: req.user.userId,
+            userId: req.user.id,
             establishmentId: req.user.establishmentId
         });
 
@@ -91,7 +91,7 @@ async function switchEstablishment(req, res) {
         const { establishmentId } = req.body;
 
         const result = await authService.switchEstablishment({
-            userId: req.user.userId,
+            userId: req.user.id,
             establishmentId
         });
 

@@ -23,16 +23,22 @@ const create = (data) =>
     });
 
 // ATUALIZAR
-const update = (id, data) =>
-    prisma.supplier.update({
-        where: { id },
+const update = (id, data, establishmentId) =>
+    prisma.supplier.updateMany({
+        where: {
+            id,
+            establishmentId
+        },
         data
     });
 
 // REMOVER
-const remove = (id) =>
-    prisma.supplier.delete({
-        where: { id }
+const remove = (id, establishmentId) =>
+    prisma.supplier.deleteMany({
+        where: {
+            id,
+            establishmentId
+        }
     });
 
 module.exports = {

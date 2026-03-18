@@ -33,7 +33,8 @@ async function register({ nome, email, password }) {
             data: {
                 nome,
                 email,
-                senha_hash: hashedPassword
+                senha_hash: hashedPassword,
+                establishmentId: establishment.id
             }
         });
 
@@ -71,7 +72,6 @@ async function register({ nome, email, password }) {
 
 async function getContext({ userId, id, establishmentId }) {
 
-    // 🔧 garante compatibilidade com versões antigas e novas
     const uid = userId || id;
 
     if (!uid) {
@@ -97,9 +97,6 @@ async function getContext({ userId, id, establishmentId }) {
         throw new Error("Usuário não encontrado");
     }
 
-    return user;
-
-
     const currentEstablishment = user.userEstablishments.find(
         ue => ue.establishment.id === establishmentId
     );
@@ -115,14 +112,10 @@ async function getContext({ userId, id, establishmentId }) {
             nome: user.nome,
             email: user.email
         },
-        establishment: {
-            id: currentEstablishment.establishment.id,
-            nome_fantasia: currentEstablishment.establishment.nome_fantasia
-        },
-        organization: currentEstablishment.establishment.organization,
+        establishment: currentEstablishment?.establishment || null,
+        organization: currentEstablishment?.establishment?.organization || null,
         establishments
     };
-
 }
 
 /*
