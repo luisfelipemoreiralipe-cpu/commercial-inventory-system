@@ -238,37 +238,32 @@ const Products = () => {
         sectorId: ''
     });
 
+    // 🔥 FUNÇÃO FORA (CORRETO)
+    const loadProducts = async () => {
+        try {
+
+            const res = await api.get("/products");
+
+            dispatch({
+                type: ACTIONS.SET_PRODUCTS,
+                payload: res.data
+            });
+
+        } catch (error) {
+            console.error("Erro ao carregar produtos:", error);
+        }
+    };
+
+    // 🔥 USE EFFECT PRODUTOS
     useEffect(() => {
-
-        const loadProducts = async () => {
-
-            try {
-
-                const products = await api.get("/products");
-
-                dispatch({
-                    type: ACTIONS.SET_PRODUCTS,
-                    payload: products
-                });
-
-            } catch (error) {
-
-                console.error("Erro ao carregar produtos:", error);
-
-            }
-
-        };
-
         loadProducts();
-
     }, []);
 
+    // 🔥 USE EFFECT SETORES (se ainda estiver usando)
     useEffect(() => {
         const loadSectors = async () => {
             try {
                 const res = await api.get('/stock-sectors');
-                console.log("RES COMPLETO:", res);
-                console.log("RES.DATA:", res.data);
                 setSectors(res.data);
             } catch (err) {
                 console.error("Erro ao carregar setores:", err);
@@ -453,44 +448,38 @@ const Products = () => {
             minQuantity: Number(form.minQuantity || 0),
         };
 
-        const category = state.categories.find(
-            (c) => c.id === payload.categoryId
-        );
+        try {
 
-        const productComplete = {
-            ...payload,
-            id: editTarget ? editTarget.id : Date.now().toString(),
-            category,
-            productSuppliers: editTarget?.productSuppliers || [],
-            createdAt: editTarget?.createdAt || new Date().toISOString(),
-        };
+            if (editTarget) {
 
-        if (editTarget) {
+                await api.put(`/products/${editTarget.id}`, payload);
 
-            await dispatch({
-                type: ACTIONS.UPDATE_PRODUCT,
-                payload: productComplete
-            });
+            } else {
 
-        } else {
+                await api.post('/products', payload);
 
-            await dispatch({
-                type: ACTIONS.ADD_PRODUCT,
-                payload
-            });
+            }
+
+            await loadProducts(); // 🔥 ISSO RESOLVE
+
+            setModalOpen(false);
+
+        } catch (error) {
+
+            console.error(error);
 
         }
 
-        setModalOpen(false);
+
     };
+
     const handleDelete = async () => {
 
         try {
 
-            await dispatch({
-                type: ACTIONS.DELETE_PRODUCT,
-                payload: deleteModal.id
-            });
+            await api.delete(`/products/${deleteModal.id}`);
+
+            await loadProducts(); // 🔥 IMPORTANTE
 
             setDeleteModal(null);
 
@@ -802,20 +791,7 @@ const Products = () => {
                             {...field('name')}
                         />
                     </FormFull>
-                    <select
-                        value={form.sectorId}
-                        onChange={(e) =>
-                            setForm({ ...form, sectorId: e.target.value })
-                        }
-                    >
-                        <option value="">Selecione um setor</option>
 
-                        {(sectors || []).map((sector) => (
-                            <option key={sector.id} value={sector.id}>
-                                {sector.name}
-                            </option>
-                        ))}
-                    </select>
 
                     {/* TIPO DE PRODUTO */}
                     <Select label="Tipo de Produto *" {...field('type')}>
