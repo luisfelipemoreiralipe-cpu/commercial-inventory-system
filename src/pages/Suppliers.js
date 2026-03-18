@@ -155,9 +155,9 @@ const Suppliers = () => {
 
     const filtered = state.suppliers.filter(
         (s) =>
-            s.name?.toLowerCase().includes(search.toLowerCase()) ||
-            s.cnpj?.includes(search) ||
-            s.email?.toLowerCase().includes(search.toLowerCase())
+            s?.name?.toLowerCase().includes(search.toLowerCase()) ||
+            s?.cnpj?.includes(search) ||
+            s?.email?.toLowerCase().includes(search.toLowerCase())
     );
 
     const getLinkedProducts = (supplierId) =>
@@ -205,7 +205,7 @@ const Suppliers = () => {
 
                 dispatch({
                     type: ACTIONS.ADD_SUPPLIER,
-                    payload: res.data.data
+                    payload: res.data
                 });
 
             }

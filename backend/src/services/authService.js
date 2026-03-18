@@ -27,6 +27,13 @@ async function register({ nome, email, password }) {
                 nome_fantasia: `${nome} Restaurante`
             }
         });
+        await tx.stockSector.createMany({
+            data: [
+                { name: 'Cozinha', establishmentId: establishment.id },
+                { name: 'Bar', establishmentId: establishment.id },
+                { name: 'Estoque Seco', establishmentId: establishment.id }
+            ]
+        });
 
         // 2️⃣ Criar usuário
         const user = await tx.users.create({

@@ -84,7 +84,12 @@ const appReducer = (state, action) => {
 
         // Suppliers
         case ACTIONS.ADD_SUPPLIER:
-            return { ...state, suppliers: [...state.suppliers, action.payload] };
+            if (!action.payload || !action.payload.id) return state;
+
+            return {
+                ...state,
+                suppliers: [...state.suppliers, action.payload]
+            };
 
         case ACTIONS.UPDATE_SUPPLIER:
             return {
