@@ -167,7 +167,7 @@ export const AppProvider = ({ children }) => {
                 }
             });
 
-            const data = res;
+            const data = res.data;
 
             dispatchRaw({
                 type: "SET_CONTEXT",

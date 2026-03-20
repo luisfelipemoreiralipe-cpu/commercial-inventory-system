@@ -95,6 +95,46 @@ const BrandWordmark = styled.span`
   animation: ${shimmer} 4s linear infinite;
 `;
 
+const EstabSelector = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: ${({ theme }) => theme.colors.bgHover};
+  cursor: pointer;
+  font-size: 12px;
+  transition: 0.2s;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primaryLight};
+  }
+`;
+
+const Dropdown = styled.div`
+  position: absolute;
+  top: 60px;
+  left: 80px;
+  background: ${({ theme }) => theme.colors.bgCard};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  padding: 6px;
+  z-index: 999;
+`;
+
+const DropdownItem = styled.div`
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgHover};
+  }
+`;
+
 /* Collapsed state: round blue circle with "C" */
 const LogoCircle = styled.div`
   width: 38px;
@@ -269,9 +309,23 @@ const NAV_GROUPS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const SidebarLayout = ({ children }) => {
+
+  const { state, switchEstablishment, getLowStockProducts } = useApp();
+
   const [collapsed, setCollapsed] = useState(false);
-  const { getLowStockProducts } = useApp();
+
   const lowStockCount = getLowStockProducts().length;
+
+  // 🔥 função de troca
+  const handleSwitch = async (establishmentId) => {
+    try {
+      await switchEstablishment(establishmentId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  console.log("STATE:", state);
 
   return (
     <Layout>
@@ -281,9 +335,32 @@ const SidebarLayout = ({ children }) => {
           {!collapsed && (
             <LogoBlock>
               <BrandWordmark>Commercial</BrandWordmark>
+
+              {/* 🔽 SELECT DE ESTABELECIMENTO */}
+              {!state.loading && state.establishments && (
+                <select
+                  value={state.establishment?.id || ""}
+                  onChange={(e) => handleSwitch(e.target.value)}
+                  style={{
+                    fontSize: "11px",
+                    marginLeft: "8px",
+                    padding: "2px",
+                    borderRadius: "4px"
+                  }}
+                >
+                  {state.establishments.map((est) => (
+                    <option key={est.id} value={est.id}>
+                      {est.nome_fantasia}
+                    </option>
+                  ))}
+                </select>
+              )}
+
             </LogoBlock>
           )}
+
           {collapsed && <LogoCircle>C</LogoCircle>}
+
           {!collapsed && (
             <CollapseBtn onClick={() => setCollapsed(true)} title="Recolher">
               <MdClose />
@@ -343,5 +420,4 @@ const SidebarLayout = ({ children }) => {
     </Layout>
   );
 };
-
 export default SidebarLayout;
