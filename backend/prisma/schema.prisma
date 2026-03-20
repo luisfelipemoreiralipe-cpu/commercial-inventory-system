@@ -13,7 +13,7 @@ datasource db {
 
 enum ProductType {
   INVENTORY
-  RECIPE
+  PRODUCTION
 }
 
 ////////////////////////////////////////////////////////////

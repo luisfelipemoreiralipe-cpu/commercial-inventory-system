@@ -31,7 +31,6 @@ const EMPTY_FORM = {
     quantity: '',
     minQuantity: '',
     supplierId: '',
-    sectorId: '',
 };
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
@@ -229,14 +228,8 @@ const Products = () => {
     const [selectedSupplier, setSelectedSupplier] = useState("");
     const [supplierPrice, setSupplierPrice] = useState("");
     const [recipeModal, setRecipeModal] = useState(null);
-    const [sectors, setSectors] = useState([]);
     const [filterType, setFilterType] = useState("ALL");
-    const [form, setForm] = useState({
-        name: '',
-        unit: '',
-        categoryId: '',
-        sectorId: ''
-    });
+    const [form, setForm] = useState(EMPTY_FORM);
 
     // 🔥 FUNÇÃO FORA (CORRETO)
     const loadProducts = async () => {
@@ -259,19 +252,6 @@ const Products = () => {
         loadProducts();
     }, []);
 
-    // 🔥 USE EFFECT SETORES (se ainda estiver usando)
-    useEffect(() => {
-        const loadSectors = async () => {
-            try {
-                const res = await api.get('/stock-sectors');
-                setSectors(res.data);
-            } catch (err) {
-                console.error("Erro ao carregar setores:", err);
-            }
-        };
-
-        loadSectors();
-    }, []);
 
     // Derived
     const totalProducts = state.products.length;
@@ -311,9 +291,7 @@ const Products = () => {
         const matchType =
             filterType === "ALL"
                 ? true
-                : filterType === "PRODUCTION"
-                    ? !!p.Recipe
-                    : !p.Recipe;
+                : p.type === filterType;
 
         const matchCat =
             !filterCategory || p.categoryId === filterCategory;
@@ -393,7 +371,7 @@ const Products = () => {
             quantity: p.quantity,
             minQuantity: p.minQuantity,
             supplierId: p.supplierId || '',
-            sectorId: p.sectorId || '',
+            type: p.type || 'INVENTORY', // 🔥 ESSENCIAL
         });
         setErrors({});
         setModalOpen(true);
@@ -421,6 +399,7 @@ const Products = () => {
             );
 
             setProductSuppliers(updated.data);
+            await loadProducts();
 
             setSelectedSupplier("");
             setSupplierPrice("");
@@ -437,17 +416,21 @@ const Products = () => {
 
     const handleSubmit = async () => {
 
-        console.log("handleSubmit disparou");
+
+        console.log("FORM COMPLETO:", form);
 
         if (!validate()) return;
 
         const payload = {
-            ...form,
-            unitPrice: 0,
+            name: form.name,
+            categoryId: form.categoryId,
+            unit: form.unit,
+            type: form.type ?? 'INVENTORY',
+            unitPrice: Number(form.unitPrice || 0),
             quantity: Number(form.quantity || 0),
             minQuantity: Number(form.minQuantity || 0),
         };
-
+        console.log("ENVIANDO PRODUTO REAL:", JSON.stringify(payload));
         try {
 
             if (editTarget) {
@@ -456,7 +439,7 @@ const Products = () => {
 
             } else {
 
-                await api.post('/products', payload);
+                await api.post('/products', JSON.parse(JSON.stringify(payload)));
 
             }
 
@@ -522,6 +505,7 @@ const Products = () => {
             );
 
             setProductSuppliers(updated.data);
+            await loadProducts();
 
         } catch (err) {
 
@@ -776,7 +760,14 @@ const Products = () => {
                             Cancelar
                         </Button>
 
-                        <Button onClick={handleSubmit}>
+                        <Button
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleSubmit();
+                            }}
+                        >
                             {editTarget ? 'Salvar' : 'Criar Produto'}
                         </Button>
                     </>
@@ -794,10 +785,15 @@ const Products = () => {
 
 
                     {/* TIPO DE PRODUTO */}
-                    <Select label="Tipo de Produto *" {...field('type')}>
-                        <option value="INVENTORY">Insumo / Estoque</option>
-                        <option value="PRODUCTION">Produto de Produção</option>
-                    </Select>
+                    <select
+                        value={form.type}
+                        onChange={(e) =>
+                            setForm((f) => ({ ...f, type: e.target.value }))
+                        }
+                    >
+                        <option value="INVENTORY">Estoque</option>
+                        <option value="PRODUCTION">Produção</option>
+                    </select>
 
                     <Select label="Categoria *" {...field('categoryId')}>
                         <option value="">-- Selecione uma categoria --</option>

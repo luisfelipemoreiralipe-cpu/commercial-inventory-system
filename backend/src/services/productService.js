@@ -71,6 +71,8 @@ const getProductCMV = async (productId) => {
 
 const createProduct = async (data, establishmentId) => {
 
+    console.log("TYPE NO SERVICE:", data.type); // 🔥 AQUI
+
     if (!data.categoryId) {
         throw new AppError('Categoria é obrigatória.', 400);
     }
@@ -82,7 +84,13 @@ const createProduct = async (data, establishmentId) => {
     }
 
     const product = await productRepo.create({
-        ...data,
+        name: data.name,
+        unit: data.unit,
+        categoryId: data.categoryId,
+        type: data.type, // 🔥 ESSENCIAL
+        unitPrice: data.unitPrice || 0,
+        quantity: data.quantity || 0,
+        minQuantity: data.minQuantity || 0,
         establishmentId,
     });
 

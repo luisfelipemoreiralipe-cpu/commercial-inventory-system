@@ -26,10 +26,15 @@ const getById = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
+
+    console.log("🔥 BODY CONTROLLER:", req.body);
+    console.log("🔥 KEYS:", Object.keys(req.body));
+
     const data = await productService.createProduct(
         req.body,
         req.user.establishmentId
     );
+
     res.status(201).json({ success: true, data });
 });
 
