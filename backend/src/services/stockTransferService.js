@@ -4,6 +4,8 @@ const prisma = require('../config/prisma');
 // =============================
 // CRIAR TRANSFERÊNCIA (PENDING)
 // =============================
+
+
 const createTransfer = async ({
     productId,
     quantity,
@@ -22,6 +24,21 @@ const createTransfer = async ({
 
     if (fromEstablishmentId === toEstablishmentId) {
         throw new Error("Não é possível transferir para o mesmo estabelecimento");
+    }
+
+    const product = await prisma.product.findFirst({
+        where: {
+            id: productId,
+            establishmentId: fromEstablishmentId
+        }
+    });
+
+    if (!product) {
+        throw new Error("Produto não encontrado");
+    }
+
+    if (Number(product.quantity) < Number(quantity)) {
+        throw new Error("Estoque insuficiente para transferência");
     }
 
     const transfer = await prisma.stockTransfer.create({
@@ -211,7 +228,8 @@ const approveTransfer = async (transferId, userId) => {
                 quantity,
                 previousQuantity: product.quantity,
                 newQuantity: newOriginQuantity,
-                reference: `Transferência aprovada para ${toEstablishmentId}`
+                reference: `Transferência aprovada para ${toEstablishmentId}`,
+                reason: "TRANSFER"
             }
         });
 
@@ -224,7 +242,8 @@ const approveTransfer = async (transferId, userId) => {
                 quantity,
                 previousQuantity: destinationProduct.quantity,
                 newQuantity: newDestinationQuantity,
-                reference: `Transferência recebida de ${fromEstablishmentId}`
+                reference: `Transferência recebida de ${fromEstablishmentId}`,
+                reason: "TRANSFER"
             }
         });
 
