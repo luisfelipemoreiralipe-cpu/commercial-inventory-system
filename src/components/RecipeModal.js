@@ -77,6 +77,22 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
 
             let currentRecipe = recipe;
 
+            if (!currentRecipe) {
+
+                const newRecipe = await api.post("/recipes", {
+                    productId: product.id
+                });
+
+                currentRecipe = newRecipe;
+                setRecipe(newRecipe);
+
+            } else {
+                // 🔥 GARANTE QUE ESTÁ ATUALIZADO
+                const freshRecipe = await api.get(`/recipes/product/${product.id}`);
+                currentRecipe = freshRecipe;
+                setRecipe(freshRecipe);
+            }
+
             // cria recipe apenas quando adicionar primeiro ingrediente
             if (!currentRecipe) {
 
@@ -134,7 +150,7 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
 
             await api.delete(`/recipes/items/${id}`);
 
-            await loadCost(recipe.id);
+            await loadRecipe(product.id);
 
         } catch (err) {
 

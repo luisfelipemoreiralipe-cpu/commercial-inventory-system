@@ -5,6 +5,7 @@ const stockTransferService = require('../services/stockTransferService');
 // CRIAR TRANSFERÊNCIA
 // =============================
 const createTransfer = async (req, res) => {
+    console.log("REQ.USER:", req.user);
 
     try {
 
@@ -15,7 +16,7 @@ const createTransfer = async (req, res) => {
             quantity,
             fromEstablishmentId: req.user.establishmentId,
             toEstablishmentId,
-            userId: req.user.userId
+            userId: req.user.id
         });
 
         res.json({
