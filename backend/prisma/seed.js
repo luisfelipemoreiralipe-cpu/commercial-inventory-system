@@ -7,22 +7,38 @@ async function main() {
 
   const passwordHash = await bcrypt.hash('123456', 10);
 
+  // 1. cria establishment
   const establishment = await prisma.establishment.create({
     data: {
       nome_fantasia: "Restaurante Teste",
-      cnpj: "00000000000100",
+      cnpj: "00000000000100"
+    }
+  });
 
-      users: {
-        create: {
-          name: "Administrador",
-          email: "admin@teste.com",
-          password: passwordHash
-        }
+  // 2. cria usuário
+  const user = await prisma.users.create({
+    data: {
+      nome: "Administrador",
+      email: "admin@teste.com",
+      senha_hash: passwordHash,
+
+      establishment: {
+        connect: { id: establishment.id }
       }
 
     }
   });
 
+  // 3. cria vínculo 🔥 (ESSENCIAL)
+  await prisma.userEstablishment.create({
+    data: {
+      userId: user.id,
+      establishmentId: establishment.id,
+      role: "ADMIN"
+    }
+  });
+
+  // 4. categorias
   const categories = [
     'Alimentos',
     'Bebidas',
@@ -42,7 +58,6 @@ async function main() {
   }
 
   console.log('🌱 Seed executado com sucesso');
-
 }
 
 main()

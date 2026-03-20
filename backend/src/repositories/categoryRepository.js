@@ -6,6 +6,15 @@ const findAll = async () => {
     });
 };
 
+const findAllByEstablishment = async (establishmentId) => {
+    return prisma.category.findMany({
+        where: {
+            establishmentId
+        },
+        orderBy: { name: 'asc' }
+    });
+};
+
 const findById = async (id) => {
     return prisma.category.findUnique({
         where: { id }
@@ -13,6 +22,7 @@ const findById = async (id) => {
 };
 
 module.exports = {
-    findAll,
-    findById
+    findAll, // 👈 precisa existir
+    findById,
+    findAllByEstablishment
 };

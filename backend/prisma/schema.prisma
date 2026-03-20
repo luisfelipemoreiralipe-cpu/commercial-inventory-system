@@ -154,7 +154,7 @@ model StockMovement {
   newQuantity      Decimal @db.Decimal(12, 3)
 
   reference String
-
+reason String?
   createdAt DateTime @default(now())
 
   @@map("stock_movements")

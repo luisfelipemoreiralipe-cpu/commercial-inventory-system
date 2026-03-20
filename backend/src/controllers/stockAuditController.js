@@ -351,7 +351,8 @@ exports.finish = async (req, res) => {
                         quantity: item.difference,
                         previousQuantity: product.quantity,
                         newQuantity,
-                        reference: "STOCK_AUDIT"
+                        reference: "STOCK_AUDIT",
+                        reason: "AUDIT"
                     }
                 });
 
