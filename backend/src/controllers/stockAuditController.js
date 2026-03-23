@@ -257,22 +257,47 @@ exports.updateItems = async (req, res) => {
 
         const { items } = req.body;
 
-        for (const item of items) {
+        await prisma.$transaction(async (tx) => {
 
-            const difference =
-                Number(item.countedQuantity) - Number(item.systemQuantity);
+            for (const item of audit.items) {
 
-            await prisma.stockAuditItem.update({
-                where: {
-                    id: item.id
-                },
-                data: {
-                    countedQuantity: Number(item.countedQuantity),
-                    difference: difference
+                if (item.difference !== 0) {
+
+                    const product = await tx.product.findUnique({
+                        where: { id: item.productId }
+                    });
+
+                    const newQuantity =
+                        Number(product.quantity) + Number(item.difference);
+
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { quantity: newQuantity }
+                    });
+
+                    await tx.stockMovement.create({
+                        data: {
+                            productId: item.productId,
+                            productName: product.name,
+                            type: "ADJUSTMENT",
+                            quantity: item.difference,
+                            previousQuantity: product.quantity,
+                            newQuantity,
+                            reference: "STOCK_AUDIT",
+                            reason: "AUDIT"
+                        }
+                    });
+
                 }
+
+            }
+
+            await tx.stockAudit.update({
+                where: { id },
+                data: { status: "CLOSED" }
             });
 
-        }
+        });
 
         res.json({ success: true });
 

@@ -14,6 +14,17 @@ const createTransfer = async ({
     userId
 }) => {
 
+    const hasOpenAudit = await prisma.stockAudit.findFirst({
+        where: {
+            establishmentId: fromEstablishmentId,
+            status: "OPEN"
+        }
+    });
+
+    if (hasOpenAudit) {
+        throw new Error("Existe uma auditoria em andamento. Não é possível transferir estoque.");
+    }
+
     if (!productId) {
         throw new Error("Produto é obrigatório");
     }

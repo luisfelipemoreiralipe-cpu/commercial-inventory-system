@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 
 // Routes
+const salesRoutes = require('./routes/salesRoutes');
 const stockSectorRoutes = require('./routes/stockSectorRoutes');
 const productRoutes = require('./routes/productRoutes');
 const supplierRoutes = require('./routes/supplierRoutes');
@@ -28,7 +29,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Routes
+// // Routes
+console.log('salesRoutes:', salesRoutes);
 app.use('/products', productRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
@@ -41,7 +43,7 @@ app.use('/api', stockTransferRoutes);
 app.use('/reports', reportsRoutes);
 app.use('/recipes', recipeRoutes); // ← REGISTRO DA ROTA
 app.use('/stock-sectors', stockSectorRoutes);
-
+app.use('/sales', salesRoutes);
 // Nova rota da engine de compras
 app.use('/api', purchaseSuggestionRoutes);
 app.use('/establishments', establishmentRoutes);
