@@ -10,4 +10,10 @@ router.get(
     controller.getPurchaseSavings
 );
 
+router.get(
+    '/loss',
+    authMiddleware,
+    controller.getLoss
+);
+
 module.exports = router; // ⚠️ tem que ser exatamente isso
