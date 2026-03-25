@@ -7,6 +7,7 @@ const getAll = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
+    console.log("BODY RECEBIDO:", req.body);
 
     const userId = req.user?.id;
     const establishmentId = req.user?.establishmentId;

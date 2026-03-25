@@ -239,6 +239,14 @@ const PurchaseSuggestions = () => {
                 s.bestSupplierId ||
                 p?.supplierId;
 
+            // 🔥 pega o fornecedor correto
+            const supplier = s.suppliers?.find(
+                sup => sup.supplierId === supplierId
+            );
+
+            // 🔥 garante que o preço é válido
+            const price = Number(supplier?.price || 0);
+
             if (!groupedBySupplier[supplierId]) {
                 groupedBySupplier[supplierId] = [];
             }
@@ -246,8 +254,8 @@ const PurchaseSuggestions = () => {
             groupedBySupplier[supplierId].push({
                 productId: s.productId,
                 productName: s.productName,
-                unitPrice: s.bestPrice,
-                adjustedQuantity: getAdjusted(s),
+                unitPrice: price, // ✅ agora correto
+                adjustedQuantity: Number(getAdjusted(s)), // ✅ garante número
                 supplierId
             });
 

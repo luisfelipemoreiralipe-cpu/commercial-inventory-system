@@ -126,35 +126,29 @@ const PurchaseOrders = () => {
 
     }, []);
 
+    const fetchOrders = async () => {
+
+        try {
+
+            const res = await api.get("/api/purchase-orders");
+
+            const orders = res.data?.data || res.data || [];
+
+            dispatch({
+                type: ACTIONS.SET_PURCHASE_ORDERS,
+                payload: orders
+            });
+
+        } catch (err) {
+
+            console.error("Erro ao buscar ordens:", err);
+
+        }
+
+    };
+
     useEffect(() => {
-
-        const fetchOrders = async () => {
-
-            try {
-
-                const res = await api.get("/api/purchase-orders");
-
-                console.log("ORDERS RAW:", res);
-
-                const orders = res.data?.data || res.data || [];
-
-                console.log("ORDERS PARSED:", orders);
-
-                dispatch({
-                    type: ACTIONS.SET_PURCHASE_ORDERS,
-                    payload: orders
-                });
-
-            } catch (err) {
-
-                console.error("Erro ao buscar ordens:", err);
-
-            }
-
-        };
-
         fetchOrders();
-
     }, []);
 
     /* -------------------------------------------------------------------------- */
@@ -214,6 +208,8 @@ const PurchaseOrders = () => {
             await api.put(`/api/purchase-orders/${selectedOrder.id}/complete`, {
                 items
             });
+
+            await fetchOrders();
 
             setSelectedOrder(null);
 

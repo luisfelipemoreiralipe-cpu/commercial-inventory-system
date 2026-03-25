@@ -32,6 +32,7 @@ export const ACTIONS = {
     UPDATE_PURCHASE_ORDER: 'UPDATE_PURCHASE_ORDER',
     COMPLETE_PURCHASE_ORDER: 'COMPLETE_PURCHASE_ORDER',
     DELETE_PURCHASE_ORDER: 'DELETE_PURCHASE_ORDER',
+    SET_PURCHASE_ORDERS: 'SET_PURCHASE_ORDERS',
 };
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
@@ -57,6 +58,14 @@ const appReducer = (state, action) => {
                 organization: action.payload.organization,
                 establishment: action.payload.establishment,
                 establishments: action.payload.establishments
+            };
+
+        case ACTIONS.SET_PURCHASE_ORDERS:
+            return {
+                ...state,
+                purchaseOrders: Array.isArray(action.payload)
+                    ? action.payload
+                    : action.payload?.data || []
             };
 
         // Products

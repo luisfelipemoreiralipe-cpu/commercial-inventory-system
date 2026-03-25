@@ -3,8 +3,9 @@ const auditLogRepo = require('../repositories/auditLogRepository');
 const AppError = require('../utils/AppError');
 const prisma = require('../utils/prisma');
 const PDFDocument = require('pdfkit');
+const stockMovementService = require('./stockMovementService');
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ─── Service ───────────────────────────────────────────────────────────────
 
 const getAllOrders = () => purchaseOrderRepo.findAll();
 
@@ -39,6 +40,7 @@ const createOrder = async (data) => {
     return order;
 };
 
+// 🔥 FUNÇÃO PRINCIPAL CORRIGIDA
 const completeOrder = async (orderId, establishmentId) => {
 
     const order = await getOrderById(orderId);
@@ -61,48 +63,28 @@ const completeOrder = async (orderId, establishmentId) => {
 
             if (!product) continue;
 
-            const prevQty = Number(product.quantity);
             const quantity = Number(item.adjustedQuantity);
 
-            const newQty = prevQty + quantity;
+            // 🔥 ENTRADA PADRONIZADA
+            await stockMovementService.addStock({
+                productId: item.productId,
+                quantity,
+                establishmentId,
+                reason: "PURCHASE",
+                reference: ref
+            }, tx);
 
+            // 🔹 ATUALIZA CUSTO
             await tx.product.update({
                 where: { id: item.productId },
                 data: {
-                    quantity: Number(newQty),
-
-                    // 🔹 ATUALIZA O CUSTO DO PRODUTO
                     currentCost: item.unitPrice
                 }
             });
 
-
-            if (item.supplierId) {
-                await tx.productSupplier.update({
-                    where: {
-                        productId_supplierId: {
-                            productId: item.productId,
-                            supplierId: item.supplierId
-                        }
-                    },
-                    data: {
-                        price: item.unitPrice
-                    }
-                });
-            }
-            await tx.supplierPriceHistory.create({
-                data: {
-                    productId: item.productId,
-                    supplierId: item.supplierId,
-                    price: item.unitPrice,
-                    purchaseOrderId: orderId
-                }
-            });
-
-            // Atualiza preço do fornecedor
+            // 🔹 FORNECEDOR
             if (item.supplierId) {
 
-                // Atualiza preço atual do fornecedor
                 await tx.productSupplier.update({
                     where: {
                         productId_supplierId: {
@@ -115,20 +97,15 @@ const completeOrder = async (orderId, establishmentId) => {
                     }
                 });
 
-                // Busca último preço registrado
                 const lastPrice = await tx.supplierPriceHistory.findFirst({
                     where: {
                         productId: item.productId,
                         supplierId: item.supplierId
                     },
-                    orderBy: {
-                        createdAt: "desc"
-                    }
+                    orderBy: { createdAt: "desc" }
                 });
 
-                // Salva histórico apenas se o preço mudou
                 if (!lastPrice || Number(lastPrice.price) !== Number(item.unitPrice)) {
-
                     await tx.supplierPriceHistory.create({
                         data: {
                             productId: item.productId,
@@ -137,29 +114,8 @@ const completeOrder = async (orderId, establishmentId) => {
                             purchaseOrderId: orderId
                         }
                     });
-
                 }
-
             }
-
-            await tx.stockMovement.create({
-                data: {
-                    product: {
-                        connect: { id: item.productId }
-                    },
-
-                    productName: item.productName,
-
-                    type: 'IN',
-
-                    quantity: quantity,
-                    previousQuantity: prevQty,
-                    newQuantity: newQty,
-
-                    reference: ref,
-
-                }
-            });
 
         }
 
@@ -208,7 +164,6 @@ const deleteOrder = async (id, establishmentId) => {
 };
 
 const createOrdersGroupedBySupplier = async (data) => {
-    console.log("🔥 CRIANDO ORDENS DE COMPRA...");
 
     const { items, establishmentId, user_id } = data;
 
@@ -244,15 +199,13 @@ const createOrdersGroupedBySupplier = async (data) => {
         };
 
         const order = await purchaseOrderRepo.create(orderData);
-
         createdOrders.push(order);
     }
 
     return createdOrders;
 };
 
-
-// ─── GERAR PDF ────────────────────────────────────────────────────────────────
+// ─── PDF ─────────────────────────────────────────────────────────────────────
 
 const generatePdf = async (orderId) => {
 
@@ -274,53 +227,32 @@ const generatePdf = async (orderId) => {
     }
 
     const doc = new PDFDocument({ margin: 50 });
-
     const buffers = [];
 
     doc.on('data', buffers.push.bind(buffers));
 
-    // Cabeçalho
-
     doc.fontSize(18).text(establishment.nome_fantasia, { align: 'center' });
-
     doc.moveDown();
 
     doc.fontSize(10);
-
     doc.text(`CNPJ: ${establishment.cnpj || '-'}`);
     doc.text(`Telefone: ${establishment.telefone || '-'}`);
-    doc.text(`${establishment.endereco || ''} - ${establishment.cidade || ''}/${establishment.estado || ''}`);
+    doc.text(`${establishment.endereco || ''}`);
 
     doc.moveDown();
 
-    doc.fontSize(14).text(`ORDEM DE COMPRA #${order.id.slice(-6).toUpperCase()}`);
-    doc.text(`Status: ${order.status}`);
-    doc.text(`Data: ${new Date(order.createdAt).toLocaleDateString('pt-BR')}`);
-
-    doc.moveDown();
-
-    doc.fontSize(12).text('Itens:');
-
-    doc.moveDown();
+    doc.fontSize(14).text(`ORDEM #${order.id.slice(-6).toUpperCase()}`);
 
     let total = 0;
 
     order.items.forEach(item => {
-
         const itemTotal = item.adjustedQuantity * item.unitPrice;
-
         total += itemTotal;
 
-        doc.text(
-            `${item.productName} | Qtd: ${item.adjustedQuantity} | R$ ${item.unitPrice.toFixed(2)} | Total: R$ ${itemTotal.toFixed(2)}`
-        );
-
+        doc.text(`${item.productName} - Qtd: ${item.adjustedQuantity}`);
     });
 
-    doc.moveDown();
-
-    doc.fontSize(14).text(`VALOR TOTAL: R$ ${total.toFixed(2)}`, { align: 'right' });
-
+    doc.text(`TOTAL: R$ ${total.toFixed(2)}`);
     doc.end();
 
     return await new Promise(resolve => {
