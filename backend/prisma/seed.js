@@ -16,8 +16,10 @@ async function main() {
   });
 
   // 2. cria usuário
-  const user = await prisma.users.create({
-    data: {
+  const user = await prisma.users.upsert({
+    where: { email: "admin@teste.com" },
+    update: {},
+    create: {
       nome: "Administrador",
       email: "admin@teste.com",
       senha_hash: passwordHash,
@@ -25,7 +27,6 @@ async function main() {
       establishment: {
         connect: { id: establishment.id }
       }
-
     }
   });
 
@@ -51,8 +52,7 @@ async function main() {
   for (const name of categories) {
     await prisma.category.create({
       data: {
-        name,
-        establishmentId: establishment.id
+        name
       }
     });
   }

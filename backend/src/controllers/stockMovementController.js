@@ -20,26 +20,37 @@ const getAll = asyncHandler(async (req, res) => {
 });
 
 // 🔥 NOVO: CONSUMO INTERNO
-const createInternalUse = asyncHandler(async (req, res) => {
+const createInternalUse = async (req, res) => {
 
-    const { productId, quantity } = req.body;
+    try {
 
-    const establishmentId = req.user.establishmentId;
-    const userId = req.user.userId;
+        const { productId, quantity } = req.body;
 
-    await stockMovementService.createInternalUse({
-        productId,
-        quantity,
-        establishmentId,
-        userId
-    });
+        const establishmentId = req.user.establishmentId;
+        const userId = req.user.id;
 
-    res.json({
-        success: true,
-        message: "Consumo interno registrado com sucesso"
-    });
+        await stockMovementService.createInternalUse({
+            productId,
+            quantity,
+            establishmentId,
+            userId
+        });
 
-});
+        return res.json({
+            success: true,
+            message: "Consumo interno registrado com sucesso"
+        });
+
+    } catch (error) {
+
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+};
 
 module.exports = {
     getAll,

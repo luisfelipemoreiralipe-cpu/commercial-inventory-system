@@ -6,11 +6,8 @@ const findAll = async () => {
     });
 };
 
-const findAllByEstablishment = async (establishmentId) => {
+const findAllByEstablishment = async () => {
     return prisma.category.findMany({
-        where: {
-            establishmentId
-        },
         orderBy: { name: 'asc' }
     });
 };

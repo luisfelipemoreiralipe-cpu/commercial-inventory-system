@@ -247,9 +247,26 @@ const Products = () => {
         }
     };
 
+    const loadCategories = async () => {
+        try {
+            const res = await api.get("/categories");
+
+            console.log("CATEGORIAS API:", res.data);
+
+            dispatch({
+                type: ACTIONS.SET_CATEGORIES,
+                payload: res.data.data
+            });
+
+        } catch (error) {
+            console.error("ERRO AO BUSCAR CATEGORIAS:", error);
+        }
+    };
+
     // 🔥 USE EFFECT PRODUTOS
     useEffect(() => {
         loadProducts();
+        loadCategories();
     }, []);
 
 
@@ -271,6 +288,7 @@ const Products = () => {
         return sum + (Number(p.unitPrice) * Number(p.quantity));
     }, 0);
     const categories = state.categories || [];
+    console.log("CATEGORIES:", state.categories);
 
     const availableSuppliers = state.suppliers.filter((supplier) => {
 

@@ -99,10 +99,12 @@ export default function StockAuditDetail() {
                 countedQuantity: Number(item.countedQuantity || 0),
                 systemQuantity: Number(item.systemQuantity || 0)
             }));
+            console.log("🔥 SAVE ITEMS DISPARADO");
+            console.log("URL:", `/stock-audits/${id}/items`);
+            console.log("PAYLOAD:", payload);
+            console.log("AUDIT ID:", id);
 
-            await api.patch(`/stock-audits/${id}/items`, {
-                items: payload
-            });
+            await api.patch(`/stock-audits/${id}/items`, payload);
 
             // Atualiza auditoria após salvar
             await loadAudit();

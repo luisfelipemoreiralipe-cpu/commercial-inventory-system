@@ -58,15 +58,16 @@ const importCSV = asyncHandler(async (req, res) => {
 
     for (let item of parsed) {
 
-        const product = await prisma.product.findFirst({
+        const recipe = await prisma.recipe.findFirst({
             where: {
-                name: {
-                    equals: item.product,
-                    mode: 'insensitive'
-                },
+                productId: product.id,
                 establishmentId
+            },
+            include: {
+                items: true
             }
         });
+
 
         if (!product) {
             errors.push({
@@ -74,6 +75,66 @@ const importCSV = asyncHandler(async (req, res) => {
                 error: 'Produto não encontrado'
             });
             continue;
+        }
+        const lines = fileContent.split('\n');
+        const dataLines = lines.slice(1);
+
+        const parsed = [];
+
+        for (let line of dataLines) {
+            if (!line.trim()) continue;
+
+            const [product, quantity] = line.split(',');
+
+            parsed.push({
+                product: product.trim().toUpperCase(),
+                quantity: Number(quantity)
+            });
+        }
+
+        console.log("PARSED:");
+        console.log(parsed);
+
+        // 🔍 VALIDAÇÃO
+        const results = [];
+        const errors = [];
+
+        for (let item of parsed) {
+
+            // 🔎 1. BUSCAR PRODUTO PRIMEIRO
+            const product = await prisma.product.findFirst({
+                where: {
+                    name: item.product,
+                    establishmentId
+                }
+            });
+
+            if (!product) {
+                errors.push({
+                    product: item.product,
+                    error: 'Produto não encontrado'
+                });
+                continue;
+            }
+
+            // 🔎 2. AGORA BUSCAR RECEITA (DEPOIS DO PRODUCT)
+            const recipe = await prisma.recipe.findFirst({
+                where: {
+                    productId: product.id,
+                    establishmentId
+                },
+                include: {
+                    items: true
+                }
+            });
+
+            // 🧪 TESTE
+            if (recipe) {
+                console.log("É PRODUTO DE PRODUÇÃO:", product.name);
+            } else {
+                console.log("É PRODUTO NORMAL:", product.name);
+            }
+
         }
 
         // 🔥 VALIDAÇÃO DE ESTOQUE

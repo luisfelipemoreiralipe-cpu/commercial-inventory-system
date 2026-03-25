@@ -9,7 +9,11 @@ const prisma = require('../utils/prisma');
 const findAll = ({ productId, dateFrom, dateTo } = {}) => {
     const where = {};
 
-    if (productId) where.productId = productId;
+    if (productId) {
+        where.product = {
+            id: productId
+        };
+    }
 
     if (dateFrom || dateTo) {
         where.createdAt = {};
