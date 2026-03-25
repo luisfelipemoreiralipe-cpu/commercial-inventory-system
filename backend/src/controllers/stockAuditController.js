@@ -1,4 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
+const { consumeProduct, addStock } = require('../services/stockMovementService');
 
 const prisma = new PrismaClient();
 
@@ -247,35 +248,28 @@ exports.finish = async (req, res) => {
 
             for (const item of items) {
 
-                if (Number(item.difference) !== 0) {
+                if (Number(item.difference) === 0) continue;
 
-                    const product = await tx.product.findUnique({
-                        where: { id: item.productId }
-                    });
+                // 🔴 PERDA (LOSS)
+                if (Number(item.difference) < 0) {
+                    await consumeProduct({
+                        productId: item.productId,
+                        quantity: Math.abs(item.difference),
+                        establishmentId: req.user.establishmentId,
+                        reason: "LOSS",
+                        reference: "STOCK_AUDIT"
+                    }, tx);
+                }
 
-                    if (!product) continue;
-
-                    const newQuantity = Number(item.countedQuantity);
-
-                    await tx.product.update({
-                        where: { id: item.productId },
-                        data: { quantity: newQuantity }
-                    });
-
-                    await tx.stockMovement.create({
-                        data: {
-                            productId: item.productId,
-                            productName: product.name,
-                            type: "ADJUSTMENT",
-                            quantity: item.difference,
-                            previousQuantity: product.quantity,
-                            newQuantity,
-                            reference: "STOCK_AUDIT",
-                            reason: "AUDIT",
-                            establishmentId: req.user.establishmentId
-                        }
-                    });
-
+                // 🟢 SOBRA (AJUSTE POSITIVO)
+                if (Number(item.difference) > 0) {
+                    await addStock({
+                        productId: item.productId,
+                        quantity: item.difference,
+                        establishmentId: req.user.establishmentId,
+                        reason: "AUDIT",
+                        reference: "STOCK_AUDIT"
+                    }, tx);
                 }
 
             }

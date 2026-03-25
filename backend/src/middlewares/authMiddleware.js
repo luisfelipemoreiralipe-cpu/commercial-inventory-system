@@ -19,11 +19,17 @@ async function authMiddleware(req, res, next) {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 🔎 validar se o usuário tem acesso ao estabelecimento
+        // 🔥 pega establishment do header OU token
+        const establishmentIdFromHeader = req.headers['x-establishment-id'];
+
+        const establishmentId =
+            establishmentIdFromHeader || decoded.establishmentId;
+
+        // 🔎 valida acesso
         const relation = await prisma.userEstablishment.findFirst({
             where: {
                 userId: decoded.userId,
-                establishmentId: decoded.establishmentId
+                establishmentId
             }
         });
 
@@ -33,19 +39,24 @@ async function authMiddleware(req, res, next) {
             });
         }
 
+        // 🔎 busca user (AGORA sim)
         const user = await prisma.users.findUnique({
             where: { id: decoded.userId },
             select: { role: true }
         });
+
+        // 🔥 define req.user UMA VEZ só
         req.user = {
             id: decoded.userId,
-            establishmentId: decoded.establishmentId,
+            establishmentId,
             role: user.role
         };
 
         next();
 
     } catch (error) {
+
+        console.error("AUTH ERROR:", error); // 👈 importante pra debug
 
         return res.status(401).json({
             error: 'Token inválido ou expirado'

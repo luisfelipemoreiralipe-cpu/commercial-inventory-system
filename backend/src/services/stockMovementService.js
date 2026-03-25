@@ -4,7 +4,7 @@ const stockMovementRepo = require('../repositories/stockMovementRepository');
 // 🔍 CONSULTA
 const getMovements = (filters) => stockMovementRepo.findAll(filters);
 
-// 🔥 FUNÇÃO CENTRAL DE CONSUMO (NOVA)
+// 🔥 FUNÇÃO CENTRAL DE CONSUMO (BLINDADA)
 const consumeProduct = async ({
     productId,
     quantity,
@@ -24,14 +24,19 @@ const consumeProduct = async ({
         throw new Error("Produto não encontrado");
     }
 
+    if (!quantity || quantity <= 0) {
+        throw new Error("Quantidade inválida");
+    }
+
     // 🟢 INVENTORY
     if (product.type === "INVENTORY") {
 
         if (Number(product.quantity) < Number(quantity)) {
-            throw new Error("Estoque insuficiente");
+            throw new Error(`Estoque insuficiente para ${product.name}`);
         }
 
-        const newQuantity = Number(product.quantity) - Number(quantity);
+        const previousQuantity = Number(product.quantity);
+        const newQuantity = previousQuantity - Number(quantity);
 
         await tx.product.update({
             where: { id: product.id },
@@ -44,7 +49,7 @@ const consumeProduct = async ({
                 productName: product.name,
                 type: "OUT",
                 quantity,
-                previousQuantity: product.quantity,
+                previousQuantity,
                 newQuantity,
                 reference,
                 reason,
@@ -74,7 +79,7 @@ const consumeProduct = async ({
         throw new Error("Produto de produção sem receita");
     }
 
-    // validar ingredientes
+    // 🔒 VALIDAR TODOS OS INGREDIENTES
     for (const item of recipe.items) {
         const totalNeeded = Number(item.quantity) * Number(quantity);
 
@@ -85,12 +90,14 @@ const consumeProduct = async ({
         }
     }
 
-    // baixar ingredientes
+    // 🔥 BAIXAR INGREDIENTES
     for (const item of recipe.items) {
 
         const ingredient = item.product;
         const totalNeeded = Number(item.quantity) * Number(quantity);
-        const newQuantity = Number(ingredient.quantity) - totalNeeded;
+
+        const previousQuantity = Number(ingredient.quantity);
+        const newQuantity = previousQuantity - totalNeeded;
 
         await tx.product.update({
             where: { id: ingredient.id },
@@ -103,7 +110,7 @@ const consumeProduct = async ({
                 productName: ingredient.name,
                 type: "OUT",
                 quantity: totalNeeded,
-                previousQuantity: ingredient.quantity,
+                previousQuantity,
                 newQuantity,
                 reference,
                 reason,
@@ -115,7 +122,55 @@ const consumeProduct = async ({
 
 };
 
-// 🔥 CONSUMO INTERNO (AGORA LIMPO)
+// 🔥 NOVO: FUNÇÃO DE ENTRADA DE ESTOQUE (SEM QUEBRAR NADA)
+const addStock = async ({
+    productId,
+    quantity,
+    establishmentId,
+    reason,
+    reference
+}, tx) => {
+
+    const product = await tx.product.findFirst({
+        where: {
+            id: productId,
+            establishmentId
+        }
+    });
+
+    if (!product) {
+        throw new Error("Produto não encontrado");
+    }
+
+    if (!quantity || quantity <= 0) {
+        throw new Error("Quantidade inválida");
+    }
+
+    const previousQuantity = Number(product.quantity);
+    const newQuantity = previousQuantity + Number(quantity);
+
+    await tx.product.update({
+        where: { id: product.id },
+        data: { quantity: newQuantity }
+    });
+
+    await tx.stockMovement.create({
+        data: {
+            productId: product.id,
+            productName: product.name,
+            type: "IN",
+            quantity,
+            previousQuantity,
+            newQuantity,
+            reference,
+            reason,
+            establishmentId
+        }
+    });
+
+};
+
+// 🔥 CONSUMO INTERNO (SEM ALTERAÇÃO DE REGRA)
 const createInternalUse = async ({
     productId,
     quantity,
@@ -156,9 +211,10 @@ const createInternalUse = async ({
 
 };
 
-// 👇 EXPORTAR
+// 👇 EXPORTAR (SEM QUEBRAR NADA)
 module.exports = {
     getMovements,
     createInternalUse,
-    consumeProduct // 👈 importante para usar depois no CSV
+    consumeProduct,
+    addStock // 👈 NOVO (não afeta nada existente)
 };

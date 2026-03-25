@@ -15,5 +15,10 @@ router.get(
     authMiddleware,
     controller.getLoss
 );
+router.get(
+    '/loss/by-product',
+    authMiddleware,
+    controller.getLossByProduct
+);
 
 module.exports = router; // ⚠️ tem que ser exatamente isso

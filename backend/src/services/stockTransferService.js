@@ -1,10 +1,9 @@
 const prisma = require('../config/prisma');
-
+const { consumeProduct, addStock } = require('./stockMovementService');
 
 // =============================
 // CRIAR TRANSFERÊNCIA (PENDING)
 // =============================
-
 
 const createTransfer = async ({
     productId,
@@ -65,14 +64,13 @@ const createTransfer = async ({
 
     return transfer;
 };
+
 const getSentTransfers = async (establishmentId) => {
 
     return prisma.stockTransfer.findMany({
-
         where: {
             fromEstablishmentId: establishmentId
         },
-
         include: {
             product: {
                 select: {
@@ -81,36 +79,26 @@ const getSentTransfers = async (establishmentId) => {
                     unit: true
                 }
             },
-
             toEstablishment: {
                 select: {
                     id: true,
                     nome_fantasia: true
                 }
             }
-
         },
-
         orderBy: {
             createdAt: "desc"
         }
-
     });
-
-
-
 };
 
 const getReceivedTransfers = async (establishmentId) => {
 
     return prisma.stockTransfer.findMany({
-
         where: {
             toEstablishmentId: establishmentId
         },
-
         include: {
-
             product: {
                 select: {
                     id: true,
@@ -118,27 +106,22 @@ const getReceivedTransfers = async (establishmentId) => {
                     unit: true
                 }
             },
-
             fromEstablishment: {
                 select: {
                     id: true,
                     nome_fantasia: true
                 }
             }
-
         },
-
         orderBy: {
             createdAt: "desc"
         }
-
     });
-
 };
+
 // =============================
 // APROVAR TRANSFERÊNCIA
 // =============================
-
 
 const approveTransfer = async (transferId, userId) => {
 
@@ -193,7 +176,6 @@ const approveTransfer = async (transferId, userId) => {
         });
 
         if (!destinationProduct) {
-
             destinationProduct = await tx.product.create({
                 data: {
                     name: product.name,
@@ -206,57 +188,25 @@ const approveTransfer = async (transferId, userId) => {
                     establishmentId: toEstablishmentId
                 }
             });
-
         }
 
-        // 4️⃣ Atualizar estoque origem
-        const newOriginQuantity = Number(product.quantity) - Number(quantity);
+        // 🔴 BAIXA NO ORIGEM (USANDO MOTOR CENTRAL)
+        await consumeProduct({
+            productId,
+            quantity,
+            establishmentId: fromEstablishmentId,
+            reason: "TRANSFER",
+            reference: `Transferência para ${toEstablishmentId}`
+        }, tx);
 
-        await tx.product.update({
-            where: { id: product.id },
-            data: {
-                quantity: newOriginQuantity
-            }
-        });
-
-        // 5️⃣ Atualizar estoque destino
-        const newDestinationQuantity =
-            Number(destinationProduct.quantity) + Number(quantity);
-
-        await tx.product.update({
-            where: { id: destinationProduct.id },
-            data: {
-                quantity: newDestinationQuantity
-            }
-        });
-
-        // 6️⃣ Movimentação OUT
-        await tx.stockMovement.create({
-            data: {
-                productId: product.id,
-                productName: product.name,
-                type: "OUT",
-                quantity,
-                previousQuantity: product.quantity,
-                newQuantity: newOriginQuantity,
-                reference: `Transferência aprovada para ${toEstablishmentId}`,
-                reason: "TRANSFER"
-            }
-        });
-
-        // 7️⃣ Movimentação IN
-        await tx.stockMovement.create({
-            data: {
-                productId: destinationProduct.id,
-                productName: destinationProduct.name,
-                type: "IN",
-                quantity,
-                previousQuantity: destinationProduct.quantity,
-                newQuantity: newDestinationQuantity,
-                reference: `Transferência recebida de ${fromEstablishmentId}`,
-                reason: "TRANSFER"
-            }
-        });
+        // 🟢 ENTRADA NO DESTINO (PADRONIZADO)
+        await addStock({
+            productId: destinationProduct.id,
+            quantity,
+            establishmentId: toEstablishmentId,
+            reason: "TRANSFER",
+            reference: `Transferência de ${fromEstablishmentId}`
+        }, tx);
 
         // 8️⃣ Atualizar status da transferência
         const updatedTransfer = await tx.stockTransfer.update({
@@ -269,15 +219,13 @@ const approveTransfer = async (transferId, userId) => {
         });
 
         return updatedTransfer;
-
     });
-
 };
-
 
 // =============================
 // REJEITAR TRANSFERÊNCIA
 // =============================
+
 const rejectTransfer = async (transferId, userId) => {
 
     if (!transferId) {
@@ -306,9 +254,7 @@ const rejectTransfer = async (transferId, userId) => {
     });
 
     return updatedTransfer;
-
 };
-
 
 module.exports = {
     createTransfer,
