@@ -1,10 +1,121 @@
 const prisma = require('../config/prisma');
 const stockMovementRepo = require('../repositories/stockMovementRepository');
 
-// 🔍 CONSULTA (já existia)
+// 🔍 CONSULTA
 const getMovements = (filters) => stockMovementRepo.findAll(filters);
 
-// 🔥 NOVO: CONSUMO INTERNO
+// 🔥 FUNÇÃO CENTRAL DE CONSUMO (NOVA)
+const consumeProduct = async ({
+    productId,
+    quantity,
+    establishmentId,
+    reason,
+    reference
+}, tx) => {
+
+    const product = await tx.product.findFirst({
+        where: {
+            id: productId,
+            establishmentId
+        }
+    });
+
+    if (!product) {
+        throw new Error("Produto não encontrado");
+    }
+
+    // 🟢 INVENTORY
+    if (product.type === "INVENTORY") {
+
+        if (Number(product.quantity) < Number(quantity)) {
+            throw new Error("Estoque insuficiente");
+        }
+
+        const newQuantity = Number(product.quantity) - Number(quantity);
+
+        await tx.product.update({
+            where: { id: product.id },
+            data: { quantity: newQuantity }
+        });
+
+        await tx.stockMovement.create({
+            data: {
+                productId: product.id,
+                productName: product.name,
+                type: "OUT",
+                quantity,
+                previousQuantity: product.quantity,
+                newQuantity,
+                reference,
+                reason,
+                establishmentId
+            }
+        });
+
+        return;
+    }
+
+    // 🔴 PRODUCTION
+    const recipe = await tx.recipe.findFirst({
+        where: {
+            productId: product.id,
+            establishmentId
+        },
+        include: {
+            items: {
+                include: {
+                    product: true
+                }
+            }
+        }
+    });
+
+    if (!recipe) {
+        throw new Error("Produto de produção sem receita");
+    }
+
+    // validar ingredientes
+    for (const item of recipe.items) {
+        const totalNeeded = Number(item.quantity) * Number(quantity);
+
+        if (Number(item.product.quantity) < totalNeeded) {
+            throw new Error(
+                `Estoque insuficiente para ${item.product.name}`
+            );
+        }
+    }
+
+    // baixar ingredientes
+    for (const item of recipe.items) {
+
+        const ingredient = item.product;
+        const totalNeeded = Number(item.quantity) * Number(quantity);
+        const newQuantity = Number(ingredient.quantity) - totalNeeded;
+
+        await tx.product.update({
+            where: { id: ingredient.id },
+            data: { quantity: newQuantity }
+        });
+
+        await tx.stockMovement.create({
+            data: {
+                productId: ingredient.id,
+                productName: ingredient.name,
+                type: "OUT",
+                quantity: totalNeeded,
+                previousQuantity: ingredient.quantity,
+                newQuantity,
+                reference,
+                reason,
+                establishmentId
+            }
+        });
+
+    }
+
+};
+
+// 🔥 CONSUMO INTERNO (AGORA LIMPO)
 const createInternalUse = async ({
     productId,
     quantity,
@@ -33,118 +144,21 @@ const createInternalUse = async ({
 
     return prisma.$transaction(async (tx) => {
 
-        // 🔎 Buscar produto
-        const product = await tx.product.findFirst({
-            where: {
-                id: productId,
-                establishmentId
-            }
-        });
-
-        if (!product) {
-            throw new Error("Produto não encontrado");
-        }
-
-        // 🟢 CASO 1: INVENTORY (igual já funciona)
-        if (product.type === "INVENTORY") {
-
-            if (Number(product.quantity) < Number(quantity)) {
-                throw new Error("Estoque insuficiente");
-            }
-
-            const newQuantity = Number(product.quantity) - Number(quantity);
-
-            await tx.product.update({
-                where: { id: product.id },
-                data: { quantity: newQuantity }
-            });
-
-            await tx.stockMovement.create({
-                data: {
-                    productId: product.id,
-                    productName: product.name,
-                    type: "OUT",
-                    quantity,
-                    previousQuantity: product.quantity,
-                    newQuantity,
-                    reference: "CONSUMO INTERNO",
-                    reason: "INTERNAL_USE",
-                    establishmentId
-                }
-            });
-
-            return;
-        }
-
-        // 🔴 CASO 2: PRODUCTION (NOVO)
-
-        const recipe = await tx.recipe.findFirst({
-            where: {
-                productId: product.id,
-                establishmentId
-            },
-            include: {
-                items: {
-                    include: {
-                        product: true
-                    }
-                }
-            }
-        });
-
-        if (!recipe) {
-            throw new Error("Produto de produção sem receita");
-        }
-
-        // 🔥 1. VALIDAR TODOS OS INGREDIENTES
-        for (const item of recipe.items) {
-
-            const totalNeeded = Number(item.quantity) * Number(quantity);
-
-            if (Number(item.product.quantity) < totalNeeded) {
-                throw new Error(
-                    `Estoque insuficiente para ${item.product.name}`
-                );
-            }
-        }
-
-        // 🔥 2. BAIXAR INGREDIENTES
-        for (const item of recipe.items) {
-
-            const ingredient = item.product;
-
-            const totalNeeded = Number(item.quantity) * Number(quantity);
-            const newQuantity = Number(ingredient.quantity) - totalNeeded;
-
-            await tx.product.update({
-                where: { id: ingredient.id },
-                data: {
-                    quantity: newQuantity
-                }
-            });
-
-            await tx.stockMovement.create({
-                data: {
-                    productId: ingredient.id,
-                    productName: ingredient.name,
-                    type: "OUT",
-                    quantity: totalNeeded,
-                    previousQuantity: ingredient.quantity,
-                    newQuantity,
-                    reference: `CONSUMO INTERNO - ${product.name}`,
-                    reason: "INTERNAL_USE",
-                    establishmentId
-                }
-            });
-
-        }
+        await consumeProduct({
+            productId,
+            quantity,
+            establishmentId,
+            reason: "INTERNAL_USE",
+            reference: "CONSUMO INTERNO"
+        }, tx);
 
     });
 
 };
 
-// 👇 EXPORTAR TUDO
+// 👇 EXPORTAR
 module.exports = {
     getMovements,
-    createInternalUse
+    createInternalUse,
+    consumeProduct // 👈 importante para usar depois no CSV
 };
