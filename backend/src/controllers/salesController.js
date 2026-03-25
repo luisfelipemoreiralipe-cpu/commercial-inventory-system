@@ -1,9 +1,10 @@
 const asyncHandler = require('../utils/asyncHandler');
 const prisma = require('../utils/prisma');
+const { consumeProduct } = require('../services/stockMovementService');
 
 const importCSV = asyncHandler(async (req, res) => {
 
-    // 🔒 valida arquivo
+    // 🔒 validar arquivo
     if (!req.file) {
         return res.status(400).json({
             success: false,
@@ -12,6 +13,8 @@ const importCSV = asyncHandler(async (req, res) => {
     }
 
     const establishmentId = req.user.establishmentId;
+
+    // 🔒 bloquear se auditoria aberta
     const openAudit = await prisma.stockAudit.findFirst({
         where: {
             establishmentId,
@@ -26,13 +29,9 @@ const importCSV = asyncHandler(async (req, res) => {
         });
     }
 
-    // 📄 ler conteúdo
+    // 📄 ler CSV
     const fileContent = req.file.buffer.toString('utf-8');
 
-    console.log("CSV RECEBIDO:");
-    console.log(fileContent);
-
-    // 🔥 PARSE DO CSV
     const lines = fileContent.split('\n');
     const dataLines = lines.slice(1);
 
@@ -49,25 +48,20 @@ const importCSV = asyncHandler(async (req, res) => {
         });
     }
 
-    console.log("PARSED:");
-    console.log(parsed);
+    console.log("PARSED:", parsed);
 
-    // 🔍 VALIDAÇÃO
+    // 🔍 validar produtos
     const results = [];
     const errors = [];
 
     for (let item of parsed) {
 
-        const recipe = await prisma.recipe.findFirst({
+        const product = await prisma.product.findFirst({
             where: {
-                productId: product.id,
+                name: item.product,
                 establishmentId
-            },
-            include: {
-                items: true
             }
         });
-
 
         if (!product) {
             errors.push({
@@ -76,85 +70,14 @@ const importCSV = asyncHandler(async (req, res) => {
             });
             continue;
         }
-        const lines = fileContent.split('\n');
-        const dataLines = lines.slice(1);
-
-        const parsed = [];
-
-        for (let line of dataLines) {
-            if (!line.trim()) continue;
-
-            const [product, quantity] = line.split(',');
-
-            parsed.push({
-                product: product.trim().toUpperCase(),
-                quantity: Number(quantity)
-            });
-        }
-
-        console.log("PARSED:");
-        console.log(parsed);
-
-        // 🔍 VALIDAÇÃO
-        const results = [];
-        const errors = [];
-
-        for (let item of parsed) {
-
-            // 🔎 1. BUSCAR PRODUTO PRIMEIRO
-            const product = await prisma.product.findFirst({
-                where: {
-                    name: item.product,
-                    establishmentId
-                }
-            });
-
-            if (!product) {
-                errors.push({
-                    product: item.product,
-                    error: 'Produto não encontrado'
-                });
-                continue;
-            }
-
-            // 🔎 2. AGORA BUSCAR RECEITA (DEPOIS DO PRODUCT)
-            const recipe = await prisma.recipe.findFirst({
-                where: {
-                    productId: product.id,
-                    establishmentId
-                },
-                include: {
-                    items: true
-                }
-            });
-
-            // 🧪 TESTE
-            if (recipe) {
-                console.log("É PRODUTO DE PRODUÇÃO:", product.name);
-            } else {
-                console.log("É PRODUTO NORMAL:", product.name);
-            }
-
-        }
-
-        // 🔥 VALIDAÇÃO DE ESTOQUE
-        if (Number(product.quantity) < item.quantity) {
-            errors.push({
-                product: product.name,
-                error: `Estoque insuficiente (Atual: ${product.quantity}, Solicitado: ${item.quantity})`
-            });
-            continue;
-        }
 
         results.push({
             productId: product.id,
-            name: product.name,
-            quantity: item.quantity,
-            currentStock: product.quantity
+            quantity: item.quantity
         });
     }
 
-    // 🔒 NÃO PROCESSA SE HOUVER ERRO
+    // 🔒 se tiver erro, para tudo
     if (errors.length > 0) {
         return res.status(400).json({
             success: false,
@@ -162,38 +85,19 @@ const importCSV = asyncHandler(async (req, res) => {
         });
     }
 
-    // 🚀 PROCESSAMENTO (SALE REAL)
+    // 🚀 PROCESSAMENTO USANDO consumeProduct
     await prisma.$transaction(async (tx) => {
 
         for (let item of results) {
 
-            const product = await tx.product.findUnique({
-                where: { id: item.productId }
-            });
+            await consumeProduct({
+                productId: item.productId,
+                quantity: item.quantity,
+                establishmentId,
+                reason: "SALE",
+                reference: "CSV_IMPORT"
+            }, tx);
 
-            const newQuantity = Number(product.quantity) - item.quantity;
-
-            // 🔥 UPDATE
-            await tx.product.update({
-                where: { id: product.id },
-                data: {
-                    quantity: newQuantity
-                }
-            });
-
-            // 🔥 MOVEMENT
-            await tx.stockMovement.create({
-                data: {
-                    productId: product.id,
-                    productName: product.name,
-                    type: 'SALE',
-                    quantity: item.quantity,
-                    previousQuantity: product.quantity,
-                    newQuantity: newQuantity,
-                    reference: 'CSV_IMPORT',
-                    reason: 'Venda via importação CSV'
-                }
-            });
         }
 
     });
