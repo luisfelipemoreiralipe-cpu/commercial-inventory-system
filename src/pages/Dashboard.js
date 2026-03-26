@@ -13,6 +13,9 @@ import Card from '../components/Card';
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
 const PageHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin-bottom: ${({ theme }) => theme.spacing.xl};
 `;
 
@@ -24,8 +27,8 @@ const PageTitle = styled.h1`
 `;
 
 const PageSubtitle = styled.p`
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSizes.md};
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
 `;
 
 const FiltersRow = styled.div`
@@ -66,28 +69,26 @@ const StatsGrid = styled.div`
 
 const StatCard = styled(Card)`
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: ${({ theme }) => theme.spacing.md};
   padding: ${({ theme }) => theme.spacing.lg};
-  border-top: 3px solid ${({ accent }) => accent || 'transparent'};
-  transition: ${({ theme }) => theme.transition};
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
   }
 `;
 
 const StatIconBox = styled.div`
-  width: 52px;
-  height: 52px;
-  border-radius: ${({ theme }) => theme.radii.lg};
-  background: ${({ bg }) => bg};
+  width: 40px;
+  height: 40px;
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme }) => theme.colors.bgHover};
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  color: ${({ color }) => color};
+  font-size: 1.2rem;
+  color: ${({ theme }) => theme.colors.textSecondary};
   flex-shrink: 0;
 `;
 
@@ -100,8 +101,8 @@ const StatLabel = styled.p`
 `;
 
 const StatValue = styled.h2`
-  font-size: ${({ theme }) => theme.fontSizes['2xl']};
-  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes['3xl']};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
   color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
@@ -131,11 +132,11 @@ const Th = styled.th`
   text-align: left;
   padding: 12px 16px;
   font-size: ${({ theme }) => theme.fontSizes.xs};
-  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textMuted};
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  letter-spacing: 0.04em;
+  background: ${({ theme }) => theme.colors.bgHover};
 `;
 
 const Td = styled.td`
@@ -147,15 +148,17 @@ const Td = styled.td`
 
 const Tr = styled.tr`
   transition: ${({ theme }) => theme.transition};
-  &:hover { background: ${({ theme }) => theme.colors.bgHover}; }
-  &:last-child td { border-bottom: none; }
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgHover};
+  }
 `;
 
 const StockBar = styled.div`
   width: 100%;
-  height: 6px;
+  height: 5px;
   background: ${({ theme }) => theme.colors.bgInput};
-  border-radius: 10px;
+  border-radius: 999px;
   overflow: hidden;
   margin-top: 4px;
 `;
@@ -218,7 +221,7 @@ const Dashboard = () => {
 
       {/* Date Range Filter */}
       <FiltersRow>
-        <MdCalendarToday color="#0066CC" />
+        <MdCalendarToday color="#6B7280" />
         <FilterLabel>
           De:
           <DateInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -285,7 +288,7 @@ const Dashboard = () => {
       </StatsGrid>
 
       {/* Low Stock Table */}
-      <SectionTitle>⚠️ Produtos Abaixo do Estoque Mínimo</SectionTitle>
+      <SectionTitle>Produtos Abaixo do Estoque Mínimo</SectionTitle>
       <Card padding="0">
         {lowStock.length === 0 ? (
           <EmptyNote style={{ margin: '16px' }}>

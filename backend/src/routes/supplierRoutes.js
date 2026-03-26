@@ -1,16 +1,12 @@
-const { Router } = require('express');
-const controller = require('../controllers/supplierController');
-const validate = require('../middlewares/validate');
-const {
-    createSupplierSchema,
-    updateSupplierSchema,
-} = require('../validations/supplierValidation');
+const express = require('express');
+const router = express.Router();
 
-const router = Router();
+const supplierController = require('../controllers/supplierController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
-router.get('/', controller.getAll);
-router.post('/', validate(createSupplierSchema), controller.create);
-router.put('/:id', validate(updateSupplierSchema), controller.update);
-router.delete('/:id', controller.remove);
+router.get('/', authMiddleware, supplierController.getAll);
+router.post('/', authMiddleware, supplierController.create);
+router.put('/:id', authMiddleware, supplierController.update);
+router.delete('/:id', authMiddleware, supplierController.remove);
 
 module.exports = router;

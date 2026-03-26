@@ -3,12 +3,18 @@ import api from '../services/api';
 
 // ─── Initial State ───────────────────────────────────────────────────────────
 const initialState = {
+    user: null,
+    organization: null,
+    establishment: null,
+    establishments: [],
+
     categories: [],
     products: [],
     suppliers: [],
     purchaseOrders: [],
     stockMovements: [],
     auditLogs: [],
+
     loading: true,
     error: null,
 };
@@ -26,40 +32,74 @@ export const ACTIONS = {
     UPDATE_PURCHASE_ORDER: 'UPDATE_PURCHASE_ORDER',
     COMPLETE_PURCHASE_ORDER: 'COMPLETE_PURCHASE_ORDER',
     DELETE_PURCHASE_ORDER: 'DELETE_PURCHASE_ORDER',
+    SET_PURCHASE_ORDERS: 'SET_PURCHASE_ORDERS',
 };
 
-// ─── Reducer Puro ────────────────────────────────────────────────────────────
+// ─── Reducer ────────────────────────────────────────────────────────────────
 const appReducer = (state, action) => {
     switch (action.type) {
+
         case 'SET_LOADING':
             return { ...state, loading: action.payload };
+
         case 'SET_ERROR':
             return { ...state, error: action.payload, loading: false };
+
         case 'SET_ALL_DATA':
             return { ...state, ...action.payload, loading: false, error: null };
+
         case 'UPDATE_LOGS_MOVEMENTS':
             return { ...state, ...action.payload };
 
-        // Products ---------------------------------------------------------------
-        case ACTIONS.ADD_PRODUCT:
-            return { ...state, products: [...state.products, action.payload] };
+        case 'SET_CONTEXT':
+            return {
+                ...state,
+                user: action.payload.user,
+                organization: action.payload.organization,
+                establishment: action.payload.establishment,
+                establishments: action.payload.establishments
+            };
+
+        case ACTIONS.SET_PURCHASE_ORDERS:
+            return {
+                ...state,
+                purchaseOrders: Array.isArray(action.payload)
+                    ? action.payload
+                    : action.payload?.data || []
+            };
+
+        // Products
+
+
+
+        case ACTIONS.SET_PRODUCTS:
+            return {
+                ...state,
+                products: Array.isArray(action.payload)
+                    ? action.payload
+                    : action.payload?.data || []
+            };
+
         case ACTIONS.UPDATE_PRODUCT:
         case ACTIONS.UPDATE_PRODUCT_QUANTITY:
             return {
                 ...state,
                 products: state.products.map((x) =>
-                    x.id === action.payload.id ? action.payload : x
+                    x.id !== action.payload.id ? x : { ...x, quantity: action.payload.quantity }
                 ),
             };
-        case ACTIONS.DELETE_PRODUCT:
+
+
+
+        // Suppliers
+        case ACTIONS.ADD_SUPPLIER:
+            if (!action.payload || !action.payload.id) return state;
+
             return {
                 ...state,
-                products: state.products.filter((x) => x.id !== action.payload),
+                suppliers: [...state.suppliers, action.payload]
             };
 
-        // Suppliers --------------------------------------------------------------
-        case ACTIONS.ADD_SUPPLIER:
-            return { ...state, suppliers: [...state.suppliers, action.payload] };
         case ACTIONS.UPDATE_SUPPLIER:
             return {
                 ...state,
@@ -67,23 +107,25 @@ const appReducer = (state, action) => {
                     x.id === action.payload.id ? action.payload : x
                 ),
             };
+
         case ACTIONS.DELETE_SUPPLIER:
             return {
                 ...state,
                 suppliers: state.suppliers.filter((x) => x.id !== action.payload),
             };
 
-        // Purchase Orders --------------------------------------------------------
+        // Purchase Orders
         case ACTIONS.ADD_PURCHASE_ORDER:
             return { ...state, purchaseOrders: [...state.purchaseOrders, action.payload] };
+
         case ACTIONS.UPDATE_PURCHASE_ORDER:
-            // Local Only: Permite ao front transitar dados na UI antes de efetivamente apagar ou enviar.
             return {
                 ...state,
                 purchaseOrders: state.purchaseOrders.map((x) =>
                     x.id === action.payload.id ? action.payload : x
                 ),
             };
+
         case ACTIONS.DELETE_PURCHASE_ORDER:
             return {
                 ...state,
@@ -95,20 +137,98 @@ const appReducer = (state, action) => {
     }
 };
 
-// ─── Context ─────────────────────────────────────────────────────────────────
+// ─── Context ────────────────────────────────────────────────────────────────
 const AppContext = createContext(null);
 
 export const AppProvider = ({ children }) => {
+
     const [state, dispatchRaw] = useReducer(appReducer, initialState);
 
-    // Helper 1: Puxar tabelas secundárias em 2º plano (Movimentação e Logs). 
-    // Sem travar a UI (loading state = false);
-    const fetchSideEffects = useCallback(async () => {
+    const loadProducts = async () => {
+
         try {
+
+            const products = await api.get("/products");
+
+            dispatch({
+                type: ACTIONS.SET_PRODUCTS,
+                payload: products
+            });
+
+        } catch (error) {
+
+            console.error("Erro ao carregar produtos:", error);
+
+        }
+
+    };
+
+    // ─── Fetch Context (Auth) ───────────────────────────────────────────────
+    const fetchContext = useCallback(async () => {
+
+        try {
+
+            const token = localStorage.getItem("token");
+
+            const res = await api.get("/auth/context", {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            const data = res.data;
+
+            dispatchRaw({
+                type: "SET_CONTEXT",
+                payload: {
+                    user: data.user,
+                    organization: data.organization,
+                    establishment: data.establishment,
+                    establishments: data.establishments
+                }
+            });
+
+        } catch (err) {
+
+            console.error("Erro ao carregar contexto:", err);
+
+        }
+
+    }, []);
+
+    // ─── Fetch Side Effects ─────────────────────────────────────────────────
+
+    const switchEstablishment = async (establishmentId) => {
+
+        const res = await api.post("/auth/switch-establishment", {
+            establishmentId
+        });
+        console.log("SWITCH RESPONSE:", res);
+        const { token } = res;
+
+        if (!token) {
+            console.error("ERRO: token não veio", res);
+            throw new Error("Token inválido");
+        }
+
+        localStorage.setItem("token", token);
+
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        await fetchContext();
+        await fetchAllData();
+
+    };
+
+    const fetchSideEffects = useCallback(async () => {
+
+        try {
+
             const [movRes, logsRes] = await Promise.all([
                 api.get('/stock-movements'),
                 api.get('/audit-logs')
             ]);
+
             dispatchRaw({
                 type: 'UPDATE_LOGS_MOVEMENTS',
                 payload: {
@@ -116,20 +236,27 @@ export const AppProvider = ({ children }) => {
                     auditLogs: logsRes.data
                 }
             });
+
         } catch (e) {
+
             console.error("Erro ao carregar auditorias contínuas:", e);
+
         }
+
     }, []);
 
-    // Helper 2: Hard-Reload (Reconstruir todo o Context Application puxando pela API)
+    // ─── Fetch All Data ─────────────────────────────────────────────────────
     const fetchAllData = useCallback(async (showLoading = true) => {
+
         if (showLoading) dispatchRaw({ type: 'SET_LOADING', payload: true });
+
         try {
+
             const [cRes, pRes, sRes, poRes, mRes, lRes] = await Promise.all([
                 api.get('/categories'),
                 api.get('/products'),
                 api.get('/suppliers'),
-                api.get('/purchase-orders'),
+                api.get('/api/purchase-orders'),
                 api.get('/stock-movements'),
                 api.get('/audit-logs'),
             ]);
@@ -137,108 +264,141 @@ export const AppProvider = ({ children }) => {
             dispatchRaw({
                 type: 'SET_ALL_DATA',
                 payload: {
-                    categories: cRes.data,
-                    products: pRes.data,
-                    suppliers: sRes.data,
-                    purchaseOrders: poRes.data,
-                    stockMovements: mRes.data,
-                    auditLogs: lRes.data,
+                    categories: cRes.data.data || cRes.data,
+                    products: pRes.data.data || pRes.data,
+                    suppliers: sRes.data.data || sRes.data,
+                    purchaseOrders: poRes.data.data || poRes.data,
+                    stockMovements: mRes.data.data || mRes.data,
+                    auditLogs: lRes.data.data || lRes.data,
                 },
             });
+
         } catch (err) {
-            console.error(err);
-            dispatchRaw({ type: 'SET_ERROR', payload: err.message || 'Erro de comunicação.' });
+
+            console.error("Dispatch API Error:", err);
+
+            const message =
+                err.response?.data?.message ||
+                err.response?.data?.error ||
+                err.message ||
+                "Erro inesperado";
+
+            dispatchRaw({ type: 'SET_ERROR', payload: message });
+
         }
+
     }, []);
 
-    // Sync / App Mount 
+    // ─── App Init ───────────────────────────────────────────────────────────
     useEffect(() => {
-        fetchAllData();
-    }, [fetchAllData]);
 
-    // Dispatch Assíncrono Personalizado — Interceptador Centralizado de Requisições
-    const dispatch = useCallback(async (action) => {
+        const init = async () => {
+
+            const token = localStorage.getItem("token");
+
+            if (!token) return;
+
+            await fetchContext();   // 🔥 primeiro
+            await fetchAllData();   // 🔥 depois
+
+        };
+
+        init();
+
+    }, []);
+
+
+    async function reloadContext() {
+
         try {
+
+            const res = await api.get("/auth/context");
+
+            const data = res;
+
+            dispatchRaw({
+                type: "SET_CONTEXT",
+                payload: {
+                    user: data.user,
+                    organization: data.organization,
+                    establishment: data.establishment,
+                    establishments: data.establishments
+                }
+            });
+
+        } catch (err) {
+            console.error("Erro ao carregar contexto:", err);
+            localStorage.removeItem("token"); // força logout limpo
+            window.location.href = "/login";
+        }
+    }
+
+    // ─── Dispatch Async ─────────────────────────────────────────────────────
+    const dispatch = useCallback(async (action) => {
+
+        try {
+
             switch (action.type) {
 
-                // --- Produtos HTTP Map ---
                 case ACTIONS.ADD_PRODUCT: {
                     const res = await api.post('/products', action.payload);
                     dispatchRaw({ type: ACTIONS.ADD_PRODUCT, payload: res.data });
                     fetchSideEffects();
                     break;
                 }
+
+
+
                 case ACTIONS.UPDATE_PRODUCT: {
-                    const res = await api.put(`/products/${action.payload.id}`, action.payload);
-                    dispatchRaw({ type: ACTIONS.UPDATE_PRODUCT, payload: res.data });
+
+                    await api.put(`/products/${action.payload.id}`, action.payload);
+
+                    const updated = await api.get(`/products/${action.payload.id}`);
+
+                    dispatchRaw({
+                        type: ACTIONS.UPDATE_PRODUCT,
+                        payload: updated.data
+                    });
+
                     fetchSideEffects();
                     break;
                 }
+
                 case ACTIONS.DELETE_PRODUCT: {
+
                     await api.delete(`/products/${action.payload}`);
-                    dispatchRaw({ type: ACTIONS.DELETE_PRODUCT, payload: action.payload });
-                    fetchSideEffects();
-                    break;
-                }
-                case ACTIONS.UPDATE_PRODUCT_QUANTITY: {
-                    const res = await api.patch(`/products/${action.payload.id}/quantity`, { quantity: action.payload.quantity });
-                    dispatchRaw({ type: ACTIONS.UPDATE_PRODUCT_QUANTITY, payload: res.data });
-                    fetchSideEffects();
-                    break;
-                }
 
-                // --- Fornecedores HTTP Map ---
-                case ACTIONS.ADD_SUPPLIER: {
-                    const res = await api.post('/suppliers', action.payload);
-                    dispatchRaw({ type: ACTIONS.ADD_SUPPLIER, payload: res.data });
-                    fetchSideEffects();
-                    break;
-                }
-                case ACTIONS.UPDATE_SUPPLIER: {
-                    const res = await api.put(`/suppliers/${action.payload.id}`, action.payload);
-                    dispatchRaw({ type: ACTIONS.UPDATE_SUPPLIER, payload: res.data });
-                    fetchSideEffects();
-                    break;
-                }
-                case ACTIONS.DELETE_SUPPLIER: {
-                    await api.delete(`/suppliers/${action.payload}`);
-                    dispatchRaw({ type: ACTIONS.DELETE_SUPPLIER, payload: action.payload });
-                    fetchSideEffects();
-                    break;
-                }
+                    dispatchRaw({
+                        type: ACTIONS.DELETE_PRODUCT,
+                        payload: action.payload
+                    });
 
-                // --- Purchase Orders HTTP Map ---
-                case ACTIONS.ADD_PURCHASE_ORDER: {
-                    const res = await api.post('/purchase-orders', action.payload);
-                    dispatchRaw({ type: ACTIONS.ADD_PURCHASE_ORDER, payload: res.data });
-                    fetchSideEffects();
-                    break;
-                }
-                case ACTIONS.COMPLETE_PURCHASE_ORDER: {
-                    await api.put(`/purchase-orders/${action.payload}/complete`);
-                    // Ordem completada altera entidades diversas dentro do DB (Items, Logs, Ordens e Insumos).
-                    // Aciona hard-sync invisível global sem congelar tela de transição
-                    fetchAllData(false);
-                    break;
-                }
-                case ACTIONS.DELETE_PURCHASE_ORDER: {
-                    await api.delete(`/purchase-orders/${action.payload}`);
-                    dispatchRaw({ type: ACTIONS.DELETE_PURCHASE_ORDER, payload: action.payload });
                     fetchSideEffects();
                     break;
                 }
 
                 default:
-                    dispatchRaw(action); // Operações locais restritas à interface (sem fetch)
+                    dispatchRaw(action);
+
             }
+
         } catch (err) {
+
             console.error("Dispatch API Error:", err);
-            // Alerta silencioso simplificado para comunicar recusa de chamadas ou payloads (Zod Error 422 HTTP)
-            alert(err.message || 'Erro de comunicação ao realizar a operação de banco de dados.');
+
+            const message =
+                err.response?.data?.message ||
+                err.response?.data?.error ||
+                err.message ||
+                "Erro inesperado";
+
+            throw new Error(message);
+
         }
+
     }, [fetchAllData, fetchSideEffects]);
 
-    // Selectors ─────────────────────────────────────────────────────────────────
+    // ─── Selectors ──────────────────────────────────────────────────────────
     const getLowStockProducts = useCallback(
         () => state.products.filter((p) => Number(p.quantity) < Number(p.minQuantity)),
         [state.products]
@@ -260,22 +420,35 @@ export const AppProvider = ({ children }) => {
     );
 
     return (
-        <AppContext.Provider value={{
-            state,
-            dispatch,
-            getLowStockProducts,
-            getTotalInventoryValue,
-            getSupplierById,
-            getProductById,
-        }}>
+        <AppContext.Provider
+            value={{
+                state,
+                dispatch,
+                switchEstablishment,
+                reloadContext,
+                getLowStockProducts,
+                getTotalInventoryValue,
+                getSupplierById,
+                getProductById,
+                loadProducts,
+                fetchAllData
+
+            }}
+        >
             {children}
         </AppContext.Provider>
     );
 };
 
-// ─── Hook ────────────────────────────────────────────────────────────────────
+// ─── Hook ───────────────────────────────────────────────────────────────────
 export const useApp = () => {
+
     const ctx = useContext(AppContext);
-    if (!ctx) throw new Error('useApp must be used inside <AppProvider>');
+
+    if (!ctx) {
+        throw new Error('useApp must be used inside <AppProvider>');
+    }
+
     return ctx;
+
 };

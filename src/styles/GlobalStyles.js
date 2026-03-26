@@ -18,7 +18,7 @@ const GlobalStyles = createGlobalStyle`
     font-family: ${({ theme }) => theme.fonts.base};
     background-color: ${({ theme }) => theme.colors.bg};
     color: ${({ theme }) => theme.colors.textPrimary};
-    line-height: 1.6;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

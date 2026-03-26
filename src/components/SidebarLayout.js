@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import {
   MdDashboard,
   MdInventory2,
@@ -10,6 +10,10 @@ import {
   MdEventNote,
   MdMenu,
   MdClose,
+  MdLightbulb,
+  MdChecklist,
+  MdCompareArrows,
+  Mdinventory,
 } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 
@@ -91,6 +95,46 @@ const BrandWordmark = styled.span`
   animation: ${shimmer} 4s linear infinite;
 `;
 
+const EstabSelector = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: ${({ theme }) => theme.colors.bgHover};
+  cursor: pointer;
+  font-size: 12px;
+  transition: 0.2s;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primaryLight};
+  }
+`;
+
+const Dropdown = styled.div`
+  position: absolute;
+  top: 60px;
+  left: 80px;
+  background: ${({ theme }) => theme.colors.bgCard};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  padding: 6px;
+  z-index: 999;
+`;
+
+const DropdownItem = styled.div`
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgHover};
+  }
+`;
+
 /* Collapsed state: round blue circle with "C" */
 const LogoCircle = styled.div`
   width: 38px;
@@ -168,21 +212,23 @@ const StyledNavLink = styled(NavLink)`
     color: ${({ theme }) => theme.colors.textPrimary};
   }
 
-  &.active {
-    background: ${({ theme }) => theme.colors.primaryLight};
-    color: ${({ theme }) => theme.colors.primary};
-    font-weight: ${({ theme }) => theme.fontWeights.semibold};
+&.active {
+  background: ${({ theme }) => theme.colors.bgHover};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
 
-    &::before {
-      content: '';
-      position: absolute;
-      left: -8px; top: 50%;
-      transform: translateY(-50%);
-      width: 3px; height: 60%;
-      background: ${({ theme }) => theme.colors.primary};
-      border-radius: 0 3px 3px 0;
-    }
+  &::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: ${({ theme }) => theme.colors.primary};
+    border-radius: 0 3px 3px 0;
   }
+}
 `;
 
 const NavIcon = styled.span`
@@ -244,6 +290,13 @@ const NAV_GROUPS = [
       { to: '/products', label: 'Produtos', icon: <MdInventory2 />, badge: true },
       { to: '/suppliers', label: 'Fornecedores', icon: <MdPeople /> },
       { to: '/purchase-orders', label: 'Ordens de Compra', icon: <MdShoppingCart /> },
+      { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
+      { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
+      { to: '/stock-transfers', label: 'Transferencia de estoque', icon: <MdCompareArrows /> },
+      { to: '/stock-audits/history', label: 'historico de auditorias', icon: <MdChecklist /> },
+      { to: '/stock-movement/', label: 'movimentação de estoque', icon: <MdCompareArrows /> },
+
+
     ],
   },
   {
@@ -257,9 +310,23 @@ const NAV_GROUPS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const SidebarLayout = ({ children }) => {
+
+  const { state, switchEstablishment, getLowStockProducts } = useApp();
+
   const [collapsed, setCollapsed] = useState(false);
-  const { getLowStockProducts } = useApp();
+
   const lowStockCount = getLowStockProducts().length;
+
+  // 🔥 função de troca
+  const handleSwitch = async (establishmentId) => {
+    try {
+      await switchEstablishment(establishmentId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  console.log("STATE:", state);
 
   return (
     <Layout>
@@ -269,9 +336,32 @@ const SidebarLayout = ({ children }) => {
           {!collapsed && (
             <LogoBlock>
               <BrandWordmark>Commercial</BrandWordmark>
+
+              {/* 🔽 SELECT DE ESTABELECIMENTO */}
+              {!state.loading && state.establishments && (
+                <select
+                  value={state.establishment?.id || ""}
+                  onChange={(e) => handleSwitch(e.target.value)}
+                  style={{
+                    fontSize: "11px",
+                    marginLeft: "8px",
+                    padding: "2px",
+                    borderRadius: "4px"
+                  }}
+                >
+                  {state.establishments.map((est) => (
+                    <option key={est.id} value={est.id}>
+                      {est.nome_fantasia}
+                    </option>
+                  ))}
+                </select>
+              )}
+
             </LogoBlock>
           )}
+
           {collapsed && <LogoCircle>C</LogoCircle>}
+
           {!collapsed && (
             <CollapseBtn onClick={() => setCollapsed(true)} title="Recolher">
               <MdClose />
@@ -324,10 +414,11 @@ const SidebarLayout = ({ children }) => {
       </Sidebar>
 
       <Main collapsed={collapsed}>
-        <PageWrapper>{children}</PageWrapper>
+        <PageWrapper>
+          <Outlet />
+        </PageWrapper>
       </Main>
     </Layout>
   );
 };
-
 export default SidebarLayout;

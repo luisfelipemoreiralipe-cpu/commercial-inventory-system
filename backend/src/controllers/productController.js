@@ -1,37 +1,168 @@
 const productService = require('../services/productService');
 const asyncHandler = require('../utils/asyncHandler');
+const productSupplierService = require('../services/productSupplierService');
 
 const getAll = asyncHandler(async (req, res) => {
-    const data = await productService.getAllProducts();
+
+    const products = await productService.getAllProducts(
+        req.user.establishmentId
+    );
+
+    const data = products.map((p) => ({
+        ...p,
+        suppliers: p.productSuppliers?.map(ps => ps.supplier) || []
+    }));
+
     res.json({ success: true, data });
+
 });
 
 const getById = asyncHandler(async (req, res) => {
-    const data = await productService.getProductById(req.params.id);
+    const data = await productService.getProductById(
+        req.params.id,
+        req.user.establishmentId
+    );
     res.json({ success: true, data });
 });
 
 const create = asyncHandler(async (req, res) => {
-    const data = await productService.createProduct(req.body);
+
+    console.log("🔥 BODY CONTROLLER:", req.body);
+    console.log("🔥 KEYS:", Object.keys(req.body));
+
+    const data = await productService.createProduct(
+        req.body,
+        req.user.establishmentId
+    );
+
     res.status(201).json({ success: true, data });
 });
 
 const update = asyncHandler(async (req, res) => {
-    const data = await productService.updateProduct(req.params.id, req.body);
+    const data = await productService.updateProduct(
+        req.params.id,
+        req.body,
+        req.user.establishmentId
+    );
     res.json({ success: true, data });
 });
 
 const remove = asyncHandler(async (req, res) => {
-    await productService.deleteProduct(req.params.id);
+    await productService.deleteProduct(
+        req.params.id,
+        req.user.establishmentId
+    );
     res.status(204).send();
 });
 
 const updateQuantity = asyncHandler(async (req, res) => {
     const data = await productService.updateProductQuantity(
         req.params.id,
-        req.body.quantity
+        req.body.quantity,
+        req.user.establishmentId
     );
     res.json({ success: true, data });
 });
 
-module.exports = { getAll, getById, create, update, remove, updateQuantity };
+// ─── PRICE HISTORY ─────────────────────────────────────────────────────
+
+const getPriceHistory = asyncHandler(async (req, res) => {
+    const data = await productService.getPriceHistory(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+});
+
+// ─── BEST SUPPLIER ─────────────────────────────────────────────────────
+
+const getBestSupplier = asyncHandler(async (req, res) => {
+    const data = await productService.getBestSupplier(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+});
+
+const getCMV = asyncHandler(async (req, res) => {
+
+    const data = await productService.getProductCMV(
+        req.params.id
+    );
+
+    res.json({ success: true, data });
+
+});
+
+
+// ─── SUPPLIER COMPARISON ───────────────────────────────────────────────
+
+const getSupplierComparison = asyncHandler(async (req, res) => {
+
+    const data = await productService.getSupplierComparison(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+
+});
+
+// ─── PRODUCT SUPPLIERS ─────────────────────────────────────────────────
+
+const addSupplier = asyncHandler(async (req, res) => {
+
+    const { supplierId, price } = req.body;
+
+    const data = await productSupplierService.addSupplierToProduct(
+        req.params.id,
+        supplierId,
+        price,
+        req.user.establishmentId
+    );
+
+    res.status(201).json({ success: true, data });
+
+});
+
+const getSuppliers = asyncHandler(async (req, res) => {
+
+    const data = await productSupplierService.getProductSuppliers(
+        req.params.id,
+        req.user.establishmentId
+    );
+
+    res.json({ success: true, data });
+
+});
+
+const removeSupplier = asyncHandler(async (req, res) => {
+
+    await productSupplierService.removeSupplierFromProduct(
+        req.params.productId,
+        req.params.supplierId,
+        req.user.establishmentId
+    );
+
+    res.status(204).send();
+
+});
+
+module.exports = {
+    getAll,
+    getById,
+    create,
+    update,
+    remove,
+    updateQuantity,
+    getPriceHistory,
+    getBestSupplier,
+    getSupplierComparison,
+    getCMV,
+
+    addSupplier,
+    getSuppliers,
+    removeSupplier
+};

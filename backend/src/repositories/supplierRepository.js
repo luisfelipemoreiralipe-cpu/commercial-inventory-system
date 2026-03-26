@@ -1,23 +1,50 @@
 const prisma = require('../utils/prisma');
 
-const findAll = () =>
+// LISTAR
+const findAll = (establishmentId) =>
     prisma.supplier.findMany({
-        include: {
-            _count: { select: { products: true } },
-        },
+        where: { establishmentId },
         orderBy: { name: 'asc' },
     });
 
-const findById = (id) =>
-    prisma.supplier.findUnique({ where: { id } });
+// BUSCAR POR ID
+const findById = (id, establishmentId) =>
+    prisma.supplier.findFirst({
+        where: {
+            id,
+            establishmentId
+        }
+    });
 
+// CRIAR
 const create = (data) =>
-    prisma.supplier.create({ data });
+    prisma.supplier.create({
+        data
+    });
 
-const update = (id, data) =>
-    prisma.supplier.update({ where: { id }, data });
+// ATUALIZAR
+const update = (id, data, establishmentId) =>
+    prisma.supplier.updateMany({
+        where: {
+            id,
+            establishmentId
+        },
+        data
+    });
 
-const remove = (id) =>
-    prisma.supplier.delete({ where: { id } });
+// REMOVER
+const remove = (id, establishmentId) =>
+    prisma.supplier.deleteMany({
+        where: {
+            id,
+            establishmentId
+        }
+    });
 
-module.exports = { findAll, findById, create, update, remove };
+module.exports = {
+    findAll,
+    findById,
+    create,
+    update,
+    remove
+};

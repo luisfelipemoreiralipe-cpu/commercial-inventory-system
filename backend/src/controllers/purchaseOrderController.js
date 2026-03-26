@@ -7,13 +7,35 @@ const getAll = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-    const data = await purchaseOrderService.createOrder(req.body);
+    console.log("BODY RECEBIDO:", req.body);
+
+    const userId = req.user?.id;
+    const establishmentId = req.user?.establishmentId;
+
+    const data = await purchaseOrderService.createOrder({
+        ...req.body,
+        user_id: userId,
+        establishmentId
+    });
+
     res.status(201).json({ success: true, data });
+
 });
 
 const complete = asyncHandler(async (req, res) => {
-    const data = await purchaseOrderService.completeOrder(req.params.id);
+
+    const { items } = req.body; // 👈 TEM QUE EXISTIR
+
+    const establishmentId = req.user?.establishmentId;
+
+    const data = await purchaseOrderService.completeOrder(
+        req.params.id,
+        establishmentId,
+        items // 👈 AGORA FUNCIONA
+    );
+
     res.json({ success: true, data });
+
 });
 
 const remove = asyncHandler(async (req, res) => {
@@ -21,8 +43,9 @@ const remove = asyncHandler(async (req, res) => {
     res.status(204).send();
 });
 
-// 🆕 EXPORTAR PDF
+// EXPORTAR PDF
 const exportPdf = asyncHandler(async (req, res) => {
+
     const { id } = req.params;
 
     const pdfBuffer = await purchaseOrderService.generatePdf(id);

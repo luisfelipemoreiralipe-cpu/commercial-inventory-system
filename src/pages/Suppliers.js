@@ -8,6 +8,7 @@ import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import { Input } from '../components/FormFields';
 import Badge from '../components/Badge';
+import api from '../services/api';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const EMPTY_FORM = { name: '', cnpj: '', phone: '', email: '' };
@@ -154,9 +155,9 @@ const Suppliers = () => {
 
     const filtered = state.suppliers.filter(
         (s) =>
-            s.name?.toLowerCase().includes(search.toLowerCase()) ||
-            s.cnpj?.includes(search) ||
-            s.email?.toLowerCase().includes(search.toLowerCase())
+            s?.name?.toLowerCase().includes(search.toLowerCase()) ||
+            s?.cnpj?.includes(search) ||
+            s?.email?.toLowerCase().includes(search.toLowerCase())
     );
 
     const getLinkedProducts = (supplierId) =>
@@ -184,19 +185,53 @@ const Suppliers = () => {
         setModalOpen(true);
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!validate()) return;
-        if (editTarget) {
-            dispatch({ type: ACTIONS.UPDATE_SUPPLIER, payload: { ...form, id: editTarget.id } });
-        } else {
-            dispatch({ type: ACTIONS.ADD_SUPPLIER, payload: form });
+
+        try {
+
+            if (editTarget) {
+
+                const res = await api.put(`/suppliers/${editTarget.id}`, form);
+
+                dispatch({
+                    type: ACTIONS.UPDATE_SUPPLIER,
+                    payload: res.data
+                });
+
+            } else {
+
+                const res = await api.post('/suppliers', form);
+
+                dispatch({
+                    type: ACTIONS.ADD_SUPPLIER,
+                    payload: res.data
+                });
+
+            }
+
+            setModalOpen(false);
+
+        } catch (err) {
+            console.error("Erro ao salvar fornecedor:", err);
         }
-        setModalOpen(false);
     };
 
-    const handleDelete = () => {
-        dispatch({ type: ACTIONS.DELETE_SUPPLIER, payload: deleteModal.id });
-        setDeleteModal(null);
+    const handleDelete = async () => {
+        try {
+
+            await api.delete(`/suppliers/${deleteModal.id}`);
+
+            dispatch({
+                type: ACTIONS.DELETE_SUPPLIER,
+                payload: deleteModal.id
+            });
+
+            setDeleteModal(null);
+
+        } catch (err) {
+            console.error("Erro ao deletar fornecedor:", err);
+        }
     };
 
     const field = (key) => ({
