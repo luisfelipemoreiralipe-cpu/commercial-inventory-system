@@ -80,8 +80,16 @@ const consumeProduct = async ({
     }
 
     // 🔒 VALIDAR TODOS OS INGREDIENTES
+    const { convertToBaseUnit } = require('../utils/unitConverter');
+
     for (const item of recipe.items) {
-        const totalNeeded = Number(item.quantity) * Number(quantity);
+
+        const totalNeededRaw = Number(item.quantity) * Number(quantity);
+
+        const totalNeeded = convertToBaseUnit(
+            totalNeededRaw,
+            item.product.unit
+        );
 
         if (Number(item.product.quantity) < totalNeeded) {
             throw new Error(
@@ -94,7 +102,13 @@ const consumeProduct = async ({
     for (const item of recipe.items) {
 
         const ingredient = item.product;
-        const totalNeeded = Number(item.quantity) * Number(quantity);
+
+        const totalNeededRaw = Number(item.quantity) * Number(quantity);
+
+        const totalNeeded = convertToBaseUnit(
+            totalNeededRaw,
+            ingredient.unit
+        );
 
         const previousQuantity = Number(ingredient.quantity);
         const newQuantity = previousQuantity - totalNeeded;

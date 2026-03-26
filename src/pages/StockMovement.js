@@ -65,6 +65,11 @@ export default function StockMovement() {
     const [quantity, setQuantity] = useState("");
     const [loading, setLoading] = useState(false);
     const { fetchAllData } = useApp();
+    const [file, setFile] = useState(null);
+    const [loadingImport, setLoadingImport] = useState(false);
+
+
+
 
     const selectedProduct = state.products.find(
         (p) => p.id === productId
@@ -83,6 +88,7 @@ export default function StockMovement() {
             toast.error("Selecione um produto");
             return;
         }
+
 
         if (!quantity || Number(quantity) <= 0) {
             toast.error("Informe uma quantidade válida");
@@ -129,6 +135,43 @@ export default function StockMovement() {
         }
     };
 
+    const handleImportCSV = async () => {
+        if (!file) {
+            toast.error("Selecione um arquivo");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            setLoadingImport(true);
+
+            await api.post("/sales/import", formData, {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            });
+
+            toast.success("CSV importado com sucesso");
+
+            setFile(null);
+
+            await fetchAllData();
+
+        } catch (error) {
+            console.error(error);
+
+            if (error.response?.data?.errors) {
+                toast.error("Erro em alguns produtos do CSV");
+            } else {
+                toast.error("Erro ao importar CSV");
+            }
+        } finally {
+            setLoadingImport(false);
+        }
+    };
+
     return (
         <>
             <PageHeader>
@@ -158,72 +201,106 @@ export default function StockMovement() {
                 >
                     Consumo Interno
                 </Button>
+                <Button
+                    variant={mode === "CSV_IMPORT" ? "primary" : "secondary"}
+                    onClick={() => setMode("CSV_IMPORT")}
+                >
+                    Importar CSV
+                </Button>
             </div>
+            {mode !== "CSV_IMPORT" && (
+                <FormBox>
+                    {/* PRODUTO */}
 
-            <FormBox>
-                {/* PRODUTO */}
-                <Field>
-                    <Label>Produto</Label>
+                    <Field>
+                        <Label>Produto</Label>
 
-                    <Select
-                        value={productId}
-                        onChange={(e) => setProductId(e.target.value)}
-                    >
-                        <option value="">Selecione um produto</option>
+                        <Select
+                            value={productId}
+                            onChange={(e) => setProductId(e.target.value)}
+                        >
+                            <option value="">Selecione um produto</option>
 
-                        {state.products
-                            .filter((p) =>
-                                mode === "BONUS"
-                                    ? p.type === "INVENTORY"
-                                    : true
-                            )
-                            .map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name} (Estoque: {p.quantity})
-                                </option>
-                            ))}
-                    </Select>
-                </Field>
+                            {state.products
+                                .filter((p) =>
+                                    mode === "BONUS"
+                                        ? p.type === "INVENTORY"
+                                        : true
+                                )
+                                .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name} (Estoque: {p.quantity})
+                                    </option>
+                                ))}
+                        </Select>
+                    </Field>
 
-                {/* QUANTIDADE */}
-                <Field>
-                    <Label>Quantidade</Label>
+                    {/* QUANTIDADE */}
+                    <Field>
+                        <Label>Quantidade</Label>
 
-                    <Input
-                        type="number"
-                        min="0"
-                        placeholder="Digite a quantidade"
-                        value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
-                    />
-                </Field>
+                        <Input
+                            type="number"
+                            min="0"
+                            placeholder="Digite a quantidade"
+                            value={quantity}
+                            onChange={(e) => setQuantity(e.target.value)}
+                        />
+                    </Field>
 
-                {/* RESULTADO */}
-                {selectedProduct && quantity !== "" && (
-                    <div style={{ marginTop: 10, fontSize: 14 }}>
-                        <p>Estoque atual: {selectedProduct.quantity}</p>
+                    {/* RESULTADO */}
+                    {selectedProduct && quantity !== "" && (
+                        <div style={{ marginTop: 10, fontSize: 14 }}>
+                            <p>Estoque atual: {selectedProduct.quantity}</p>
 
-                        <p>
-                            Após movimentação:{" "}
-                            <strong
-                                style={{
-                                    color:
-                                        mode === "INTERNAL_USE" && resultingStock < 0
-                                            ? "#DC2626"
-                                            : "#059669",
-                                }}
-                            >
-                                {resultingStock}
-                            </strong>
-                        </p>
+                            <p>
+                                Após movimentação:{" "}
+                                <strong
+                                    style={{
+                                        color:
+                                            mode === "INTERNAL_USE" && resultingStock < 0
+                                                ? "#DC2626"
+                                                : "#059669",
+                                    }}
+                                >
+                                    {resultingStock}
+                                </strong>
+                            </p>
+                        </div>
+                    )}
+                    <div style={{ marginTop: 20 }}>
+                        <Button onClick={handleSubmit} disabled={loading}>
+                            {loading ? "Processando..." : "Confirmar movimentação"}
+                        </Button>
                     </div>
-                )}
-                <div style={{ marginTop: 20 }}>
-                    <Button onClick={handleSubmit} disabled={loading}>
-                        {loading ? "Processando..." : "Confirmar movimentação"}
-                    </Button>
-                </div>
-            </FormBox>
+                </FormBox>
+            )}
+            {mode === "CSV_IMPORT" && (
+                <FormBox>
+                    <Field>
+                        <Label>Arquivo CSV</Label>
+
+                        <Input
+                            type="file"
+                            accept=".csv"
+                            onChange={(e) => setFile(e.target.files[0])}
+                        />
+                    </Field>
+
+                    {file && (
+                        <p style={{ fontSize: 12, marginTop: 8 }}>
+                            Arquivo selecionado: {file.name}
+                        </p>
+                    )}
+
+                    {/* ✅ BOTÃO CORRETO AQUI */}
+                    <div style={{ marginTop: 20 }}>
+                        <Button onClick={handleImportCSV} disabled={loadingImport}>
+                            {loadingImport ? "Importando..." : "Importar CSV"}
+                        </Button>
+                    </div>
+                </FormBox>
+            )}
         </>
     );
 }
