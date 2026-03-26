@@ -58,7 +58,10 @@ const importCSV = asyncHandler(async (req, res) => {
 
         const product = await prisma.product.findFirst({
             where: {
-                name: item.product,
+                name: {
+                    equals: item.product,
+                    mode: 'insensitive'
+                },
                 establishmentId
             }
         });

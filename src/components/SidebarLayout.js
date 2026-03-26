@@ -294,6 +294,7 @@ const NAV_GROUPS = [
       { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
       { to: '/stock-transfers', label: 'Transferencia de estoque', icon: <MdCompareArrows /> },
       { to: '/stock-audits/history', label: 'historico de auditorias', icon: <MdChecklist /> },
+      { to: '/stock-movement/history', label: 'movimentação de estoque', icon: <MdCompareArrows /> },
 
 
     ],
