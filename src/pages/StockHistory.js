@@ -178,28 +178,83 @@ const StockHistory = () => {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
 
+
+    // 🔥 1. FUNÇÃO PRIMEIRO
+    const getMovementType = (m) => {
+        const type = m.type?.toUpperCase();
+
+        if (type === "BONUS" || type === "IN") return "entry";
+
+        if (type === "OUT") return "exit";
+
+        if (type === "TRANSFER") {
+            return m.newQuantity > m.previousQuantity ? "entry" : "exit";
+        }
+
+        return "adjustment";
+    };
+
+    // 🔥 2. FILTERED DEPOIS
     const filtered = useMemo(() => {
         return state.stockMovements.filter((m) => {
             if (filterProduct && m.productId !== filterProduct) return false;
-            if (filterType && m.type !== filterType) return false;
+
+            if (filterType && getMovementType(m) !== filterType) return false;
+
             if (dateFrom && new Date(m.createdAt) < new Date(dateFrom)) return false;
+
             if (dateTo && new Date(m.createdAt) > new Date(dateTo + 'T23:59:59')) return false;
+
             return true;
         });
     }, [state.stockMovements, filterProduct, filterType, dateFrom, dateTo]);
 
+    // 🔥 3. TOTALS POR ÚLTIMO
     const totals = useMemo(() => ({
-        entry: filtered.filter((m) => m.type === 'entry').length,
-        exit: filtered.filter((m) => m.type === 'exit').length,
-        adjustment: filtered.filter((m) => m.type === 'adjustment').length,
+        entry: filtered
+            .filter((m) => getMovementType(m) === "entry")
+            .reduce((acc, m) => acc + (m.newQuantity - m.previousQuantity), 0),
+
+        exit: filtered
+            .filter((m) => getMovementType(m) === "exit")
+            .reduce((acc, m) => acc + Math.abs(m.newQuantity - m.previousQuantity), 0),
+
     }), [filtered]);
 
+    // 🔥 KPI BONIFICAÇÃO
+    const totalBonus = useMemo(() => {
+        return filtered.reduce((acc, m) => {
+            if (m.reference?.toUpperCase().includes("BONIFICA")) {
+                const delta = m.newQuantity - m.previousQuantity;
+
+                console.log("BONUS:", m.productName, delta);
+
+                return acc + delta;
+            }
+
+            return acc;
+        }, 0);
+    }, [filtered]);
+
+    // 🔥 KPI CONSUMO
+    const totalConsumption = useMemo(() => {
+        return filtered
+            .filter((m) => m.type?.toUpperCase() === "OUT")
+            .reduce((acc, m) => acc + Math.abs(m.newQuantity - m.previousQuantity), 0);
+    }, [filtered]);
+
+
+
     const hasFilters = filterProduct || filterType || dateFrom || dateTo;
+
     const clearFilters = () => {
-        setFilterProduct(''); setFilterType(''); setDateFrom(''); setDateTo('');
+        setFilterProduct('');
+        setFilterType('');
+        setDateFrom('');
+        setDateTo('');
     };
 
-    // Unique products that have movements
+    // Unique products
     const movementProducts = useMemo(() => {
         const seen = new Map();
         state.stockMovements.forEach((m) => {
@@ -239,7 +294,7 @@ const StockHistory = () => {
                         <option value="">Todos</option>
                         <option value="entry">Entrada</option>
                         <option value="exit">Saída</option>
-                        <option value="adjustment">Ajuste</option>
+
                     </FilterSelect>
                 </FilterGroup>
 
@@ -270,10 +325,16 @@ const StockHistory = () => {
                     <SummaryLabel>Saídas</SummaryLabel>
                     <SummaryValue color="#DC2626">{totals.exit}</SummaryValue>
                 </SummaryCard>
-                <SummaryCard accent="#2563EB">
-                    <SummaryLabel>Ajustes</SummaryLabel>
-                    <SummaryValue color="#2563EB">{totals.adjustment}</SummaryValue>
+                <SummaryCard accent="#7C3AED">
+                    <SummaryLabel>Bonificação</SummaryLabel>
+                    <SummaryValue>{totalBonus}</SummaryValue>
                 </SummaryCard>
+
+                <SummaryCard accent="#DC2626">
+                    <SummaryLabel>Consumo Interno</SummaryLabel>
+                    <SummaryValue>{totalConsumption}</SummaryValue>
+                </SummaryCard>
+
             </SummaryRow>
 
             {/* Table */}
@@ -300,7 +361,10 @@ const StockHistory = () => {
                             </thead>
                             <tbody>
                                 {filtered.map((m) => {
-                                    const cfg = TYPE_CONFIG[m.type] || TYPE_CONFIG.adjustment;
+                                    console.log("TYPE RAW:", m.type);
+                                    console.log("TYPE UPPER:", m.type?.toUpperCase());
+                                    const movementType = getMovementType(m);
+                                    const cfg = TYPE_CONFIG[movementType];
                                     const isPositive = m.newQuantity > m.previousQuantity;
                                     return (
                                         <Tr key={m.id}>

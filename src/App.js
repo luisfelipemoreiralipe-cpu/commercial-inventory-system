@@ -6,6 +6,7 @@ import StockAuditHistory from "./pages/StockAuditHistory";
 import Register from "./pages/Register";
 import Login from "./pages/login";
 import Dashboard from "./pages/Dashboard";
+import StockMovement from "./pages/StockMovement";
 import Products from "./pages/Products";
 import Suppliers from "./pages/Suppliers";
 import PurchaseOrders from "./pages/PurchaseOrders";
@@ -61,6 +62,8 @@ function App() {
               <Route path="/purchase-orders" element={<PurchaseOrders />} />
 
               <Route path="/stock-history" element={<StockHistory />} />
+
+              <Route path="/stock-movement" element={<StockMovement />} />
 
               <Route path="/activity-log" element={<ActivityLog />} />
 

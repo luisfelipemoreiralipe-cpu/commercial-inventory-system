@@ -430,7 +430,8 @@ export const AppProvider = ({ children }) => {
                 getTotalInventoryValue,
                 getSupplierById,
                 getProductById,
-                loadProducts
+                loadProducts,
+                fetchAllData
 
             }}
         >

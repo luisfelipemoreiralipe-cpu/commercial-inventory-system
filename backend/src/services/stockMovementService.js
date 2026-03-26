@@ -154,11 +154,18 @@ const addStock = async ({
         data: { quantity: newQuantity }
     });
 
+    // 🔥 DEFINIÇÃO INTELIGENTE DO TIPO
+    let movementType = "PURCHASE";
+
+    if (reason === "BONUS") {
+        movementType = "BONUS";
+    }
+
     await tx.stockMovement.create({
         data: {
             productId: product.id,
             productName: product.name,
-            type: "IN",
+            type: movementType,
             quantity,
             previousQuantity,
             newQuantity,
