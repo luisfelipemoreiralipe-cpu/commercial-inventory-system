@@ -9,5 +9,6 @@ router.get('/', authMiddleware, controller.getAll);
 
 // 🔥 NOVO: CONSUMO INTERNO
 router.post('/internal-use', authMiddleware, controller.createInternalUse);
+router.post('/bonus', authMiddleware, controller.addBonus);
 
 module.exports = router;

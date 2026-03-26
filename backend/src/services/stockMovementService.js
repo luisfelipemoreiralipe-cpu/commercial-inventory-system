@@ -170,6 +170,34 @@ const addStock = async ({
 
 };
 
+const addBonus = async ({
+    productId,
+    quantity,
+    establishmentId
+}) => {
+
+    if (!productId) {
+        throw new Error("Produto é obrigatório");
+    }
+
+    if (!quantity || quantity <= 0) {
+        throw new Error("Quantidade inválida");
+    }
+
+    return prisma.$transaction(async (tx) => {
+
+        await addStock({
+            productId,
+            quantity,
+            establishmentId,
+            reason: "BONUS",
+            reference: "BONIFICAÇÃO"
+        }, tx);
+
+    });
+
+};
+
 // 🔥 CONSUMO INTERNO (SEM ALTERAÇÃO DE REGRA)
 const createInternalUse = async ({
     productId,
@@ -216,5 +244,6 @@ module.exports = {
     getMovements,
     createInternalUse,
     consumeProduct,
-    addStock // 👈 NOVO (não afeta nada existente)
+    addStock,
+    addBonus
 };

@@ -1,7 +1,7 @@
 const stockMovementService = require('../services/stockMovementService');
 const asyncHandler = require('../utils/asyncHandler');
 
-// 🔍 LISTAR MOVIMENTAÇÕES (já existia)
+// 🔍 LISTAR MOVIMENTAÇÕES
 const getAll = asyncHandler(async (req, res) => {
 
     const { productId, dateFrom, dateTo } = req.query;
@@ -19,7 +19,7 @@ const getAll = asyncHandler(async (req, res) => {
 
 });
 
-// 🔥 NOVO: CONSUMO INTERNO
+// 🔥 CONSUMO INTERNO
 const createInternalUse = async (req, res) => {
 
     try {
@@ -52,7 +52,39 @@ const createInternalUse = async (req, res) => {
 
 };
 
+// 🎁 BONIFICAÇÃO (CORRETO)
+const addBonus = async (req, res) => {
+
+    try {
+
+        const { productId, quantity } = req.body;
+
+        await stockMovementService.addBonus({
+            productId,
+            quantity,
+            establishmentId: req.user.establishmentId
+        });
+
+        return res.json({
+            success: true,
+            message: "Bonificação adicionada com sucesso"
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+};
+
 module.exports = {
     getAll,
-    createInternalUse // 👈 novo export
+    createInternalUse,
+    addBonus // 🔥 IMPORTANTE EXPORTAR
 };
