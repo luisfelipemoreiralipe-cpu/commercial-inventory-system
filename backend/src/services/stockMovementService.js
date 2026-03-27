@@ -1,10 +1,49 @@
 const prisma = require('../config/prisma');
 const stockMovementRepo = require('../repositories/stockMovementRepository');
 
+// 🔥 REGRA DE CUSTO (CORE FINANCEIRO)
+const getProductCost = async (productId, tx) => {
+
+    // 🥇 Última compra
+    const lastPurchase = await tx.purchaseOrderItem.findFirst({
+        where: { productId },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    if (lastPurchase?.unitPrice) {
+        return Number(lastPurchase.unitPrice);
+    }
+
+    // 🥈 Menor preço fornecedor
+    const supplier = await tx.productSupplier.findFirst({
+        where: { productId },
+        orderBy: { price: 'asc' }
+    });
+
+    if (supplier?.price) {
+        return Number(supplier.price);
+    }
+
+    // 🥉 fallback
+    const product = await tx.product.findUnique({
+        where: { id: productId }
+    });
+
+    if (product?.currentCost && product.currentCost > 0) {
+        return Number(product.currentCost);
+    }
+
+    if (product?.unitPrice && product.unitPrice > 0) {
+        return Number(product.unitPrice);
+    }
+
+    return 0;
+};
+
 // 🔍 CONSULTA
 const getMovements = (filters) => stockMovementRepo.findAll(filters);
 
-// 🔥 FUNÇÃO CENTRAL DE CONSUMO (BLINDADA)
+// 🔥 CONSUMO (CORE)
 const consumeProduct = async ({
     productId,
     quantity,
@@ -14,19 +53,11 @@ const consumeProduct = async ({
 }, tx) => {
 
     const product = await tx.product.findFirst({
-        where: {
-            id: productId,
-            establishmentId
-        }
+        where: { id: productId, establishmentId }
     });
 
-    if (!product) {
-        throw new Error("Produto não encontrado");
-    }
-
-    if (!quantity || quantity <= 0) {
-        throw new Error("Quantidade inválida");
-    }
+    if (!product) throw new Error("Produto não encontrado");
+    if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
     // 🟢 INVENTORY
     if (product.type === "INVENTORY") {
@@ -37,6 +68,9 @@ const consumeProduct = async ({
 
         const previousQuantity = Number(product.quantity);
         const newQuantity = previousQuantity - Number(quantity);
+
+        const unitCost = await getProductCost(product.id, tx);
+        const totalCost = unitCost * Number(quantity);
 
         await tx.product.update({
             where: { id: product.id },
@@ -53,7 +87,9 @@ const consumeProduct = async ({
                 newQuantity,
                 reference,
                 reason,
-                establishmentId
+                establishmentId,
+                unitCost,
+                totalCost
             }
         });
 
@@ -62,56 +98,45 @@ const consumeProduct = async ({
 
     // 🔴 PRODUCTION
     const recipe = await tx.recipe.findFirst({
-        where: {
-            productId: product.id,
-            establishmentId
-        },
+        where: { productId: product.id, establishmentId },
         include: {
             items: {
-                include: {
-                    product: true
-                }
+                include: { product: true }
             }
         }
     });
 
-    if (!recipe) {
-        throw new Error("Produto de produção sem receita");
-    }
+    if (!recipe) throw new Error("Produto de produção sem receita");
 
-    // 🔒 VALIDAR TODOS OS INGREDIENTES
     const { convertToBaseUnit } = require('../utils/unitConverter');
 
+    // 🔒 VALIDAÇÃO
     for (const item of recipe.items) {
-
-        const totalNeededRaw = Number(item.quantity) * Number(quantity);
-
         const totalNeeded = convertToBaseUnit(
-            totalNeededRaw,
+            Number(item.quantity) * Number(quantity),
             item.product.unit
         );
 
         if (Number(item.product.quantity) < totalNeeded) {
-            throw new Error(
-                `Estoque insuficiente para ${item.product.name}`
-            );
+            throw new Error(`Estoque insuficiente para ${item.product.name}`);
         }
     }
 
-    // 🔥 BAIXAR INGREDIENTES
+    // 🔥 BAIXA
     for (const item of recipe.items) {
 
         const ingredient = item.product;
 
-        const totalNeededRaw = Number(item.quantity) * Number(quantity);
-
         const totalNeeded = convertToBaseUnit(
-            totalNeededRaw,
+            Number(item.quantity) * Number(quantity),
             ingredient.unit
         );
 
         const previousQuantity = Number(ingredient.quantity);
         const newQuantity = previousQuantity - totalNeeded;
+
+        const unitCost = await getProductCost(ingredient.id, tx);
+        const totalCost = unitCost * Number(totalNeeded);
 
         await tx.product.update({
             where: { id: ingredient.id },
@@ -128,15 +153,15 @@ const consumeProduct = async ({
                 newQuantity,
                 reference,
                 reason,
-                establishmentId
+                establishmentId,
+                unitCost,
+                totalCost
             }
         });
-
     }
-
 };
 
-// 🔥 NOVO: FUNÇÃO DE ENTRADA DE ESTOQUE (SEM QUEBRAR NADA)
+// 🔥 ENTRADA DE ESTOQUE
 const addStock = async ({
     productId,
     quantity,
@@ -146,34 +171,28 @@ const addStock = async ({
 }, tx) => {
 
     const product = await tx.product.findFirst({
-        where: {
-            id: productId,
-            establishmentId
-        }
+        where: { id: productId, establishmentId }
     });
 
-    if (!product) {
-        throw new Error("Produto não encontrado");
-    }
-
-    if (!quantity || quantity <= 0) {
-        throw new Error("Quantidade inválida");
-    }
+    if (!product) throw new Error("Produto não encontrado");
+    if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
     const previousQuantity = Number(product.quantity);
     const newQuantity = previousQuantity + Number(quantity);
 
+    const unitCost = await getProductCost(product.id, tx);
+    const totalCost = unitCost * Number(quantity);
+
     await tx.product.update({
         where: { id: product.id },
-        data: { quantity: newQuantity }
+        data: {
+            quantity: newQuantity,
+            currentCost: unitCost // 🔥 AQUI
+        }
     });
 
-    // 🔥 DEFINIÇÃO INTELIGENTE DO TIPO
     let movementType = "PURCHASE";
-
-    if (reason === "BONUS") {
-        movementType = "BONUS";
-    }
+    if (reason === "BONUS") movementType = "BONUS";
 
     await tx.stockMovement.create({
         data: {
@@ -185,28 +204,24 @@ const addStock = async ({
             newQuantity,
             reference,
             reason,
-            establishmentId
+            establishmentId,
+            unitCost,
+            totalCost
         }
     });
-
 };
 
+// 🎁 BONUS
 const addBonus = async ({
     productId,
     quantity,
     establishmentId
 }) => {
 
-    if (!productId) {
-        throw new Error("Produto é obrigatório");
-    }
-
-    if (!quantity || quantity <= 0) {
-        throw new Error("Quantidade inválida");
-    }
+    if (!productId) throw new Error("Produto é obrigatório");
+    if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
     return prisma.$transaction(async (tx) => {
-
         await addStock({
             productId,
             quantity,
@@ -214,40 +229,26 @@ const addBonus = async ({
             reason: "BONUS",
             reference: "BONIFICAÇÃO"
         }, tx);
-
     });
-
 };
 
-// 🔥 CONSUMO INTERNO (SEM ALTERAÇÃO DE REGRA)
+// 🍺 CONSUMO INTERNO
 const createInternalUse = async ({
     productId,
     quantity,
-    establishmentId,
-    userId
+    establishmentId
 }) => {
 
     const openAudit = await prisma.stockAudit.findFirst({
-        where: {
-            establishmentId,
-            status: "OPEN"
-        }
+        where: { establishmentId, status: "OPEN" }
     });
 
-    if (openAudit) {
-        throw new Error("Auditoria em andamento");
-    }
+    if (openAudit) throw new Error("Auditoria em andamento");
 
-    if (!productId) {
-        throw new Error("Produto é obrigatório");
-    }
-
-    if (!quantity || quantity <= 0) {
-        throw new Error("Quantidade inválida");
-    }
+    if (!productId) throw new Error("Produto é obrigatório");
+    if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
     return prisma.$transaction(async (tx) => {
-
         await consumeProduct({
             productId,
             quantity,
@@ -255,12 +256,9 @@ const createInternalUse = async ({
             reason: "INTERNAL_USE",
             reference: "CONSUMO INTERNO"
         }, tx);
-
     });
-
 };
 
-// 👇 EXPORTAR (SEM QUEBRAR NADA)
 module.exports = {
     getMovements,
     createInternalUse,

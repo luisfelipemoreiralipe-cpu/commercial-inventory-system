@@ -1,15 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
-import {
-  MdInventory2,
-  MdWarning,
-  MdAttachMoney,
-  MdShoppingCart,
-  MdCalendarToday,
-} from 'react-icons/md';
+import { MdCalendarToday, } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  LineChart,
+  Line,
+  ResponsiveContainer
+} from "recharts";
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
 const PageHeader = styled.div`
@@ -79,18 +83,7 @@ const StatCard = styled(Card)`
   }
 `;
 
-const StatIconBox = styled.div`
-  width: 40px;
-  height: 40px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ theme }) => theme.colors.bgHover};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  flex-shrink: 0;
-`;
+
 
 const StatInfo = styled.div``;
 
@@ -189,25 +182,263 @@ const EmptyNote = styled.div`
 // ─── Component ─────────────────────────────────────────────────────────────────
 const Dashboard = () => {
   const { state, getLowStockProducts } = useApp();
+
   const now = new Date();
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
   const filteredProducts = useMemo(() => {
-    let list = state.products;
-    if (dateFrom) list = list.filter((p) => new Date(p.createdAt) >= new Date(dateFrom));
-    if (dateTo) list = list.filter((p) => new Date(p.createdAt) <= new Date(dateTo + 'T23:59:59'));
+    return state.products || [];
+  }, [state.products]);
+
+  const filteredMovements = useMemo(() => {
+    console.log("MOVEMENTS:", state.stockMovements);
+    let list = state.stockMovements || [];
+
+    if (dateFrom) {
+      list = list.filter(m => new Date(m.createdAt) >= new Date(dateFrom));
+    }
+
+    if (dateTo) {
+      list = list.filter(m => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59'));
+    }
+
+    console.log("MOVEMENTS:", state.stockMovements);
+
     return list;
-  }, [state.products, dateFrom, dateTo]);
+  }, [state.stockMovements, dateFrom, dateTo]);
 
   const filteredValue = useMemo(
-    () => filteredProducts.reduce((sum, p) => sum + Number(p.unitPrice) * Number(p.quantity), 0),
+    () => filteredProducts.reduce(
+      (sum, p) => sum + Number(p.currentCost || 0) * Number(p.quantity || 0),
+      0
+    ),
     [filteredProducts]
   );
 
+  const totalConsumption = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+
+    return filteredMovements
+      .filter(m => m.type === "OUT" && m.reason !== "LOSS")
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+
+  }, [filteredMovements]);
+
+  const internalConsumptionValue = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+
+    return filteredMovements
+      .filter(m => m.reason === "INTERNAL_USE")
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+
+  }, [filteredMovements]);
+
+  const internalConsumptionPercent = useMemo(() => {
+    if (!totalConsumption) return 0;
+
+    return (internalConsumptionValue / totalConsumption) * 100;
+
+  }, [internalConsumptionValue, totalConsumption]);
+
+  const criticalProducts = useMemo(() => {
+    if (!state.products?.length) return 0;
+
+    return state.products.filter(
+      (p) => Number(p.quantity || 0) <= Number(p.minQuantity || 0)
+    ).length;
+
+  }, [state.products]);
+
+  const mostLossProduct = useMemo(() => {
+    if (!filteredMovements?.length) return null;
+
+    const map = {};
+
+    filteredMovements
+      .filter(m => m.reason === "LOSS")
+      .forEach(m => {
+        if (!map[m.productId]) {
+          map[m.productId] = {
+            name: m.productName,
+            value: 0
+          };
+        }
+
+        map[m.productId].value += Number(m.totalCost || 0);
+      });
+
+    const sorted = Object.values(map).sort((a, b) => b.value - a.value);
+
+    return sorted[0] || null;
+
+  }, [filteredMovements]);
+
+
+
   const lowStock = getLowStockProducts();
   const pendingOrders = state.purchaseOrders.filter((o) => o.status === 'pending');
+  const lossValue = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+
+    return filteredMovements
+      .filter((m) => m.reason === "LOSS")
+      .reduce((sum, m) => {
+        return sum + Number(m.totalCost || 0);
+      }, 0);
+
+  }, [filteredMovements]);
+  const mostConsumedProduct = useMemo(() => {
+    if (!filteredMovements?.length) return null;
+
+    const map = {};
+
+    filteredMovements
+      .filter(m => m.type === "OUT" && m.reason !== "LOSS")
+      .forEach(m => {
+        if (!map[m.productId]) {
+          map[m.productId] = {
+            name: m.productName,
+            quantity: 0
+          };
+        }
+
+        map[m.productId].quantity += Math.abs(Number(m.quantity));
+      });
+
+    const sorted = Object.values(map).sort(
+      (a, b) => b.quantity - a.quantity
+    );
+
+    return sorted[0] || null;
+
+  }, [filteredMovements]);
+
+  const topConsumedProducts = useMemo(() => {
+    if (!filteredMovements?.length) return [];
+
+    const map = {};
+
+    filteredMovements
+      .filter(m => m.type === "OUT" && m.reason !== "LOSS")
+      .forEach(m => {
+        if (!map[m.productId]) {
+          map[m.productId] = {
+            name: m.productName,
+            quantity: 0
+          };
+        }
+
+        map[m.productId].quantity += Math.abs(Number(m.quantity));
+      });
+
+    const result = Object.values(map)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+
+    console.log("TOP PRODUCTS:", result);
+
+    return result;
+
+  }, [filteredMovements]);
+
+
+
+  // 🔥 CONSUMO INTERNO (mantido)
+  const mostInternalUse = useMemo(() => {
+    if (!filteredMovements?.length) return null;
+
+    const map = {};
+
+    filteredMovements
+      .filter(m => m.reason === "INTERNAL_USE")
+      .forEach(m => {
+        if (!map[m.productId]) {
+          map[m.productId] = {
+            name: m.productName,
+            quantity: 0
+          };
+        }
+
+        map[m.productId].quantity += Number(m.quantity);
+      });
+
+    const sorted = Object.values(map).sort((a, b) => b.quantity - a.quantity);
+
+    return sorted[0] || null;
+
+  }, [filteredMovements]);
+
+  const totalBonus = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+
+    return filteredMovements
+      .filter(m => m.reason === "BONUS")
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+
+  }, [filteredMovements]);
+
+  const totalLoss = useMemo(() => {
+    if (!state.stockMovements?.length) return 0;
+
+    return state.stockMovements
+      .filter(m => m.reason === "LOSS")
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+
+  }, [state.stockMovements]);
+
+  const topInternalUseProducts = useMemo(() => {
+    if (!filteredMovements?.length) return [];
+
+    const map = {};
+
+    filteredMovements
+      .filter(m => m.reason === "INTERNAL_USE")
+      .forEach(m => {
+        if (!map[m.productId]) {
+          map[m.productId] = {
+            name: m.productName,
+            quantity: 0
+          };
+        }
+
+        map[m.productId].quantity += Number(m.quantity);
+      });
+
+    const result = Object.values(map)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+
+    console.log("INTERNAL USE:", result);
+
+    return result;
+
+  }, [filteredMovements]);
+
+  const internalUseTrend = useMemo(() => {
+    if (!filteredMovements?.length) return [];
+
+    const map = {};
+
+    filteredMovements
+      .filter(m => m.reason === "INTERNAL_USE")
+      .forEach(m => {
+        const date = new Date(m.createdAt).toLocaleDateString('pt-BR');
+
+        if (!map[date]) {
+          map[date] = {
+            date,
+            value: 0
+          };
+        }
+
+        map[date].value += Number(m.totalCost || 0);
+      });
+
+    return Object.values(map).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  }, [filteredMovements]);
 
   return (
     <>
@@ -243,20 +474,113 @@ const Dashboard = () => {
       {/* Stat Cards */}
       <StatsGrid>
         <StatCard accent="#0066CC">
-          <StatIconBox bg="rgba(0,102,204,0.15)" color="#0066CC">
-            <MdInventory2 />
-          </StatIconBox>
+
           <StatInfo>
             <StatLabel>Total de Produtos</StatLabel>
             <StatValue>{filteredProducts.length}</StatValue>
             <StatSub>no período selecionado</StatSub>
           </StatInfo>
         </StatCard>
+        <StatCard accent="#f59e0b">
 
+
+          <StatInfo>
+            <StatLabel>Consumo Interno</StatLabel>
+
+            {mostInternalUse ? (
+              <>
+                <StatValue style={{ fontSize: '1.1rem' }}>
+                  {mostInternalUse.name}
+                </StatValue>
+
+                <StatSub>
+                  {mostInternalUse.quantity} unidades utilizadas
+                </StatSub>
+              </>
+            ) : (
+              <StatSub>Nenhum consumo interno</StatSub>
+            )}
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#7f1d1d">
+
+
+          <StatInfo>
+            <StatLabel>Perda Total</StatLabel>
+
+            <StatValue style={{ fontSize: '1.3rem', color: '#b91c1c' }}>
+              {formatCurrency(totalLoss)}
+            </StatValue>
+
+            <StatSub>
+              prejuízo acumulado
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#6366f1">
+
+          <StatInfo>
+            <StatLabel>Consumo Total</StatLabel>
+
+            <StatValue style={{ fontSize: '1.3rem' }}>
+              {formatCurrency(totalConsumption)}
+            </StatValue>
+
+            <StatSub>
+              valor consumido no período
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#10b981">
+
+          <StatInfo>
+            <StatLabel>Bonificação Recebida</StatLabel>
+
+            <StatValue style={{ fontSize: '1.3rem', color: '#10b981' }}>
+              {formatCurrency(totalBonus)}
+            </StatValue>
+
+            <StatSub>
+              economia no período
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+
+        <StatCard accent="#7c3aed">
+
+          <StatInfo>
+            <StatLabel>Produto Mais Consumido</StatLabel>
+
+            {mostConsumedProduct ? (
+              <>
+                <StatValue style={{ fontSize: '1.1rem' }}>
+                  {mostConsumedProduct.name}
+                </StatValue>
+                <StatSub>
+                  {mostConsumedProduct.quantity} unidades consumidas
+                </StatSub>
+              </>
+            ) : (
+              <StatSub>Nenhum consumo registrado</StatSub>
+            )}
+          </StatInfo>
+        </StatCard>
+        <StatCard accent="#dc2626">
+
+          <StatInfo>
+            <StatLabel>Perda no Período</StatLabel>
+            <StatValue style={{ fontSize: '1.3rem', color: '#dc2626' }}>
+              {formatCurrency(lossValue)}
+            </StatValue>
+            <StatSub>valor perdido no estoque</StatSub>
+          </StatInfo>
+        </StatCard>
         <StatCard accent="#ef4444">
-          <StatIconBox bg="rgba(239,68,68,0.15)" color="#ef4444">
-            <MdWarning />
-          </StatIconBox>
+
           <StatInfo>
             <StatLabel>Abaixo do Mínimo</StatLabel>
             <StatValue>{lowStock.length}</StatValue>
@@ -264,10 +588,66 @@ const Dashboard = () => {
           </StatInfo>
         </StatCard>
 
+        <StatCard accent="#b91c1c">
+
+          <StatInfo>
+            <StatLabel>Maior Perda</StatLabel>
+
+            {mostLossProduct ? (
+              <>
+                <StatValue style={{ fontSize: '1.1rem' }}>
+                  {mostLossProduct.name}
+                </StatValue>
+
+                <StatSub>
+                  {formatCurrency(mostLossProduct.value)} perdidos
+                </StatSub>
+              </>
+            ) : (
+              <StatSub>Nenhuma perda registrada</StatSub>
+            )}
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#ef4444">
+
+          <StatInfo>
+            <StatLabel>Produtos Críticos</StatLabel>
+
+            <StatValue>
+              {criticalProducts}
+            </StatValue>
+
+            <StatSub>
+              {criticalProducts > 0
+                ? "requer atenção imediata"
+                : "estoque sob controle"}
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#f59e0b">
+
+          <StatInfo>
+            <StatLabel>% Consumo Interno</StatLabel>
+
+            <StatValue style={{ fontSize: '1.3rem' }}>
+              {internalConsumptionPercent.toFixed(1)}%
+            </StatValue>
+
+            <StatSub>
+              {internalConsumptionPercent > 10
+                ? "alto consumo interno"
+                : "nível saudável"}
+            </StatSub>
+            <StatSub>
+              {formatCurrency(internalConsumptionValue)} de {formatCurrency(totalConsumption)}
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
         <StatCard accent="#1072b9ff">
-          <StatIconBox bg="rgba(16,185,129,0.15)" color="#10b981">
-            <MdAttachMoney />
-          </StatIconBox>
+
           <StatInfo>
             <StatLabel>Valor do Estoque</StatLabel>
             <StatValue style={{ fontSize: '1.3rem' }}>{formatCurrency(filteredValue)}</StatValue>
@@ -276,9 +656,7 @@ const Dashboard = () => {
         </StatCard>
 
         <StatCard accent="#f59e0b">
-          <StatIconBox bg="rgba(245,158,11,0.15)" color="#f59e0b">
-            <MdShoppingCart />
-          </StatIconBox>
+
           <StatInfo>
             <StatLabel>Ordens Pendentes</StatLabel>
             <StatValue>{pendingOrders.length}</StatValue>
@@ -322,7 +700,11 @@ const Dashboard = () => {
                         <span style={{ fontSize: '0.7rem', color: '#f59e0b' }}>{Math.round(pct)}%</span>
                         <StockBar><StockFill pct={pct} /></StockBar>
                       </Td>
-                      <Td>{formatCurrency(p.unitPrice * p.quantity)}</Td>
+                      <Td>
+                        {formatCurrency(
+                          Number(p.currentCost || 0) * Number(p.quantity || 0)
+                        )}
+                      </Td>
                     </Tr>
                   );
                 })}
@@ -330,6 +712,48 @@ const Dashboard = () => {
             </Table>
           </LowStockTable>
         )}
+      </Card>
+      <SectionTitle>Top Produtos Consumidos </SectionTitle>
+
+      <Card>
+        <div style={{ width: "100%", height: 300 }}>
+          <ResponsiveContainer>
+            <BarChart data={topConsumedProducts}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="quantity" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+      <SectionTitle>Consumo Interno por Produto</SectionTitle>
+
+      <Card>
+        <div style={{ width: "100%", height: 300 }}>
+          <ResponsiveContainer>
+            <BarChart data={topInternalUseProducts}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="quantity" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+      <SectionTitle>Evolução do Consumo Interno</SectionTitle>
+
+      <Card>
+        <div style={{ width: "100%", height: 300 }}>
+          <ResponsiveContainer>
+            <LineChart data={internalUseTrend}>
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="value" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </Card>
     </>
   );

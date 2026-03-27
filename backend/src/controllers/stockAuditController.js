@@ -267,7 +267,7 @@ exports.finish = async (req, res) => {
                         productId: item.productId,
                         quantity: item.difference,
                         establishmentId: req.user.establishmentId,
-                        reason: "AUDIT",
+                        reason: "GAIN",
                         reference: "STOCK_AUDIT"
                     }, tx);
                 }

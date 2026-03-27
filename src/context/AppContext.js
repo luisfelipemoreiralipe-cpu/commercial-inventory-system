@@ -264,7 +264,7 @@ export const AppProvider = ({ children }) => {
             dispatchRaw({
                 type: 'SET_ALL_DATA',
                 payload: {
-                    categories: cRes.data.data || cRes.data,
+                    categories: Array.isArray(cRes.data) ? cRes.data : [],
                     products: pRes.data.data || pRes.data,
                     suppliers: sRes.data.data || sRes.data,
                     purchaseOrders: poRes.data.data || poRes.data,
