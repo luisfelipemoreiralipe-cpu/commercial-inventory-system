@@ -5,6 +5,7 @@ import Card from "../components/Card";
 import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
 import styled from "styled-components";
+import Select from "../components/Select";
 
 
 const PageHeader = styled.div`
@@ -14,6 +15,33 @@ const PageHeader = styled.div`
   margin-bottom: 32px;
 `;
 
+const Tabs = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+`;
+
+const Tab = styled.button`
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+
+  background: ${({ active }) =>
+        active ? "#111827" : "#ffffff"};
+
+  color: ${({ active }) =>
+        active ? "#fff" : "#111827"};
+
+  border: 1px solid #e5e7eb;
+
+  transition: 0.2s;
+
+  &:hover {
+    background: ${({ active }) =>
+        active ? "#1f2937" : "#f3f4f6"};
+  }
+`;
 
 const PageTitle = styled.h1`
   font-size: 28px;
@@ -110,6 +138,8 @@ const PurchaseSuggestions = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [adjustedQtys, setAdjustedQtys] = useState({});
     const [targetDays, setTargetDays] = useState(7);
+    const [ignoredProducts, setIgnoredProducts] = useState({});
+    const [viewMode, setViewMode] = useState("active"); // active | ignored
 
     const getAdjusted = (s) => {
         return adjustedQtys[s.productId] ?? s.suggestedQuantity;
@@ -117,9 +147,13 @@ const PurchaseSuggestions = () => {
 
     useEffect(() => {
 
+
+
         const fetchSuggestions = async () => {
             try {
-                const res = await api.get("/api/purchase-suggestions");
+                const res = await api.get(
+                    `/api/purchase-suggestions?days=${targetDays}`
+                );
                 setSuggestions(res.data.items || []);
             } catch (err) {
                 console.error(err);
@@ -128,7 +162,7 @@ const PurchaseSuggestions = () => {
 
         fetchSuggestions();
 
-    }, []);
+    }, [targetDays]);
 
     const lowStockProducts = useMemo(() => {
         return state.products.filter(
@@ -136,9 +170,18 @@ const PurchaseSuggestions = () => {
         );
     }, [state.products]);
 
+
+
     const newSuggestions = useMemo(() => {
-        return suggestions.filter(s => !s.hasOpenOrder);
-    }, [suggestions]);
+        return suggestions.filter(s =>
+            !s.hasOpenOrder &&
+            !ignoredProducts[s.productId]
+        );
+    }, [suggestions, ignoredProducts]);
+
+    const ignoredSuggestions = useMemo(() => {
+        return suggestions.filter(s => ignoredProducts[s.productId]);
+    }, [suggestions, ignoredProducts]);
 
     const coverageStats = useMemo(() => {
 
@@ -220,6 +263,28 @@ const PurchaseSuggestions = () => {
 
     }, [newSuggestions, selectedSuppliers]);
 
+    const groupedIgnoredSuggestions = useMemo(() => {
+
+        const groups = {};
+
+        ignoredSuggestions.forEach((s) => {
+
+            const supplierId =
+                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+
+            if (!groups[supplierId]) {
+                groups[supplierId] = [];
+            }
+
+            groups[supplierId].push(s);
+
+        });
+
+
+        return groups;
+
+    }, [ignoredSuggestions, selectedSuppliers]);
+
     // 👇 continua normal
     const totalEstimatedCost = (suggestions || []).reduce((acc, s) => {
 
@@ -241,6 +306,8 @@ const PurchaseSuggestions = () => {
     const totalEstimatedSaving = (suggestions || []).reduce((acc, s) => {
 
         const qty = getAdjusted(s);
+
+
 
         const selectedSupplierId =
             selectedSuppliers[s.productId] ?? s.bestSupplierId;
@@ -346,6 +413,12 @@ const PurchaseSuggestions = () => {
         return groups;
 
     }, [suggestions, selectedSuppliers]);
+
+    // 👇 COLOCA EXATAMENTE AQUI
+    const currentGroupedSuggestions =
+        viewMode === "active"
+            ? groupedNewSuggestions
+            : groupedIgnoredSuggestions;
 
     return (
         <div>
@@ -492,6 +565,23 @@ const PurchaseSuggestions = () => {
                 />
 
             </div>
+            <Tabs>
+
+                <Tab
+                    active={viewMode === "active"}
+                    onClick={() => setViewMode("active")}
+                >
+                    Compras
+                </Tab>
+
+                <Tab
+                    active={viewMode === "ignored"}
+                    onClick={() => setViewMode("ignored")}
+                >
+                    Ignorados
+                </Tab>
+
+            </Tabs>
 
             <table>
 
@@ -511,11 +601,12 @@ const PurchaseSuggestions = () => {
 
                 <tbody>
 
-                    {Object.entries(groupedSuggestions).map(([supplierId, items]) => {
+                    {Object.entries(currentGroupedSuggestions).map(([supplierId, items]) => {
 
                         const supplierName =
                             getSupplierById(supplierId)?.name || "Fornecedor";
                         const supplierTotal = items.reduce((acc, s) => {
+
 
                             const qty = getAdjusted(s);
 
@@ -673,26 +764,22 @@ const PurchaseSuggestions = () => {
 
                                             <Td style={{ textAlign: "center" }}>
 
-                                                <select
+                                                <Select
                                                     value={selectedSuppliers[s.productId] ?? s.bestSupplierId ?? ""}
-                                                    onChange={(e) =>
+                                                    onChange={(value) =>
                                                         setSelectedSuppliers({
                                                             ...selectedSuppliers,
-                                                            [s.productId]: e.target.value
+                                                            [s.productId]: value
                                                         })
                                                     }
-                                                >
-
-                                                    {s.suppliers?.map((sup) => (
-
-                                                        <option key={sup.supplierId} value={sup.supplierId}>
-                                                            {sup.supplierName} — R$ {Number(sup.price).toFixed(2)}
-                                                        </option>
-
-
-                                                    ))}
-
-                                                </select>
+                                                    options={s.suppliers?.map((sup) => ({
+                                                        value: sup.supplierId,
+                                                        label:
+                                                            sup.supplierId === s.bestSupplierId
+                                                                ? `⭐ ${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
+                                                                : `${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
+                                                    })) || []}
+                                                />
 
                                             </Td>
                                             <Td style={{ textAlign: "center" }}>
@@ -718,6 +805,31 @@ const PurchaseSuggestions = () => {
                                                         Sugestão
                                                     </span>
                                                 )}
+                                                {viewMode === "active" ? (
+                                                    <button
+                                                        onClick={() =>
+                                                            setIgnoredProducts(prev => ({
+                                                                ...prev,
+                                                                [s.productId]: true
+                                                            }))
+                                                        }
+                                                    >
+                                                        Ignorar
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() =>
+                                                            setIgnoredProducts(prev => {
+                                                                const copy = { ...prev };
+                                                                delete copy[s.productId];
+                                                                return copy;
+                                                            })
+                                                        }
+                                                    >
+                                                        Reativar
+                                                    </button>
+                                                )}
+
                                             </Td>
                                         </Tr>
 

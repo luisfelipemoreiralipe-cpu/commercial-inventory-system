@@ -93,35 +93,35 @@ const updateItems = async (auditId, items) => {
 
 // const finishAudit = async (auditId, userId) => {
 
-const items = await auditRepo.findAuditItems(auditId);
+// const items = await auditRepo.findAuditItems(auditId);
 
-for (const item of items) {
+// for (const item of items) {
 
-    if (item.difference !== 0) {
+//     if (item.difference !== 0) {
 
-        const newQuantity =
-            Number(item.systemQuantity) + Number(item.difference);
+//         const newQuantity =
+//             Number(item.systemQuantity) + Number(item.difference);
 
-        await auditRepo.updateProductStock(
-            item.productId,
-            newQuantity
-        );
+//         await auditRepo.updateProductStock(
+//             item.productId,
+//             newQuantity
+//         );
 
-        await auditRepo.createStockMovement({
-            productId: item.productId,
-            productName: item.product.name, // 🔴 linha nova
-            type: "ADJUSTMENT",
-            quantity: item.difference,
-            previousQuantity: Number(item.systemQuantity),
-            newQuantity: newQuantity,
-            reference: "STOCK_AUDIT",
-        });
+//         await auditRepo.createStockMovement({
+//             productId: item.productId,
+//             productName: item.product.name, // 🔴 linha nova
+//             type: "ADJUSTMENT",
+//             quantity: item.difference,
+//             previousQuantity: Number(item.systemQuantity),
+//             newQuantity: newQuantity,
+//             reference: "STOCK_AUDIT",
+//         });
 
-    }
+//     }
 
-}
+// }
 
-await auditRepo.closeAudit(auditId);
+// await auditRepo.closeAudit(auditId);
 
 module.exports = {
     createAudit,

@@ -207,6 +207,8 @@ const createOrdersGroupedBySupplier = async (data) => {
 
 // ─── PDF ─────────────────────────────────────────────────────────────────────
 
+
+
 const generatePdf = async (orderId) => {
 
     const order = await prisma.purchaseOrder.findUnique({
@@ -218,47 +220,156 @@ const generatePdf = async (orderId) => {
         throw new AppError('Ordem não encontrada.', 404);
     }
 
-    const establishment = await prisma.establishment.findUnique({
-        where: { user_id: order.user_id }
-    });
+    // 🔥 Estabelecimento
+    const establishment = await prisma.establishment.findFirst();
 
     if (!establishment) {
         throw new AppError('Estabelecimento não encontrado.', 404);
     }
 
-    const doc = new PDFDocument({ margin: 50 });
+    // 🔥 Fornecedor (vem do item)
+    const supplierId = order.items?.[0]?.supplierId;
+
+    const supplier = supplierId
+        ? await prisma.supplier.findUnique({ where: { id: supplierId } })
+        : null;
+
+    // 🔥 PDF
+    const doc = new PDFDocument({ margin: 40 });
     const buffers = [];
 
-    doc.on('data', buffers.push.bind(buffers));
+    doc.on("data", (chunk) => buffers.push(chunk));
 
-    doc.fontSize(18).text(establishment.nome_fantasia, { align: 'center' });
+    // =========================
+    // 🏢 HEADER EMPRESA
+    // =========================
+    doc
+        .fontSize(22)
+        .fillColor("#111827")
+        .text(establishment.nome_fantasia, { align: "center" });
+
+    doc.moveDown(0.5);
+
+    doc
+        .fontSize(10)
+        .fillColor("#6b7280");
+
+    const enderecoCompleto = [
+        establishment.endereco,
+        establishment.cidade,
+        establishment.estado
+    ]
+        .filter(Boolean)
+        .join(" - ");
+
+    doc
+        .fontSize(10)
+        .fillColor("#6b7280")
+        .text(`CNPJ: ${establishment.cnpj || "-"}`)
+        .text(`Telefone: ${establishment.telefone || "-"}`)
+        .text(`Endereço: ${enderecoCompleto || "-"}`);
+
+    doc.moveDown(2);
+
+    // =========================
+    // 📄 INFO PEDIDO
+    // =========================
+    doc
+        .fontSize(14)
+        .text(`Pedido #${order.id.slice(-6).toUpperCase()}`);
+
+    doc
+        .fontSize(10)
+        .text(`Data: ${new Date().toLocaleDateString()}`);
+
     doc.moveDown();
 
-    doc.fontSize(10);
-    doc.text(`CNPJ: ${establishment.cnpj || '-'}`);
-    doc.text(`Telefone: ${establishment.telefone || '-'}`);
-    doc.text(`${establishment.endereco || ''}`);
+    // =========================
+    // 🏪 FORNECEDOR
+    // =========================
+    doc
+        .fontSize(12)
+        .text(`Fornecedor: ${supplier?.name || "-"}`);
+
+    doc.moveDown(1.5);
+
+    // =========================
+    // 📊 TABELA HEADER
+    // =========================
+    const startY = doc.y;
+
+    doc
+        .fontSize(10)
+        .text("Produto", 40, startY)
+        .text("Qtd", 250, startY)
+        .text("Preço", 320, startY)
+        .text("Total", 420, startY);
 
     doc.moveDown();
 
-    doc.fontSize(14).text(`ORDEM #${order.id.slice(-6).toUpperCase()}`);
+    // linha separadora
+    doc
+        .strokeColor("#e5e7eb")
+        .moveTo(40, doc.y)
+        .lineTo(550, doc.y)
+        .stroke();
 
-    let total = 0;
+    doc.moveDown(0.5);
+
+    // =========================
+    // 📦 ITENS
+    // =========================
+    let totalGeral = 0;
 
     order.items.forEach(item => {
-        const itemTotal = item.adjustedQuantity * item.unitPrice;
-        total += itemTotal;
 
-        doc.text(`${item.productName} - Qtd: ${item.adjustedQuantity}`);
+        const total = item.adjustedQuantity * item.unitPrice;
+        totalGeral += total;
+
+        const y = doc.y;
+
+        doc
+            .fontSize(10)
+            .text(item.productName, 40, y)
+            .text(item.adjustedQuantity.toString(), 250, y)
+            .text(`R$ ${item.unitPrice.toFixed(2)}`, 320, y)
+            .text(`R$ ${total.toFixed(2)}`, 420, y);
+
+        doc.moveDown();
     });
 
-    doc.text(`TOTAL: R$ ${total.toFixed(2)}`);
+    doc.moveDown();
+
+    // linha final
+    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke();
+
+    doc.moveDown();
+
+    // =========================
+    // 💰 TOTAL FINAL
+    // =========================
+    doc
+        .fontSize(14)
+        .text(`TOTAL: R$ ${totalGeral.toFixed(2)}`, {
+            align: "right"
+        });
+
+    doc.moveDown(2);
+
+    doc.fontSize(10).text("Gerado automaticamente pelo sistema", {
+        align: "center"
+    });
+
+
+    // =========================
+    // FINALIZA
+    // =========================
     doc.end();
 
-    return await new Promise(resolve => {
-        doc.on('end', () => resolve(Buffer.concat(buffers)));
+    return await new Promise((resolve, reject) => {
+        doc.on("end", () => resolve(Buffer.concat(buffers)));
+        doc.on("error", reject);
     });
-
 };
 
 module.exports = {

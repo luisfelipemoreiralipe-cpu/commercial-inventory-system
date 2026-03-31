@@ -45,7 +45,7 @@ const approveTransfer = async (req, res) => {
 
     const result = await stockTransferService.approveTransfer(
         id,
-        req.user.userId
+        req.user.id
     );
 
     res.json({
@@ -93,7 +93,7 @@ const rejectTransfer = async (req, res) => {
 
     const result = await stockTransferService.rejectTransfer(
         id,
-        req.user.userId
+        req.user.id
     );
 
     res.json({

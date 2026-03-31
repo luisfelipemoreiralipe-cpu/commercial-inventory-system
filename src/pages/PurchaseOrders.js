@@ -96,6 +96,7 @@ const PurchaseOrders = () => {
     const [receivedQty, setReceivedQty] = useState({});
     const [receivedPrice, setReceivedPrice] = useState({});
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [tab, setTab] = useState("PENDING");
 
     /* -------------------------------------------------------------------------- */
     /*                                   EFFECT                                   */
@@ -188,6 +189,9 @@ const PurchaseOrders = () => {
         );
 
     }, [state.purchaseOrders]);
+    const filteredOrders = state.purchaseOrders.filter(
+        order => order.status.toUpperCase() === tab
+    );
 
     /* -------------------------------------------------------------------------- */
     /*                                  HANDLERS                                  */
@@ -220,6 +224,74 @@ const PurchaseOrders = () => {
 
     };
 
+    const handleDownloadPdf = async () => {
+        try {
+            const token = localStorage.getItem("token");
+
+
+
+            const response = await fetch(
+                `http://localhost:3333/api/purchase-orders/${selectedOrder.id}/pdf`,
+                {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            const blob = await response.blob();
+
+            const url = window.URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `pedido-${selectedOrder.id}.pdf`;
+
+            document.body.appendChild(link);
+            link.click();
+
+            link.remove();
+            window.URL.revokeObjectURL(url);
+
+        } catch (err) {
+            console.error("Erro ao baixar PDF:", err);
+            alert("Erro ao baixar PDF");
+        }
+    };
+    const handleSendWhatsApp = (order) => {
+
+        const supplierId = order.items?.[0]?.supplierId;
+
+        const supplier = state.suppliers.find(
+            s => s.id === supplierId
+        );
+
+        if (!supplier?.phone) {
+            alert("Fornecedor sem telefone cadastrado");
+            return;
+        }
+
+        const total = order.items.reduce(
+            (acc, item) =>
+                acc + item.adjustedQuantity * item.unitPrice,
+            0
+        );
+
+        const message = `
+Pedido #${order.id.slice(-6)}
+
+Fornecedor: ${supplier.name}
+Total: R$ ${total.toFixed(2)}
+
+Segue o pedido em PDF.
+    `;
+
+        window.open(
+            `https://wa.me/55${supplier.phone}?text=${encodeURIComponent(message)}`,
+            "_blank"
+        );
+    };
     /* -------------------------------------------------------------------------- */
     /*                                   RENDER                                   */
     /* -------------------------------------------------------------------------- */
@@ -239,9 +311,42 @@ const PurchaseOrders = () => {
 
                 </div>
 
-            </PageHeader>
 
-            {pendingOrders.length > 0 && (
+            </PageHeader>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+
+                <button
+                    onClick={() => setTab("PENDING")}
+                    style={{
+                        padding: "8px 16px",
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                        background: tab === "PENDING" ? "#111827" : "#fff",
+                        color: tab === "PENDING" ? "#fff" : "#111827",
+                        cursor: "pointer",
+                        fontWeight: 500
+                    }}
+                >
+                    Pendentes
+                </button>
+
+                <button
+                    onClick={() => setTab("COMPLETED")}
+                    style={{
+                        padding: "8px 16px",
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                        background: tab === "COMPLETED" ? "#111827" : "#fff",
+                        color: tab === "COMPLETED" ? "#fff" : "#111827",
+                        cursor: "pointer",
+                        fontWeight: 500
+                    }}
+                >
+                    Finalizadas
+                </button>
+
+            </div>
+            {filteredOrders.length > 0 && (
 
                 <>
 
@@ -268,7 +373,7 @@ const PurchaseOrders = () => {
 
                             <tbody>
 
-                                {pendingOrders.map(order => {
+                                {filteredOrders.map(order => {
 
                                     const total = order.items.reduce(
                                         (s, i) => s + i.adjustedQuantity * i.unitPrice,
@@ -282,7 +387,15 @@ const PurchaseOrders = () => {
                                             <Td>#{order.id.slice(-4)}</Td>
 
                                             <Td>
-                                                {getSupplierById(order.supplierId)?.name || "Fornecedor"}
+                                                {(() => {
+                                                    const supplierId = order.items?.[0]?.supplierId;
+
+                                                    const supplier = state.suppliers.find(
+                                                        s => s.id === supplierId
+                                                    );
+
+                                                    return supplier?.name || "Fornecedor";
+                                                })()}
                                             </Td>
 
                                             <Td>{order.items.length}</Td>
@@ -319,6 +432,12 @@ const PurchaseOrders = () => {
                                                 >
                                                     <MdDelete />
                                                 </Button>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleSendWhatsApp(order)}
+                                                >
+                                                    📲
+                                                </Button>
 
                                             </Td>
 
@@ -353,70 +472,189 @@ const PurchaseOrders = () => {
                 onClose={() => setSelectedOrder(null)}
                 title={`Pedido #${selectedOrder?.id.slice(-4)}`}
             >
-
                 {selectedOrder && (
+                    <>
+                        {/* 🔍 LOGS PARA DEBUG */}
+                        {console.log("ORDER:", selectedOrder)}
+                        {console.log("SUPPLIER ID:", selectedOrder?.supplierId)}
+                        {console.log("SUPPLIERS:", state.suppliers)}
 
-                    <div>
+                        {/* 🔍 BUSCA DO FORNECEDOR */}
+                        {(() => {
+                            const supplierId = selectedOrder.items[0]?.supplierId;
 
-                        {selectedOrder.items.map(item => {
-
-                            const qty =
-                                receivedQty[item.productId] ?? item.adjustedQuantity;
-
-                            const price =
-                                receivedPrice[item.productId] ?? item.unitPrice;
+                            const supplier = state.suppliers.find(
+                                s => s.id === supplierId
+                            );
 
                             return (
-                                <div key={item.productId} style={{ marginBottom: 12 }}>
+                                <div>
 
-                                    <div><strong>{item.productName}</strong></div>
+                                    {/* 🔥 HEADER COM FORNECEDOR + PDF */}
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            marginBottom: 20,
+                                        }}
+                                    >
+                                        <div style={{ color: "#64748B" }}>
+                                            Fornecedor:{" "}
+                                            <strong>
+                                                {supplier?.name || "Fornecedor não encontrado"}
+                                            </strong>
+                                        </div>
 
-                                    <div style={{ display: 'flex', gap: 10 }}>
-
-                                        {/* Quantidade */}
-                                        <input
-                                            type="number"
-                                            value={qty}
-                                            min="0"
-                                            onChange={(e) =>
-                                                setReceivedQty(prev => ({
-                                                    ...prev,
-                                                    [item.productId]: Number(e.target.value)
-                                                }))
-                                            }
-                                            placeholder="Quantidade"
-                                        />
-
-                                        {/* Preço */}
-                                        <input
-                                            type="number"
-                                            value={price}
-                                            min="0"
-                                            step="0.01"
-                                            onChange={(e) =>
-                                                setReceivedPrice(prev => ({
-                                                    ...prev,
-                                                    [item.productId]: Number(e.target.value)
-                                                }))
-                                            }
-                                            placeholder="Preço"
-                                        />
-
+                                        <button
+                                            onClick={handleDownloadPdf}
+                                            style={{
+                                                background: "#111827",
+                                                color: "#fff",
+                                                border: "none",
+                                                padding: "8px 12px",
+                                                borderRadius: 6,
+                                                cursor: "pointer",
+                                                fontSize: 13,
+                                                fontWeight: 500,
+                                            }}
+                                        >
+                                            Exportar PDF
+                                        </button>
                                     </div>
+
+                                    {/* 🔥 LISTA DE ITENS */}
+                                    {selectedOrder.items.map((item) => {
+                                        const qty =
+                                            receivedQty[item.productId] ?? item.adjustedQuantity;
+
+                                        const price =
+                                            receivedPrice[item.productId] ?? item.unitPrice;
+
+                                        const total = qty * price;
+
+                                        return (
+                                            <div
+                                                key={item.productId}
+                                                style={{
+                                                    marginBottom: 16,
+                                                    padding: 12,
+                                                    border: "1px solid #e5e7eb",
+                                                    borderRadius: 8,
+                                                    background: "#fff",
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                                                    {item.productName}
+                                                </div>
+
+                                                <div style={{ display: "flex", gap: 10 }}>
+                                                    <input
+                                                        type="number"
+                                                        value={qty}
+                                                        min="0"
+                                                        onChange={(e) =>
+                                                            setReceivedQty((prev) => ({
+                                                                ...prev,
+                                                                [item.productId]: Number(e.target.value),
+                                                            }))
+                                                        }
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: 10,
+                                                            borderRadius: 6,
+                                                            border: "1px solid #e5e7eb",
+                                                        }}
+                                                        placeholder="Quantidade"
+                                                    />
+
+                                                    <input
+                                                        type="number"
+                                                        value={price}
+                                                        min="0"
+                                                        step="0.01"
+                                                        onChange={(e) =>
+                                                            setReceivedPrice((prev) => ({
+                                                                ...prev,
+                                                                [item.productId]: Number(e.target.value),
+                                                            }))
+                                                        }
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: 10,
+                                                            borderRadius: 6,
+                                                            border: "1px solid #e5e7eb",
+                                                        }}
+                                                        placeholder="Preço"
+                                                    />
+                                                </div>
+
+                                                <div
+                                                    style={{
+                                                        marginTop: 6,
+                                                        fontSize: 13,
+                                                        color: "#6b7280",
+                                                    }}
+                                                >
+                                                    Total: <strong>R$ {total.toFixed(2)}</strong>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* 🔥 TOTAL GERAL */}
+                                    <div
+                                        style={{
+                                            marginTop: 10,
+                                            paddingTop: 10,
+                                            borderTop: "1px solid #e5e7eb",
+                                            fontWeight: 600,
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                        }}
+                                    >
+                                        <span>Total do Pedido</span>
+                                        <span>
+                                            R${" "}
+                                            {selectedOrder.items
+                                                .reduce((acc, item) => {
+                                                    const qty =
+                                                        receivedQty[item.productId] ??
+                                                        item.adjustedQuantity;
+
+                                                    const price =
+                                                        receivedPrice[item.productId] ??
+                                                        item.unitPrice;
+
+                                                    return acc + qty * price;
+                                                }, 0)
+                                                .toFixed(2)}
+                                        </span>
+                                    </div>
+
+                                    {/* 🔥 BOTÃO FINAL */}
+                                    <button
+                                        onClick={handleCompleteOrder}
+                                        style={{
+                                            width: "100%",
+                                            marginTop: 16,
+                                            padding: "12px",
+                                            background: "#111827",
+                                            color: "#fff",
+                                            border: "none",
+                                            borderRadius: 8,
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        Concluir Recebimento
+                                    </button>
 
                                 </div>
                             );
-
-                        })}
-
-                        <button onClick={handleCompleteOrder}>
-                            Concluir Recebimento
-                        </button>
-
-                    </div>
-
+                        })()}
+                    </>
                 )}
-
             </Modal>
 
         </>

@@ -72,10 +72,19 @@ const consumeProduct = async ({
         const unitCost = await getProductCost(product.id, tx);
         const totalCost = unitCost * Number(quantity);
 
-        await tx.product.update({
-            where: { id: product.id },
-            data: { quantity: newQuantity }
+        const updated = await tx.product.updateMany({
+            where: {
+                id: product.id,
+                quantity: { gte: quantity }
+            },
+            data: {
+                quantity: newQuantity
+            }
         });
+
+        if (updated.count === 0) {
+            throw new Error(`Estoque insuficiente para ${product.name}`);
+        }
 
         await tx.stockMovement.create({
             data: {

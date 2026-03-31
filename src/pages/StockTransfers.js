@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import styled from "styled-components";
 import api from "../services/api";
 import Badge from "../components/Badge";
+import Select from "../components/Select";
 
 const Container = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
@@ -133,7 +134,7 @@ const Label = styled.label`
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
 `;
 
-const Select = styled.select`
+const StyledSelect = styled.select`
   padding: 10px;
   border-radius: ${({ theme }) => theme.radii.md};
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -454,26 +455,17 @@ export default function StockTransfers() {
 
                         <Field>
 
-                            <Label>Produto</Label>
+
 
                             <Select
+                                label="Produto"
                                 value={productId}
-                                onChange={(e) => setProductId(e.target.value)}
-                            >
-
-                                <option value="">
-                                    Selecione um produto
-                                </option>
-
-                                {products.map((product) => (
-
-                                    <option key={product.id} value={product.id}>
-                                        {product.name}
-                                    </option>
-
-                                ))}
-
-                            </Select>
+                                onChange={setProductId}
+                                options={products.map((product) => ({
+                                    value: product.id,
+                                    label: `${product.name} (Estoque: ${product.quantity || 0})`,
+                                }))}
+                            />
 
                         </Field>
 
@@ -492,32 +484,19 @@ export default function StockTransfers() {
 
                         </Field>
 
-
                         <Field>
 
-                            <Label>Destino</Label>
-
                             <Select
+                                label="Destino"
                                 value={destinationId}
-                                onChange={(e) => setDestinationId(e.target.value)}
-                            >
-
-                                <option value="">
-                                    Selecione o estabelecimento
-                                </option>
-
-                                {establishments.map((est) => (
-
-                                    <option key={est.id} value={est.id}>
-                                        {est.nome_fantasia}
-                                    </option>
-
-                                ))}
-
-                            </Select>
+                                onChange={setDestinationId}
+                                options={establishments.map((est) => ({
+                                    value: est.id,
+                                    label: est.nome_fantasia,
+                                }))}
+                            />
 
                         </Field>
-
 
                         <Button
                             onClick={handleTransfer}
@@ -527,9 +506,7 @@ export default function StockTransfers() {
                         </Button>
 
                     </Form>
-
                 )}
-
                 {tab === "sent" && (
 
                     <table style={{ width: "100%" }}>

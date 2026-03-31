@@ -5,6 +5,7 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import api from "../services/api";
 import toast from "react-hot-toast";
+import Select from "./../components/Select";
 
 
 const PageHeader = styled.div`
@@ -50,7 +51,7 @@ const Input = styled.input`
   border-radius: ${({ theme }) => theme.radii.md};
 `;
 
-const Select = styled.select`
+const StyledSelect = styled.select`
   width: 100%;
   padding: 10px;
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -216,23 +217,19 @@ export default function StockMovement() {
                         <Label>Produto</Label>
 
                         <Select
+                            label="Produto"
                             value={productId}
-                            onChange={(e) => setProductId(e.target.value)}
-                        >
-                            <option value="">Selecione um produto</option>
-
-                            {state.products
+                            onChange={setProductId}
+                            options={state.products
                                 .filter((p) =>
-                                    mode === "BONUS"
-                                        ? p.type === "INVENTORY"
-                                        : true
+                                    mode === "BONUS" ? p.type === "INVENTORY" : true
                                 )
-                                .map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} (Estoque: {p.quantity})
-                                    </option>
-                                ))}
-                        </Select>
+                                .map((p) => ({
+                                    value: p.id,
+                                    label: `${p.name} (Estoque: ${p.quantity})`,
+                                }))
+                            }
+                        />
                     </Field>
 
                     {/* QUANTIDADE */}
