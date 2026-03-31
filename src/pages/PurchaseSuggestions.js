@@ -136,7 +136,46 @@ const PurchaseSuggestions = () => {
         );
     }, [state.products]);
 
+    const newSuggestions = useMemo(() => {
+        return suggestions.filter(s => !s.hasOpenOrder);
+    }, [suggestions]);
+
+    const coverageStats = useMemo(() => {
+
+        let critical = 0;
+        let warning = 0;
+        let ok = 0;
+
+        newSuggestions.forEach(s => {
+
+            const consumption = Number(s.consumptionLast7Days || 0);
+            const qty = Number(getAdjusted(s) ?? s.suggestedQuantity ?? 0);
+
+            if (consumption <= 0) return;
+
+            const coverage = qty / consumption;
+
+            if (coverage < 1) {
+                critical++;
+            } else if (coverage < 1.3) {
+                warning++;
+            } else {
+                ok++;
+            }
+
+        });
+
+        return {
+            critical,
+            warning,
+            ok
+        };
+
+    }, [suggestions, adjustedQtys]);
+    console.log("STATS:", coverageStats);
+
     const productsMap = useMemo(() => {
+
 
         const map = {};
 
@@ -147,13 +186,13 @@ const PurchaseSuggestions = () => {
 
         return map;
 
+
+
     }, [state.products]);
 
 
 
-    const newSuggestions = useMemo(() => {
-        return suggestions.filter(s => !s.hasOpenOrder);
-    }, [suggestions]);
+
 
     const openOrderSuggestions = useMemo(() => {
         return suggestions.filter(s => s.hasOpenOrder);
@@ -324,6 +363,28 @@ const PurchaseSuggestions = () => {
             </PageHeader>
 
             <StatsGrid>
+                <div style={{
+                    background: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 10,
+                    padding: 16
+                }}>
+                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                        Situação do estoque
+                    </div>
+
+                    <div style={{ fontSize: 16, fontWeight: 600, marginTop: 8 }}>
+                        🔴 {coverageStats.critical} crítico
+                    </div>
+
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>
+                        🟡 {coverageStats.warning} atenção
+                    </div>
+
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>
+                        🟢 {coverageStats.ok} ok
+                    </div>
+                </div>
 
                 <div style={{
                     background: "white",
@@ -505,9 +566,6 @@ const PurchaseSuggestions = () => {
 
                                 {items.map(s => {
 
-
-                                    const qty = getAdjusted(s);
-
                                     const selectedSupplierId =
                                         selectedSuppliers[s.productId] ?? s.bestSupplierId;
 
@@ -517,6 +575,12 @@ const PurchaseSuggestions = () => {
 
                                     const price = Number(supplier?.price || 0);
 
+                                    const product = productsMap[s.productId];
+                                    const consumption = Number(s.consumptionLast7Days || 0);
+                                    const qty = Number(getAdjusted(s)); // 🔥 PRIMEIRO
+
+
+
                                     const total = qty * price;
 
                                     const highestPrice = Math.max(
@@ -525,13 +589,41 @@ const PurchaseSuggestions = () => {
 
                                     const savingTotal = (highestPrice - price) * qty;
 
-                                    const product = productsMap[s.productId];
+                                    let coverage = null;
+
+                                    if (consumption > 0) {
+                                        coverage = qty / consumption;
+                                    }
+                                    let coverageLabel = null;
+                                    let coverageColor = "#6b7280";
+
+                                    if (coverage !== null) {
+                                        if (coverage < 1) {
+                                            coverageLabel = "crítico";
+                                            coverageColor = "#dc2626"; // vermelho
+                                        } else if (coverage < 1.3) {
+                                            coverageLabel = "atenção";
+                                            coverageColor = "#d97706"; // amarelo
+                                        } else {
+                                            coverageLabel = "ok";
+                                            coverageColor = "#059669"; // verde
+                                        }
+                                    }
 
                                     return (
 
                                         <Tr key={s.productId}>
 
-                                            <Td>{s.productName}</Td>
+                                            <Td>
+                                                {s.productName}
+
+                                                {coverage && (
+                                                    <div style={{ fontSize: 11, color: coverageColor }}>
+                                                        {coverage < 1 ? "🔴" : coverage < 1.3 ? "🟡" : "🟢"}{" "}
+                                                        cobre ~{coverage.toFixed(1)} eventos
+                                                    </div>
+                                                )}
+                                            </Td>
 
                                             <Td style={{ textAlign: "center" }}>
                                                 {product?.quantity}

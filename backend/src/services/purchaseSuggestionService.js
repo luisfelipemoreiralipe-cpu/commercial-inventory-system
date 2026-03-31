@@ -1,17 +1,81 @@
+const prisma = require('../config/prisma');
 const purchaseSuggestionRepo = require('../repositories/purchaseSuggestionRepository');
-const productRepo = require('../repositories/productRepository');
 const purchaseOrderRepo = require('../repositories/purchaseOrderRepository');
+
+// 🧠 CALCULAR CONSUMO
+const calculateAverageConsumption = async (productId, establishmentId, days = 7) => {
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const movements = await prisma.stockMovement.findMany({
+        where: {
+            productId,
+            establishmentId,
+            type: "OUT",
+            reason: {
+                in: ["CSV", "INTERNAL_USE"]
+            },
+            createdAt: {
+                gte: startDate
+            }
+        }
+    });
+
+    const totalConsumed = movements.reduce((sum, m) => {
+        return sum + Number(m.quantity);
+    }, 0);
+
+    const average = totalConsumed / days;
+
+    return {
+        totalConsumed,
+        averageDailyConsumption: average
+    };
+};
+
 // ─── PURCHASE SUGGESTIONS ─────────────────────────
 
-const getPurchaseSuggestions = async (establishmentId) => {
+const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
+
+    targetDays = Number(targetDays) || 7;
 
     const products = await purchaseSuggestionRepo.getProductsBelowMinimum(establishmentId);
 
     const suggestions = [];
 
     for (const product of products) {
+
         const hasOpenOrder = await purchaseOrderRepo.productHasOpenPendingOrder(product.id);
-        const suggestedQuantity = product.minQuantity - product.quantity;
+
+        const consumption = await calculateAverageConsumption(
+            product.id,
+            establishmentId,
+            7
+        );
+
+        let suggestedQuantity;
+
+        if (consumption.totalConsumed > 0) {
+
+            const safetyFactor = 1.5;
+
+            const eventMultiplier = targetDays / 7;
+
+            const projectedConsumption =
+                Number(consumption.totalConsumed) * eventMultiplier;
+
+            suggestedQuantity =
+                (projectedConsumption * safetyFactor) -
+                Number(product.quantity);
+
+        } else {
+
+            suggestedQuantity =
+                Number(product.minQuantity) - Number(product.quantity);
+        }
+
+        suggestedQuantity = Math.ceil(suggestedQuantity);
 
         if (suggestedQuantity <= 0) continue;
 
@@ -57,9 +121,12 @@ const getPurchaseSuggestions = async (establishmentId) => {
             bestPrice,
             lastPrice,
             saving,
-            hasOpenOrder
-        });
+            hasOpenOrder,
 
+            // 🧠 NOVO (não quebra front)
+            consumptionLast7Days: consumption.totalConsumed,
+            averageDailyConsumption: consumption.averageDailyConsumption
+        });
     }
 
     return {
@@ -68,5 +135,5 @@ const getPurchaseSuggestions = async (establishmentId) => {
 };
 
 module.exports = {
-    getPurchaseSuggestions
+    getPurchaseSuggestions,
 };
