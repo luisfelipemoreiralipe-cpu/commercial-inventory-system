@@ -20,6 +20,7 @@ import StockAuditDetail from "./pages/StockAuditDetail";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
+import Users from "./pages/Users";
 
 import { AppProvider } from "./context/AppContext";
 
@@ -54,6 +55,8 @@ function App() {
             >
 
               <Route path="/" element={<Dashboard />} />
+
+              <Route path="users" element={<Users />} />
 
               <Route path="/products" element={<Products />} />
 

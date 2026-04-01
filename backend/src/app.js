@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
+const errorMiddleware = require('./middlewares/errorMiddleware');
 
 // Routes
 const salesRoutes = require('./routes/salesRoutes');
@@ -18,19 +20,21 @@ const recipeRoutes = require('./routes/recipeRoutes'); // ← NOVA ROTA
 const establishmentRoutes = require('./routes/establishmentRoutes');
 const stockTransferRoutes = require('./routes/stockTransferRoutes');
 const stockAuditRoutes = require('./routes/stockAuditRoutes');
+const userRoutes = require('./routes/userRoutes');
 
-
-// Middlewares
-const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
-const errorMiddleware = require('./middlewares/errorMiddleware');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+
+app.use('/auth', authRoutes);
+
+
 // // Routes
 console.log('salesRoutes:', salesRoutes);
+
 app.use('/products', productRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
@@ -48,6 +52,9 @@ app.use('/sales', salesRoutes);
 app.use('/api', purchaseSuggestionRoutes);
 app.use('/establishments', establishmentRoutes);
 app.use('/stock-audits', stockAuditRoutes);
+app.use('/users', userRoutes);
+
+
 
 
 // Fallback for undefined routes
@@ -55,5 +62,6 @@ app.use(notFoundMiddleware);
 
 // Central error handler
 app.use(errorMiddleware);
+
 
 module.exports = app;

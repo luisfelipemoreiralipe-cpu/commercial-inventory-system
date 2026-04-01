@@ -2,7 +2,9 @@ const purchaseOrderService = require('../services/purchaseOrderService');
 const asyncHandler = require('../utils/asyncHandler');
 
 const getAll = asyncHandler(async (req, res) => {
-    const data = await purchaseOrderService.getAllOrders();
+    const establishmentId = req.user.establishmentId;
+
+    const data = await purchaseOrderService.getAllOrders(establishmentId);
     res.json({ success: true, data });
 });
 

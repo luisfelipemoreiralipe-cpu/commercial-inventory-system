@@ -46,7 +46,10 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
 
     for (const product of products) {
 
-        const hasOpenOrder = await purchaseOrderRepo.productHasOpenPendingOrder(product.id);
+        const hasOpenOrder = await purchaseOrderRepo.productHasOpenPendingOrder(
+            product.id,
+            establishmentId
+        );
 
         const consumption = await calculateAverageConsumption(
             product.id,

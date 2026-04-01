@@ -68,6 +68,33 @@ const getSentTransfers = async (req, res) => {
 
 };
 
+const completeTransfer = async (req, res) => {
+
+    const { id } = req.params;
+
+    try {
+
+        const result = await stockTransferService.completeTransfer(
+            id,
+            req.user.id
+        );
+
+        res.json({
+            success: true,
+            message: "Transferência concluída com sucesso",
+            data: result
+        });
+
+    } catch (error) {
+
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+};
 
 const getReceivedTransfers = async (req, res) => {
 
@@ -110,5 +137,6 @@ module.exports = {
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
-    getReceivedTransfers
+    getReceivedTransfers,
+    completeTransfer
 };

@@ -7,7 +7,8 @@ const stockMovementService = require('./stockMovementService');
 
 // ─── Service ───────────────────────────────────────────────────────────────
 
-const getAllOrders = () => purchaseOrderRepo.findAll();
+const getAllOrders = (establishmentId) =>
+    purchaseOrderRepo.findAll(establishmentId);
 
 const getOrderById = async (id) => {
     const order = await purchaseOrderRepo.findById(id);
@@ -216,12 +217,19 @@ const generatePdf = async (orderId) => {
         include: { items: true }
     });
 
+    console.log("ORDER:", order);
+    console.log("ESTABLISHMENT ID:", order.establishmentId);
+
     if (!order) {
         throw new AppError('Ordem não encontrada.', 404);
     }
 
     // 🔥 Estabelecimento
-    const establishment = await prisma.establishment.findFirst();
+    const establishment = await prisma.establishment.findUnique({
+        where: {
+            id: order.establishmentId
+        }
+    });
 
     if (!establishment) {
         throw new AppError('Estabelecimento não encontrado.', 404);

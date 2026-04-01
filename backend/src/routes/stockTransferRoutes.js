@@ -19,6 +19,12 @@ router.get(
 );
 
 router.patch(
+    '/stock-transfers/:id/complete',
+    authMiddleware,
+    controller.completeTransfer
+);
+
+router.patch(
     '/stock-transfers/:id/approve',
     authMiddleware,
     controller.approveTransfer

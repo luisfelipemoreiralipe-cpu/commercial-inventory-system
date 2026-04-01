@@ -43,7 +43,7 @@ model Supplier {
 
 model Category {
   id        String   @id @default(uuid()) @db.Uuid
-  name      String
+  name String @unique
   createdAt DateTime @default(now())
 
   products Product[]
@@ -108,6 +108,10 @@ model PurchaseOrder {
 
   user_id String @db.Uuid
   users   users  @relation(fields: [user_id], references: [id])
+
+  // 🔥 MULTI-TENANT (ESSENCIAL)
+  establishmentId String        @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
   items PurchaseOrderItem[]
 
@@ -211,6 +215,8 @@ model Establishment {
   transfersTo        StockTransfer[]     @relation("TransferTo")
   userEstablishments UserEstablishment[]
   stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+  
 
 }
 

@@ -44,6 +44,7 @@ async function authMiddleware(req, res, next) {
             where: { id: decoded.userId },
             select: { role: true }
         });
+        console.log("USER ROLE:", user.role);
 
         // 🔥 define req.user UMA VEZ só
         req.user = {

@@ -6,6 +6,8 @@ import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
 import styled from "styled-components";
 import Select from "../components/Select";
+import toast from "react-hot-toast";
+
 
 
 const PageHeader = styled.div`
@@ -145,9 +147,20 @@ const PurchaseSuggestions = () => {
         return adjustedQtys[s.productId] ?? s.suggestedQuantity;
     };
 
+
     useEffect(() => {
 
+        const savedSuppliers = localStorage.getItem("purchase_selected_suppliers");
 
+        if (savedSuppliers && savedSuppliers !== "{}") {
+            setSelectedSuppliers(JSON.parse(savedSuppliers));
+        }
+
+        const saved = localStorage.getItem("purchase_adjusted_qtys");
+
+        if (saved && saved !== "{}") {
+            setAdjustedQtys(JSON.parse(saved));
+        }
 
         const fetchSuggestions = async () => {
             try {
@@ -286,7 +299,7 @@ const PurchaseSuggestions = () => {
     }, [ignoredSuggestions, selectedSuppliers]);
 
     // 👇 continua normal
-    const totalEstimatedCost = (suggestions || []).reduce((acc, s) => {
+    const totalEstimatedCost = (newSuggestions || []).reduce((acc, s) => {
 
         const qty = getAdjusted(s);
 
@@ -303,7 +316,7 @@ const PurchaseSuggestions = () => {
 
     }, 0);
 
-    const totalEstimatedSaving = (suggestions || []).reduce((acc, s) => {
+    const totalEstimatedSaving = (newSuggestions || []).reduce((acc, s) => {
 
         const qty = getAdjusted(s);
 
@@ -330,67 +343,98 @@ const PurchaseSuggestions = () => {
 
     const handleGenerate = async () => {
 
+        try {
 
-
-        const groupedBySupplier = {};
-
-        newSuggestions.forEach((s) => {
-
-            const p = state.products.find(
-                prod => prod.id === s.productId
+            // 🔥 1. DEFINIR newSuggestions PRIMEIRO (ESSENCIAL)
+            const newSuggestions = suggestions.filter(s =>
+                !s.hasOpenOrder &&
+                !ignoredProducts[s.productId]
             );
 
-            const supplierId =
-                selectedSuppliers[s.productId] ||
-                s.bestSupplierId ||
-                p?.supplierId;
-
-            // 🔥 pega o fornecedor correto
-            const supplier = s.suppliers?.find(
-                sup => sup.supplierId === supplierId
-            );
-
-            // 🔥 garante que o preço é válido
-            const price = Number(supplier?.price || 0);
-
-            if (!groupedBySupplier[supplierId]) {
-                groupedBySupplier[supplierId] = [];
+            if (newSuggestions.length === 0) {
+                alert("Nenhuma sugestão para gerar pedido.");
+                return;
             }
 
-            groupedBySupplier[supplierId].push({
-                productId: s.productId,
-                productName: s.productName,
-                unitPrice: price, // ✅ agora correto
-                adjustedQuantity: Number(getAdjusted(s)), // ✅ garante número
-                supplierId
+            const groupedBySupplier = {};
+
+            newSuggestions.forEach((s) => {
+
+                const p = state.products.find(
+                    prod => prod.id === s.productId
+                );
+
+                const supplierId =
+                    selectedSuppliers[s.productId] ||
+                    s.bestSupplierId ||
+                    p?.supplierId;
+
+                const supplier = s.suppliers?.find(
+                    sup => sup.supplierId === supplierId
+                );
+
+                const price = Number(supplier?.price || 0);
+
+                if (!groupedBySupplier[supplierId]) {
+                    groupedBySupplier[supplierId] = [];
+                }
+
+                groupedBySupplier[supplierId].push({
+                    productId: s.productId,
+                    productName: s.productName,
+                    unitPrice: price,
+                    adjustedQuantity: Number(getAdjusted(s)),
+                    supplierId
+                });
+
             });
 
-        });
+            // 🔥 2. CRIAR ORDENS
+            for (const items of Object.values(groupedBySupplier)) {
 
+                await api.post("/api/purchase-orders", {
+                    items
+                });
 
+            }
 
-        for (const items of Object.values(groupedBySupplier)) {
+            // 🔥 3. LIMPAR STORAGE
+            localStorage.removeItem("purchase_adjusted_qtys");
+            localStorage.removeItem("purchase_selected_suppliers");
 
-            await api.post("/api/purchase-orders", {
-                items
+            // 🔥 4. LIMPAR STATE
+            setAdjustedQtys({});
+            setSelectedSuppliers({});
+            setSuggestions([]);
+
+            // 🔥 5. BUSCAR NOVAS SUGESTÕES
+            const res = await api.get(`/api/purchase-suggestions?days=${targetDays}`);
+            const freshSuggestions = res.data.items || [];
+
+            setSuggestions(freshSuggestions);
+
+            // 🔥 6. MARCAR GERADOS (USA OS ANTIGOS)
+            const generated = {};
+            newSuggestions.forEach((s) => {
+                generated[s.productId] = true;
             });
 
+            setGeneratedSuggestions(generated);
+
+        } catch (err) {
+            console.error(err);
+
+            const status = err.response?.status;
+            const message = err.response?.data?.error;
+
+            if (status === 403 || message?.includes('Acesso negado')) {
+                toast.error('Você não tem permissão para gerar pedidos');
+            } else if (status === 401) {
+                toast.error('Sessão expirada, faça login novamente');
+            } else {
+                toast.error('Erro ao gerar pedidos');
+            }
         }
-
-        // 🔄 recarregar sugestões
-        const res = await api.get("/api/purchase-suggestions");
-        setSuggestions(res.data.items || []);
-
-
-
-        const generated = {};
-
-        suggestions.forEach((s) => {
-            generated[s.productId] = true;
-        });
-
-        setGeneratedSuggestions(generated);
-
     };
 
     const groupedSuggestions = useMemo(() => {
@@ -481,11 +525,11 @@ const PurchaseSuggestions = () => {
                     padding: 16
                 }}>
                     <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Sugestões encontradas
+                        Pendentes
                     </div>
 
                     <div style={{ fontSize: 22, fontWeight: 600 }}>
-                        {suggestions.length}
+                        {newSuggestions.length}
                     </div>
                 </div>
 
@@ -674,10 +718,12 @@ const PurchaseSuggestions = () => {
 
                                     const total = qty * price;
 
-                                    const highestPrice = Math.max(
-                                        ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
-                                    );
+                                    const prices = s.suppliers?.map(sup => Number(sup.price)) || [];
 
+                                    const highestPrice =
+                                        prices.length > 0
+                                            ? Math.max(...prices)
+                                            : price;
                                     const savingTotal = (highestPrice - price) * qty;
 
                                     let coverage = null;
@@ -730,12 +776,19 @@ const PurchaseSuggestions = () => {
                                                     type="number"
                                                     min="0"
                                                     value={getAdjusted(s)}
-                                                    onChange={(e) =>
-                                                        setAdjustedQtys({
+                                                    onChange={(e) => {
+                                                        const updated = {
                                                             ...adjustedQtys,
                                                             [s.productId]: Number(e.target.value)
-                                                        })
-                                                    }
+                                                        };
+
+                                                        setAdjustedQtys(updated);
+
+                                                        localStorage.setItem(
+                                                            "purchase_adjusted_qtys",
+                                                            JSON.stringify(updated)
+                                                        );
+                                                    }}
                                                     style={{
                                                         width: 60,
                                                         padding: 4,
@@ -766,12 +819,19 @@ const PurchaseSuggestions = () => {
 
                                                 <Select
                                                     value={selectedSuppliers[s.productId] ?? s.bestSupplierId ?? ""}
-                                                    onChange={(value) =>
-                                                        setSelectedSuppliers({
+                                                    onChange={(value) => {
+                                                        const updated = {
                                                             ...selectedSuppliers,
                                                             [s.productId]: value
-                                                        })
-                                                    }
+                                                        };
+
+                                                        setSelectedSuppliers(updated);
+
+                                                        localStorage.setItem(
+                                                            "purchase_selected_suppliers",
+                                                            JSON.stringify(updated)
+                                                        );
+                                                    }}
                                                     options={s.suppliers?.map((sup) => ({
                                                         value: sup.supplierId,
                                                         label:
