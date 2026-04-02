@@ -9,7 +9,7 @@ import EmptyState from '../components/EmptyState';
 import { Input } from '../components/FormFields';
 import Badge from '../components/Badge';
 import api from '../services/api';
-
+import toast from "react-hot-toast";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const EMPTY_FORM = { name: '', cnpj: '', phone: '', email: '' };
 
@@ -209,10 +209,19 @@ const Suppliers = () => {
                 });
 
             }
-
+            toast.success(editTarget ? 'Fornecedor atualizado com sucesso' : 'Fornecedor criado com sucesso');
             setModalOpen(false);
 
         } catch (err) {
+            const status = err.response?.status;
+            const message = err.response?.data?.message;
+
+            if (status === 403) {
+                toast.error('Você não tem permissão para essa ação');
+            } else {
+                toast.error(message || 'Erro ao salvar fornecedor');
+            }
+
             console.error("Erro ao salvar fornecedor:", err);
         }
     };
@@ -226,10 +235,19 @@ const Suppliers = () => {
                 type: ACTIONS.DELETE_SUPPLIER,
                 payload: deleteModal.id
             });
-
+            toast.success('Fornecedor excluído com sucesso');
             setDeleteModal(null);
 
         } catch (err) {
+            const status = err.response?.status;
+            const message = err.response?.data?.message;
+
+            if (status === 403) {
+                toast.error('Você não tem permissão para essa ação');
+            } else {
+                toast.error(message || 'Erro ao deletar fornecedor');
+            }
+
             console.error("Erro ao deletar fornecedor:", err);
         }
     };

@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const api = axios.create({
     baseURL: "http://localhost:3333",
@@ -30,7 +31,9 @@ api.interceptors.response.use(
 
     (error) => {
 
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+
+        if (status === 401) {
             localStorage.removeItem("token");
             window.location.href = "/login";
         }
@@ -39,6 +42,13 @@ api.interceptors.response.use(
             error.response?.data?.message ||
             error.response?.data?.error ||
             "Erro de comunicação com o servidor.";
+
+        // 🔥 TOAST AUTOMÁTICO
+        if (status === 403) {
+            toast.error("Você não tem permissão para essa ação");
+        } else if (status !== 401) {
+            toast.error(message);
+        }
 
         return Promise.reject(new Error(message));
 

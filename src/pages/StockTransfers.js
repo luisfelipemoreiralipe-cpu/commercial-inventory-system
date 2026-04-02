@@ -4,6 +4,9 @@ import styled from "styled-components";
 import api from "../services/api";
 import Badge from "../components/Badge";
 import Select from "../components/Select";
+import toast from "react-hot-toast"
+import Button from "../components/Button";
+
 
 const Container = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
@@ -158,28 +161,6 @@ const Input = styled.input`
   }
 `;
 
-const Button = styled.button`
-  margin-top: ${({ theme }) => theme.spacing.md};
-  padding: 12px 18px;
-  border-radius: ${({ theme }) => theme.radii.md};
-
-  background: ${({ theme }) => theme.colors.primary};
-  color: white;
-
-  font-weight: ${({ theme }) => theme.fontWeights.semibold};
-
-  transition: ${({ theme }) => theme.transition};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.primaryHover};
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
-
 export default function StockTransfers() {
 
     const { state } = useApp();
@@ -240,7 +221,7 @@ export default function StockTransfers() {
         } catch (err) {
 
             console.error(err);
-            alert("Erro ao carregar transferências enviadas");
+            toast.error("Erro ao carregar transferências enviadas");
 
         }
     }
@@ -259,7 +240,7 @@ export default function StockTransfers() {
         } catch (err) {
 
             console.error(err);
-            alert("Erro ao carregar transferências recebidas");
+            toast.error("Erro ao carregar transferências recebidas");
 
         }
 
@@ -272,14 +253,13 @@ export default function StockTransfers() {
         try {
 
             await api.patch(`/api/stock-transfers/${id}/approve`);
+            toast.success("Transferência aprovada com sucesso");
 
             loadReceivedTransfers();
             loadSentTransfers();
 
         } catch (err) {
-
-            alert(err.message);
-
+            console.error(err);
         }
 
     }
@@ -293,9 +273,7 @@ export default function StockTransfers() {
             loadSentTransfers();
 
         } catch (err) {
-
-            alert(err.message);
-
+            console.error(err);
         }
 
     }
@@ -303,7 +281,7 @@ export default function StockTransfers() {
     async function handleTransfer() {
 
         if (!productId || !quantity || !destinationId) {
-            alert("Preencha todos os campos");
+            toast.error("Preencha todos os campos");
             return;
         }
 
@@ -317,7 +295,7 @@ export default function StockTransfers() {
                 toEstablishmentId: destinationId
             });
 
-            alert("Transferência criada com sucesso");
+            toast.success("Transferência criada com sucesso");
 
             setProductId("");
             setQuantity("");
@@ -326,7 +304,13 @@ export default function StockTransfers() {
         } catch (err) {
 
             console.error(err);
-            alert(err.response?.data?.message || "Erro ao criar transferência");
+            const status = err.response?.status;
+
+            if (status === 403) {
+                toast.error("Você não tem permissão para criar transferência");
+            } else {
+                toast.error(err.response?.data?.message || "Erro ao criar transferência");
+            }
 
         } finally {
 
@@ -623,16 +607,22 @@ export default function StockTransfers() {
                                                 <>
                                                     <div style={{ display: "flex", gap: "8px" }}>
 
-                                                        <button
+                                                        <Button
+                                                            size="sm"
+                                                            variant="success"
                                                             onClick={() => approveTransfer(transfer.id)}
                                                             disabled={processingId === transfer.id}
                                                         >
                                                             {processingId === transfer.id ? "Aprovando..." : "Aprovar"}
-                                                        </button>
+                                                        </Button>
 
-                                                        <button onClick={() => rejectTransfer(transfer.id)}>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="danger"
+                                                            onClick={() => rejectTransfer(transfer.id)}
+                                                        >
                                                             Rejeitar
-                                                        </button>
+                                                        </Button>
 
                                                     </div>
                                                 </>

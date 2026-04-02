@@ -17,6 +17,7 @@ import SelectEstablishment from "./pages/SelectEstablishment";
 import StockTransfers from "./pages/StockTransfers";
 import StockAudits from "./pages/StockAudits";
 import StockAuditDetail from "./pages/StockAuditDetail";
+import Reports from "./pages/Reports";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -71,6 +72,8 @@ function App() {
               <Route path="/activity-log" element={<ActivityLog />} />
 
               <Route path="/stock-audits" element={<StockAudits />} />
+
+              <Route path="reports" element={<Reports />} />
 
               <Route
                 path="/stock-audits/history"

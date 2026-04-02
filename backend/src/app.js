@@ -12,6 +12,7 @@ const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
 const stockMovementRoutes = require('./routes/stockMovementRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
@@ -27,6 +28,10 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+    console.log('➡️ REQUEST:', req.method, req.originalUrl);
+    next();
+});
 
 
 app.use('/auth', authRoutes);
