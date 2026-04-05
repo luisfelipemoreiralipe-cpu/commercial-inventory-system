@@ -2,7 +2,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 const api = axios.create({
-    baseURL: "http://localhost:3333",
+    baseURL: process.env.REACT_APP_API_URL || "http://localhost:3333",
     timeout: 10000,
     headers: {
         "Content-Type": "application/json"
@@ -26,6 +26,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
 
     (response) => {
+        // Smart Unwrap
+        if (response.data && response.data.data !== undefined) {
+            return response.data.data;
+        }
         return response.data;
     },
 

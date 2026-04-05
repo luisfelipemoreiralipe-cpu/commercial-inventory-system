@@ -216,7 +216,7 @@ export default function StockTransfers() {
 
             const res = await api.get("/api/stock-transfers/sent");
 
-            setSentTransfers(res.data);
+            setSentTransfers(res);
 
         } catch (err) {
 
@@ -231,7 +231,7 @@ export default function StockTransfers() {
 
             const res = await api.get("/api/stock-transfers/received");
 
-            const pendingTransfers = res.data.filter(
+            const pendingTransfers = res.filter(
                 (t) => t.status === "PENDING"
             );
 
@@ -346,7 +346,7 @@ export default function StockTransfers() {
 
                 const res = await api.get("/auth/context");
 
-                const context = res.data.data || res.data;
+                const context = res;
 
                 const { establishments = [], establishment } = context;
 

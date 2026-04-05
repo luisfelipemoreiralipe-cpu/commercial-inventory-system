@@ -26,7 +26,23 @@ const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
-app.use(cors());
+// 🛡️ Configuração de CORS (Segurança)
+const allowedOrigins = [
+    'http://localhost:3000', // Ambiente de desenvolvimento (React padrão)
+    'https://seu-sistema.vercel.app' // ⚠️ IMPORTANTE: Atualize este link quando tiver a URL final da Vercel
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // Permite requisições sem origin (ex: Postman no back-end) ou origins que estão na lista
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Bloqueado pela política de CORS'));
+        }
+    },
+    credentials: true // Necessário se formos usar cookies/sessões no futuro
+}));
 app.use(express.json());
 app.use((req, res, next) => {
     console.log('➡️ REQUEST:', req.method, req.originalUrl);

@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import { Input } from '../components/FormFields';
 import Button from '../components/Button';
-import { useMemo } from 'react';
+import { 
+    BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid 
+} from 'recharts';
 
 // ─── Styled ─────────────────────────────────────
 const PageHeader = styled.div`
@@ -256,61 +258,108 @@ const Reports = () => {
     }, [state.stockMovements, dateFrom, dateTo]);
 
     const supplierData = useMemo(() => {
-        if (!state.purchaseOrders?.length) return [];
+        if (!state.purchaseOrders?.length && !state.stockMovements?.length) return [];
 
-        let orders = state.purchaseOrders;
+        let orders = (state.purchaseOrders || []).filter(o => o.status === 'completed');
+        let movements = state.stockMovements || [];
 
-        // filtro por data
+        // 1. FILTRAR POR DATA DE COMPETÊNCIA (completedAt para compras, createdAt para bônus)
         if (dateFrom) {
-            orders = orders.filter(
-                (o) => new Date(o.createdAt) >= new Date(dateFrom)
-            );
+            orders = orders.filter((o) => new Date(o.completedAt || o.createdAt) >= new Date(dateFrom));
+            movements = movements.filter((m) => new Date(m.createdAt) >= new Date(dateFrom));
         }
 
         if (dateTo) {
-            orders = orders.filter(
-                (o) => new Date(o.createdAt) <= new Date(dateTo + 'T23:59:59')
-            );
+            orders = orders.filter((o) => new Date(o.completedAt || o.createdAt) <= new Date(dateTo + 'T23:59:59'));
+            movements = movements.filter((m) => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59'));
         }
 
         const map = {};
 
+        // 2. FORNECEDOR QUE MAIS COMPRAMOS (Baseado nas Ordens)
         orders.forEach((order) => {
             const supplier = order.supplierName || 'Sem fornecedor';
 
             if (!map[supplier]) {
                 map[supplier] = {
                     name: supplier,
-                    totalQuantity: 0,
-                    totalValue: 0
+                    purchaseQuantity: 0,
+                    purchaseValue: 0,
+                    bonusQuantity: 0,
+                    bonusValue: 0,
+                    orderCount: 0
                 };
             }
 
+            map[supplier].orderCount += 1;
+
             order.items?.forEach((item) => {
-                map[supplier].totalQuantity += Number(item.quantity || 0);
-                map[supplier].totalValue += Number(item.totalCost || 0);
+                map[supplier].purchaseQuantity += Number(item.adjustedQuantity || 0);
+                map[supplier].purchaseValue += Number(item.adjustedQuantity || 0) * Number(item.unitPrice || 0);
             });
         });
 
-        return Object.values(map).map((item) => ({
-            ...item,
-            avgPrice:
-                item.totalQuantity > 0
-                    ? item.totalValue / item.totalQuantity
-                    : 0
-        }));
-    }, [state.purchaseOrders, dateFrom, dateTo]);
+        // 3. FORNECEDOR QUE MAIS BONIFICA (StockMovements type=IN reason=BONUS)
+        // Como o bônus não salva o Fornecedor nativamente, tentamos deduzir pelo fornecedor principal do produto ou agrupamos em 'Bonificação Avulsa'
+        movements
+            .filter(m => m.type === 'IN' && m.reason === 'BONUS')
+            .forEach(m => {
+                const product = state.products?.find(p => p.id === m.productId);
+                
+                // Busca o fornecedor principal do produto para atribuir o bônus a ele
+                let supplierName = 'Indefinido';
+                if (product?.supplierId) {
+                    // Nós precisariamos buscar o nome do fornecedor nos cadastros, mas faremos fallback para o nome já registrado no map via compras ou 'Fornecedor Produto'
+                     supplierName = product.supplierId; 
+                } else if (map['Sem fornecedor']) {
+                     supplierName = 'Sem fornecedor';
+                } else {
+                     supplierName = 'Diversos/Sem Fornecedor';
+                }
+
+                // Match name if possible (heuristic based on existing orders)
+                const existingSupplierKey = Object.keys(map).find(k => map[k].name === supplierName) || supplierName;
+
+                if (!map[existingSupplierKey]) {
+                    map[existingSupplierKey] = {
+                        name: existingSupplierKey,
+                        purchaseQuantity: 0,
+                        purchaseValue: 0,
+                        bonusQuantity: 0,
+                        bonusValue: 0,
+                        orderCount: 0
+                    };
+                }
+
+                map[existingSupplierKey].bonusQuantity += Number(m.quantity || 0);
+                // A economia gerada baseia-se no custo atual salvo em currentCost ou no próprio movimento
+                const costVal = Number(m.totalCost || (Number(m.quantity) * Number(product?.currentCost || 0)));
+                map[existingSupplierKey].bonusValue += costVal;
+            });
+
+        return Object.values(map)
+            .map((item) => ({
+                ...item,
+                avgPrice: item.purchaseQuantity > 0 ? (item.purchaseValue / item.purchaseQuantity) : 0,
+                totalValue: item.purchaseValue // compatibility alias for UI
+            }))
+            .sort((a, b) => b.purchaseValue - a.purchaseValue); // Ranking por Valor de Compra
+    }, [state.purchaseOrders, state.stockMovements, state.products, dateFrom, dateTo]);
 
 
     const purchaseVsConsumption = useMemo(() => {
-        if (!state.stockMovements?.length) return [];
+        if (!state.stockMovements?.length && !state.purchaseOrders?.length) return [];
 
-        let movements = state.stockMovements;
+        let movements = state.stockMovements || [];
+        let orders = (state.purchaseOrders || []).filter(o => o.status === 'completed');
 
-        // filtro por data
+        // filtro por data para movimentos
         if (dateFrom) {
             movements = movements.filter(
                 (m) => new Date(m.createdAt) >= new Date(dateFrom)
+            );
+            orders = orders.filter(
+                (o) => new Date(o.completedAt || o.createdAt) >= new Date(dateFrom)
             );
         }
 
@@ -318,38 +367,42 @@ const Reports = () => {
             movements = movements.filter(
                 (m) => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59')
             );
+            orders = orders.filter(
+                (o) => new Date(o.completedAt || o.createdAt) <= new Date(dateTo + 'T23:59:59')
+            );
         }
 
         const map = {};
 
-        // 🟢 CONSUMO
+        // 🟢 CONSUMO (Saídas gerais e CSV, ignora perdas)
         movements
             .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
             .forEach((m) => {
                 if (!map[m.productId]) {
-                    map[m.productId] = {
-                        name: m.productName,
-                        consumed: 0,
-                        purchased: 0
-                    };
+                    map[m.productId] = { name: m.productName, consumed: 0, purchased: 0, bonus: 0 };
                 }
-
                 map[m.productId].consumed += Math.abs(Number(m.quantity));
             });
 
-        // 🔵 COMPRA (entrada)
+        // 🔵 COMPRA (Vindo direto das Ordens de Compra Concluídas)
+        orders.forEach((order) => {
+            order.items?.forEach(item => {
+                if (!map[item.productId]) {
+                    map[item.productId] = { name: item.productName, consumed: 0, purchased: 0, bonus: 0 };
+                }
+                map[item.productId].purchased += Number(item.adjustedQuantity || 0);
+            });
+        });
+
+        // 🟡 BONIFICAÇÕES (Entradas tipo BONUS)
         movements
-            .filter((m) => m.type === 'IN')
+            .filter((m) => m.type === 'IN' && m.reason === 'BONUS')
             .forEach((m) => {
                 if (!map[m.productId]) {
-                    map[m.productId] = {
-                        name: m.productName,
-                        consumed: 0,
-                        purchased: 0
-                    };
+                    map[m.productId] = { name: m.productName, consumed: 0, purchased: 0, bonus: 0 };
                 }
-
-                map[m.productId].purchased += Number(m.quantity);
+                map[m.productId].bonus += Number(m.quantity || 0);
+                map[m.productId].purchased += Number(m.quantity || 0); // soma no total de recebidos
             });
 
         return Object.values(map)
@@ -369,8 +422,9 @@ const Reports = () => {
                     difference: diff,
                     status
                 };
-            });
-    }, [state.stockMovements, dateFrom, dateTo]);
+            })
+            .sort((a, b) => b.purchased - a.purchased);
+    }, [state.stockMovements, state.purchaseOrders, dateFrom, dateTo]);
 
     const purchaseInsight = useMemo(() => {
         if (!purchaseVsConsumption.length) return null;
@@ -590,12 +644,38 @@ const Reports = () => {
 
                 {/* COMPRA VS CONSUMO */}
                 {activeTab === 'purchase' && (
+                    <>
+                    <Card style={{ marginBottom: 16 }}>
+                        <div style={{ width: "100%", height: 300 }}>
+                            {purchaseVsConsumption.length > 0 ? (
+                                <ResponsiveContainer>
+                                    <BarChart data={purchaseVsConsumption} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B7280' }} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} axisLine={false} tickLine={false} />
+                                        <Tooltip 
+                                            cursor={{fill: '#F3F4F6'}}
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                         />
+                                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                        <Bar dataKey="purchased" name="Compras (Ordens + Bônus)" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="consumed" name="Consumo (Saídas)" fill="#DC2626" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6B7280' }}>
+                                    Nenhum dado encontrado no período.
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+
                     <Card padding="0">
                         <Table>
                             <thead>
                                 <tr>
                                     <Th>Produto</Th>
-                                    <Th>Comprado</Th>
+                                    <Th>Comprado (Ordens + Bônus)</Th>
                                     <Th>Consumido</Th>
                                     <Th>Diferença</Th>
                                     <Th>Status</Th>
@@ -622,7 +702,7 @@ const Reports = () => {
                                                 fontWeight: 600
                                             }}
                                         >
-                                            {item.difference}
+                                            {item.difference > 0 ? `+${item.difference}` : item.difference}
                                         </Td>
 
                                         <Td>
@@ -637,6 +717,7 @@ const Reports = () => {
                             </tbody>
                         </Table>
                     </Card>
+                    </>
                 )}
 
                 {/* HISTÓRICO */}
@@ -700,24 +781,30 @@ const Reports = () => {
                             <thead>
                                 <tr>
                                     <Th>Fornecedor</Th>
-                                    <Th>Quantidade Total</Th>
-                                    <Th>Valor Total</Th>
-                                    <Th>Preço Médio</Th>
+                                    <Th>Ordens Recebidas</Th>
+                                    <Th>Qtd Comprada</Th>
+                                    <Th>Valor Investido</Th>
+                                    <Th>Média por Ordem</Th>
+                                    <Th>Qtd. Bonificada</Th>
+                                    <Th>Ganha em Bonificação</Th>
                                 </tr>
                             </thead>
 
                             <tbody>
-                                {supplierData.map((item, index) => (
+                                {supplierData.map((item, index) => {
+                                    const avgOrder = item.orderCount > 0 ? (item.purchaseValue / item.orderCount) : 0;
+                                    return (
                                     <Tr key={index}>
                                         <Td style={{ fontWeight: 600 }}>{item.name}</Td>
-
-                                        <Td>{item.totalQuantity}</Td>
-
-                                        <Td>R$ {item.totalValue.toFixed(2)}</Td>
-
-                                        <Td>R$ {item.avgPrice.toFixed(2)}</Td>
+                                        <Td>{item.orderCount}</Td>
+                                        <Td>{item.purchaseQuantity}</Td>
+                                        <Td>R$ {item.purchaseValue.toFixed(2)}</Td>
+                                        <Td>R$ {avgOrder.toFixed(2)}</Td>
+                                        <Td style={{ color: '#10B981', fontWeight: 600 }}>{item.bonusQuantity}</Td>
+                                        <Td style={{ color: '#10B981', fontWeight: 600 }}>R$ {item.bonusValue.toFixed(2)}</Td>
                                     </Tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </Table>
                     </Card>

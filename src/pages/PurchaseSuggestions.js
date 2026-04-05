@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { MdRefresh, MdWarning } from "react-icons/md";
 import Card from "../components/Card";
+import Button from "../components/Button";
+import { Input } from "../components/FormFields";
+
 
 import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import Select from "../components/Select";
 import toast from "react-hot-toast";
 
@@ -29,31 +32,41 @@ const Tab = styled.button`
   font-size: 14px;
   font-weight: 600;
 
-  background: ${({ active }) =>
-        active ? "#111827" : "#ffffff"};
+  background: ${({ active, theme }) =>
+        active ? theme.colors.primary : theme.colors.bgCard};
 
-  color: ${({ active }) =>
-        active ? "#fff" : "#111827"};
+  color: ${({ active, theme }) =>
+        active ? "#fff" : theme.colors.textPrimary};
 
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme.colors.border};
 
   transition: 0.2s;
 
   &:hover {
-    background: ${({ active }) =>
-        active ? "#1f2937" : "#f3f4f6"};
+    background: ${({ active, theme }) =>
+        active ? theme.colors.primaryDark : theme.colors.bgHover};
   }
 `;
 
 const PageTitle = styled.h1`
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
+  font-size: ${({ theme }) => theme.fontSizes['3xl']};
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
 const PageSubtitle = styled.p`
-  color: #6b7280;
-  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
+
+const StatusBadge = styled.span`
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: ${({ isSug, theme }) => isSug ? theme.colors.warningLight : theme.colors.successLight};
+  color: ${({ isSug, theme }) => isSug ? theme.colors.warning : theme.colors.success};
 `;
 
 const StatsGrid = styled.div`
@@ -80,16 +93,21 @@ const StatValue = styled.div`
   font-weight: 600;
 `;
 
-const TableCard = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 20px;
+const TableWrapper = styled.div`
+  width: 100%;
+  overflow-x: auto;
 `;
 
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px;
+    background: transparent;
+  }
 `;
 
 const Th = styled.th`
@@ -102,7 +120,10 @@ const Th = styled.th`
   letter-spacing: 0.05em;
   background: ${({ theme }) => theme.colors.bgHover};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-   white-space: nowrap;
+  white-space: nowrap;
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
@@ -111,25 +132,56 @@ const Td = styled.td`
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   vertical-align: middle;
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+  }
 `;
 
 const Tr = styled.tr`
   transition: ${({ theme }) => theme.transition};
-
   &:hover {
     background: ${({ theme }) => theme.colors.bgHover};
+  }
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radii.md};
+    overflow: hidden;
+    background: #fff;
   }
 `;
 
 const SupplierRow = styled.tr`
   background: ${({ theme }) => theme.colors.bgHover};
+  @media (max-width: 768px) {
+    display: block;
+    border-radius: ${({ theme }) => theme.radii.md};
+    margin-bottom: 12px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+  }
 `;
 
 const SupplierHeader = styled.td`
   padding: 14px 16px;
-  font-weight: ${({ theme }) => theme.fontWeights.semibold};
-  color: ${({ theme }) => theme.colors.textSecondary};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  @media (max-width: 768px) {
+    display: block;
+  }
 `;
 
 
@@ -142,6 +194,7 @@ const PurchaseSuggestions = () => {
     const [targetDays, setTargetDays] = useState(7);
     const [ignoredProducts, setIgnoredProducts] = useState({});
     const [viewMode, setViewMode] = useState("active"); // active | ignored
+    const theme = useTheme();
 
     const getAdjusted = (s) => {
         return adjustedQtys[s.productId] ?? s.suggestedQuantity;
@@ -167,7 +220,7 @@ const PurchaseSuggestions = () => {
                 const res = await api.get(
                     `/api/purchase-suggestions?days=${targetDays}`
                 );
-                setSuggestions(res.data.items || []);
+                setSuggestions(res.items || []);
             } catch (err) {
                 console.error(err);
             }
@@ -261,8 +314,9 @@ const PurchaseSuggestions = () => {
 
         newSuggestions.forEach((s) => {
 
+            const p = productsMap[s.productId];
             const supplierId =
-                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId ?? "unassigned";
 
             if (!groups[supplierId]) {
                 groups[supplierId] = [];
@@ -282,8 +336,9 @@ const PurchaseSuggestions = () => {
 
         ignoredSuggestions.forEach((s) => {
 
+            const p = productsMap[s.productId];
             const supplierId =
-                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId ?? "unassigned";
 
             if (!groups[supplierId]) {
                 groups[supplierId] = [];
@@ -303,14 +358,15 @@ const PurchaseSuggestions = () => {
 
         const qty = getAdjusted(s);
 
+        const p = productsMap[s.productId];
         const selectedSupplierId =
-            selectedSuppliers[s.productId] ?? s.bestSupplierId;
+            selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
         const supplier = s.suppliers?.find(
             sup => sup.supplierId === selectedSupplierId
         );
 
-        const price = Number(supplier?.price || 0);
+        const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
         return acc + qty * price;
 
@@ -322,18 +378,18 @@ const PurchaseSuggestions = () => {
 
 
 
+        const p = productsMap[s.productId];
         const selectedSupplierId =
-            selectedSuppliers[s.productId] ?? s.bestSupplierId;
+            selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
         const supplier = s.suppliers?.find(
             sup => sup.supplierId === selectedSupplierId
         );
 
-        const price = Number(supplier?.price || 0);
+        const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
-        const highestPrice = Math.max(
-            ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
-        );
+        const prices = s.suppliers?.map(sup => Number(sup.price)) || [];
+        const highestPrice = prices.length > 0 ? Math.max(...prices, price) : price;
 
         const saving = (highestPrice - price) * qty;
 
@@ -367,13 +423,14 @@ const PurchaseSuggestions = () => {
                 const supplierId =
                     selectedSuppliers[s.productId] ||
                     s.bestSupplierId ||
-                    p?.supplierId;
+                    p?.supplierId || 
+                    "unassigned";
 
                 const supplier = s.suppliers?.find(
                     sup => sup.supplierId === supplierId
                 );
 
-                const price = Number(supplier?.price || 0);
+                const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
                 if (!groupedBySupplier[supplierId]) {
                     groupedBySupplier[supplierId] = [];
@@ -409,7 +466,7 @@ const PurchaseSuggestions = () => {
 
             // 🔥 5. BUSCAR NOVAS SUGESTÕES
             const res = await api.get(`/api/purchase-suggestions?days=${targetDays}`);
-            const freshSuggestions = res.data.items || [];
+            const freshSuggestions = res.items || [];
 
             setSuggestions(freshSuggestions);
 
@@ -443,8 +500,9 @@ const PurchaseSuggestions = () => {
 
         (suggestions || []).forEach((s) => {
 
+            const p = productsMap[s.productId];
             const supplierId =
-                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId ?? "unassigned";
 
             if (!groups[supplierId]) {
                 groups[supplierId] = [];
@@ -480,134 +538,95 @@ const PurchaseSuggestions = () => {
             </PageHeader>
 
             <StatsGrid>
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                <Card padding="16px" accent={theme.colors.primary}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary, marginBottom: 8 }}>
                         Situação do estoque
                     </div>
-
-                    <div style={{ fontSize: 16, fontWeight: 600, marginTop: 8 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: theme.colors.danger }}>
                         🔴 {coverageStats.critical} crítico
                     </div>
-
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: theme.colors.warning }}>
                         🟡 {coverageStats.warning} atenção
                     </div>
-
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: theme.colors.success }}>
                         🟢 {coverageStats.ok} ok
                     </div>
-                </div>
+                </Card>
 
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Produtos abaixo do mínimo
+                <Card padding="16px" accent={theme.colors.danger}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
+                        Abaixo do mínimo
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.textPrimary }}>
                         {lowStockProducts.length}
                     </div>
-                </div>
+                </Card>
 
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                <Card padding="16px" accent={theme.colors.warning}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
                         Pendentes
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.textPrimary }}>
                         {newSuggestions.length}
                     </div>
-                </div>
+                </Card>
 
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                <Card padding="16px" accent={theme.colors.primary}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
                         Custo estimado
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.textPrimary }}>
                         R$ {totalEstimatedCost.toFixed(2)}
                     </div>
-                </div>
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                </Card>
+
+                <Card padding="16px" accent={theme.colors.success}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
                         Economia estimada
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600, color: "#059669" }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.success }}>
                         R$ {totalEstimatedSaving.toFixed(2)}
                     </div>
-                </div>
+                </Card>
             </StatsGrid>
 
-            <hr style={{ margin: "20px 0" }} />
+            <hr style={{ margin: "20px 0", border: 'none', borderTop: `1px solid ${theme.colors.border}` }} />
 
             <div style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 10
+                marginBottom: 16,
+                flexWrap: "wrap",
+                gap: "10px"
             }}>
+                <h3 style={{ margin: 0, fontSize: theme.fontSizes.xl, color: theme.colors.textPrimary }}>
+                    Lista de Compras
+                </h3>
 
-                <h3 style={{ margin: 0 }}>Lista de Compras</h3>
-
-                <button
+                <Button
+                    variant="primary"
                     onClick={handleGenerate}
                     disabled={!newSuggestions.length}
-                    style={{
-                        background: "#111827",
-                        color: "white",
-                        border: "none",
-                        padding: "10px 16px",
-                        borderRadius: 6,
-                        cursor: !newSuggestions.length ? "not-allowed" : "pointer"
-                    }}
                 >
                     Gerar Ordens de Compra
-                </button>
+                </Button>
 
             </div>
 
-            <div style={{ marginTop: 15, marginBottom: 10 }}>
-
-                <label style={{ fontWeight: 500 }}>
+            <div style={{ marginTop: 15, marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontWeight: 500, fontSize: theme.fontSizes.sm, color: theme.colors.textSecondary }}>
                     Dias de estoque desejado:
-                </label>
-
-                <input
-                    type="number"
-                    value={targetDays}
-                    onChange={(e) => setTargetDays(Number(e.target.value))}
-                    style={{
-                        marginLeft: 10,
-                        width: 60,
-                        padding: 4
-                    }}
-                />
-
+                </span>
+                <div style={{ width: "80px" }}>
+                    <Input
+                        type="number"
+                        inputMode="decimal"
+                        size="sm"
+                        value={targetDays}
+                        onChange={(e) => setTargetDays(Number(e.target.value))}
+                    />
+                </div>
             </div>
             <Tabs>
 
@@ -627,285 +646,291 @@ const PurchaseSuggestions = () => {
 
             </Tabs>
 
-            <table>
+            <TableWrapper>
+                <Table>
 
-                <thead>
-                    <tr>
-                        <th>Produto</th>
-                        <th>Estoque</th>
-                        <th>Mínimo</th>
-                        <th>Ajustar</th>
-                        <th>Preço</th>
-                        <th>Total</th>
-                        <th>Economia</th>
-                        <th>Fornecedor</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
+                    <thead>
+                        <tr>
+                            <Th>Produto</Th>
+                            <Th>Estoque</Th>
+                            <Th>Mínimo</Th>
+                            <Th>Ajustar</Th>
+                            <Th>Preço</Th>
+                            <Th>Total</Th>
+                            <Th>Economia</Th>
+                            <Th>Fornecedor</Th>
+                            <Th>Status</Th>
+                        </tr>
+                    </thead>
 
-                <tbody>
+                    <tbody>
 
-                    {Object.entries(currentGroupedSuggestions).map(([supplierId, items]) => {
+                        {Object.entries(currentGroupedSuggestions).map(([supplierId, items]) => {
 
-                        const supplierName =
-                            getSupplierById(supplierId)?.name || "Fornecedor";
-                        const supplierTotal = items.reduce((acc, s) => {
+                            const supplierName =
+                                getSupplierById(supplierId)?.name || "Fornecedor";
+                            const supplierTotal = items.reduce((acc, s) => {
 
 
-                            const qty = getAdjusted(s);
+                                const qty = getAdjusted(s);
 
-                            const selectedSupplierId =
-                                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                                const p = productsMap[s.productId];
+                                const selectedSupplierId =
+                                    selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
-                            const supplier = s.suppliers?.find(
-                                sup => sup.supplierId === selectedSupplierId
-                            );
+                                const supplier = s.suppliers?.find(
+                                    sup => sup.supplierId === selectedSupplierId
+                                );
 
-                            const price = Number(supplier?.price || 0);
+                                const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
-                            return acc + qty * price;
+                                return acc + qty * price;
 
-                        }, 0);
+                            }, 0);
 
-                        return (
+                            return (
 
-                            <React.Fragment key={supplierId}>
+                                <React.Fragment key={supplierId}>
 
-                                <SupplierRow>
-                                    <SupplierHeader colSpan="9">
+                                    <SupplierRow>
+                                        <SupplierHeader colSpan="9">
 
-                                        <div style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center"
-                                        }}>
+                                            <div style={{
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "center"
+                                            }}>
 
-                                            <strong>{supplierName}</strong>
+                                                <strong>{supplierName}</strong>
 
-                                            <div style={{ display: "flex", gap: 15, fontSize: 12, color: "#6b7280" }}>
+                                                <div style={{ display: "flex", gap: 15, fontSize: 12, color: "#6b7280" }}>
 
-                                                <span>
-                                                    {items.length} produtos
-                                                </span>
+                                                    <span>
+                                                        {items.length} produtos
+                                                    </span>
 
-                                                <span style={{ fontWeight: 600 }}>
-                                                    Total: R$ {supplierTotal.toFixed(2)}
-                                                </span>
+                                                    <span style={{ fontWeight: 600 }}>
+                                                        Total: R$ {supplierTotal.toFixed(2)}
+                                                    </span>
+
+                                                </div>
 
                                             </div>
 
-                                        </div>
+                                        </SupplierHeader>
+                                    </SupplierRow>
 
-                                    </SupplierHeader>
-                                </SupplierRow>
+                                    {items.map(s => {
 
-                                {items.map(s => {
+                                        const product = productsMap[s.productId];
+                                        const selectedSupplierId =
+                                            selectedSuppliers[s.productId] ?? s.bestSupplierId ?? product?.supplierId;
 
-                                    const selectedSupplierId =
-                                        selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                                        const supplier = s.suppliers?.find(
+                                            sup => sup.supplierId === selectedSupplierId
+                                        );
 
-                                    const supplier = s.suppliers?.find(
-                                        sup => sup.supplierId === selectedSupplierId
-                                    );
+                                        const price = Number(supplier?.price || product?.costPrice || product?.unitPrice || 0);
 
-                                    const price = Number(supplier?.price || 0);
+                                        const consumption = Number(s.consumptionLast7Days || 0);
+                                        const qty = Number(getAdjusted(s));
 
-                                    const product = productsMap[s.productId];
-                                    const consumption = Number(s.consumptionLast7Days || 0);
-                                    const qty = Number(getAdjusted(s)); // 🔥 PRIMEIRO
+                                        const total = qty * price;
 
+                                        const prices = s.suppliers?.map(sup => Number(sup.price)) || [];
+                                        const highestPrice = prices.length > 0 ? Math.max(...prices, price) : price;
 
+                                        const savingTotal = (highestPrice - price) * qty;
 
-                                    const total = qty * price;
+                                        let coverage = null;
 
-                                    const prices = s.suppliers?.map(sup => Number(sup.price)) || [];
-
-                                    const highestPrice =
-                                        prices.length > 0
-                                            ? Math.max(...prices)
-                                            : price;
-                                    const savingTotal = (highestPrice - price) * qty;
-
-                                    let coverage = null;
-
-                                    if (consumption > 0) {
-                                        coverage = qty / consumption;
-                                    }
-                                    let coverageLabel = null;
-                                    let coverageColor = "#6b7280";
-
-                                    if (coverage !== null) {
-                                        if (coverage < 1) {
-                                            coverageLabel = "crítico";
-                                            coverageColor = "#dc2626"; // vermelho
-                                        } else if (coverage < 1.3) {
-                                            coverageLabel = "atenção";
-                                            coverageColor = "#d97706"; // amarelo
-                                        } else {
-                                            coverageLabel = "ok";
-                                            coverageColor = "#059669"; // verde
+                                        if (consumption > 0) {
+                                            coverage = qty / consumption;
                                         }
-                                    }
+                                        let coverageLabel = null;
+                                        let coverageColor = "#6b7280";
 
-                                    return (
+                                        if (coverage !== null) {
+                                            if (coverage < 1) {
+                                                coverageLabel = "crítico";
+                                                coverageColor = "#dc2626"; // vermelho
+                                            } else if (coverage < 1.3) {
+                                                coverageLabel = "atenção";
+                                                coverageColor = "#d97706"; // amarelo
+                                            } else {
+                                                coverageLabel = "ok";
+                                                coverageColor = "#059669"; // verde
+                                            }
+                                        }
 
-                                        <Tr key={s.productId}>
+                                        return (
 
-                                            <Td>
-                                                {s.productName}
+                                            <Tr key={s.productId}>
 
-                                                {coverage && (
-                                                    <div style={{ fontSize: 11, color: coverageColor }}>
-                                                        {coverage < 1 ? "🔴" : coverage < 1.3 ? "🟡" : "🟢"}{" "}
-                                                        cobre ~{coverage.toFixed(1)} eventos
+                                                <Td data-label="Produto">
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                        <span style={{ fontWeight: 600 }}>{s.productName}</span>
+                                                        {coverage && (
+                                                            <span style={{ fontSize: 11, color: coverageColor }}>
+                                                                {coverage < 1 ? "🔴" : coverage < 1.3 ? "🟡" : "🟢"}{" "}
+                                                                cobre ~{coverage.toFixed(1)} eventos
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </Td>
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
-                                                {product?.quantity}
-                                            </Td>
+                                                <Td data-label="Estoque" style={{ textAlign: "center" }}>
+                                                    {product?.quantity}
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
-                                                {product?.minQuantity}
-                                            </Td>
+                                                <Td data-label="Mínimo" style={{ textAlign: "center" }}>
+                                                    {product?.minQuantity}
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
+                                                <Td data-label="Ajustar" style={{ textAlign: "center" }}>
+                                                    <Input
+                                                        type="number"
+                                                        inputMode="decimal"
+                                                        size="sm"
+                                                        min="0"
+                                                        value={getAdjusted(s)}
+                                                        onChange={(e) => {
+                                                            const updated = {
+                                                                ...adjustedQtys,
+                                                                [s.productId]: Number(e.target.value)
+                                                            };
 
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getAdjusted(s)}
-                                                    onChange={(e) => {
-                                                        const updated = {
-                                                            ...adjustedQtys,
-                                                            [s.productId]: Number(e.target.value)
-                                                        };
+                                                            setAdjustedQtys(updated);
 
-                                                        setAdjustedQtys(updated);
+                                                            localStorage.setItem(
+                                                                "purchase_adjusted_qtys",
+                                                                JSON.stringify(updated)
+                                                            );
+                                                        }}
+                                                        style={{ width: "80px", textAlign: "center", margin: "0 auto" }}
+                                                    />
+                                                </Td>
 
-                                                        localStorage.setItem(
-                                                            "purchase_adjusted_qtys",
-                                                            JSON.stringify(updated)
-                                                        );
-                                                    }}
-                                                    style={{
-                                                        width: 60,
-                                                        padding: 4,
-                                                        textAlign: "center"
-                                                    }}
-                                                />
+                                                <Td data-label="Preço" style={{ textAlign: "center" }}>
+                                                    R$ {price.toFixed(2)}
+                                                </Td>
 
-                                            </Td>
+                                                <Td data-label="Total" style={{ textAlign: "center", fontWeight: 600 }}>
+                                                    R$ {total.toFixed(2)}
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
-                                                R$ {price.toFixed(2)}
-                                            </Td>
+                                                <Td data-label="Economia" style={{
+                                                    textAlign: "center",
+                                                    color: savingTotal > 0 ? theme.colors.success : theme.colors.textMuted
+                                                }}>
+                                                    {savingTotal > 0
+                                                        ? `R$ ${savingTotal.toFixed(2)}`
+                                                        : "R$ 0.00"}
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center", fontWeight: 600 }}>
-                                                R$ {total.toFixed(2)}
-                                            </Td>
+                                                <Td data-label="Fornecedor" style={{ textAlign: "center" }}>
 
-                                            <Td style={{
-                                                textAlign: "center",
-                                                color: savingTotal > 0 ? "#059669" : "#6b7280"
-                                            }}>
-                                                {savingTotal > 0
-                                                    ? `R$ ${savingTotal.toFixed(2)}`
-                                                    : "R$ 0.00"}
-                                            </Td>
+                                                    {(() => {
+                                                        const p = productsMap[s.productId];
+                                                        const activeSupplierId = selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
-                                            <Td style={{ textAlign: "center" }}>
-
-                                                <Select
-                                                    value={selectedSuppliers[s.productId] ?? s.bestSupplierId ?? ""}
-                                                    onChange={(value) => {
-                                                        const updated = {
-                                                            ...selectedSuppliers,
-                                                            [s.productId]: value
-                                                        };
-
-                                                        setSelectedSuppliers(updated);
-
-                                                        localStorage.setItem(
-                                                            "purchase_selected_suppliers",
-                                                            JSON.stringify(updated)
-                                                        );
-                                                    }}
-                                                    options={s.suppliers?.map((sup) => ({
-                                                        value: sup.supplierId,
-                                                        label:
-                                                            sup.supplierId === s.bestSupplierId
+                                                        let optionList = s.suppliers?.map((sup) => ({
+                                                            value: sup.supplierId,
+                                                            label: sup.supplierId === s.bestSupplierId
                                                                 ? `⭐ ${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
                                                                 : `${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
-                                                    })) || []}
-                                                />
+                                                        })) || [];
 
-                                            </Td>
-                                            <Td style={{ textAlign: "center" }}>
-                                                {s.hasOpenOrder ? (
-                                                    <span style={{
-                                                        background: "#e0f2fe",
-                                                        color: "#0369a1",
-                                                        padding: "4px 8px",
-                                                        borderRadius: 6,
-                                                        fontSize: 12,
-                                                        fontWeight: 500
-                                                    }}>
-                                                        Pedido gerado
-                                                    </span>
-                                                ) : (
-                                                    <span style={{
-                                                        background: "#f3f4f6",
-                                                        color: "#6b7280",
-                                                        padding: "4px 8px",
-                                                        borderRadius: 6,
-                                                        fontSize: 12
-                                                    }}>
-                                                        Sugestão
-                                                    </span>
-                                                )}
-                                                {viewMode === "active" ? (
-                                                    <button
-                                                        onClick={() =>
-                                                            setIgnoredProducts(prev => ({
-                                                                ...prev,
-                                                                [s.productId]: true
-                                                            }))
+                                                        if (activeSupplierId && !optionList.some(o => o.value === activeSupplierId)) {
+                                                            const fallbackName = getSupplierById(activeSupplierId)?.name || 'Fornecedor Padrão';
+                                                            const fallbackPrice = p?.costPrice || p?.unitPrice || 0;
+                                                            optionList.push({
+                                                                value: activeSupplierId,
+                                                                label: `${fallbackName} (Padrão) — R$ ${Number(fallbackPrice).toFixed(2)}`
+                                                            });
                                                         }
-                                                    >
-                                                        Ignorar
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() =>
-                                                            setIgnoredProducts(prev => {
-                                                                const copy = { ...prev };
-                                                                delete copy[s.productId];
-                                                                return copy;
-                                                            })
+
+                                                        if (optionList.length === 0) {
+                                                            optionList.push({ value: "", label: "Sem Fornecedor" });
                                                         }
-                                                    >
-                                                        Reativar
-                                                    </button>
-                                                )}
 
-                                            </Td>
-                                        </Tr>
+                                                        return (
+                                                            <Select
+                                                                value={activeSupplierId ?? ""}
+                                                                options={optionList}
+                                                                onChange={(val) => {
+                                                                    const value = val?.target?.value !== undefined ? val.target.value : val;
+                                                                    const updated = {
+                                                                        ...selectedSuppliers,
+                                                                        [s.productId]: value
+                                                                    };
 
-                                    );
+                                                                    setSelectedSuppliers(updated);
 
-                                })}
+                                                                    localStorage.setItem(
+                                                                        "purchase_selected_suppliers",
+                                                                        JSON.stringify(updated)
+                                                                    );
+                                                                }}
+                                                            />
+                                                        );
+                                                    })()}
 
-                            </React.Fragment>
+                                                </Td>
+                                                <Td data-label="Status" style={{ textAlign: "center" }}>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
+                                                        <StatusBadge isSug={!s.hasOpenOrder}>
+                                                            {s.hasOpenOrder ? "Pedido gerado" : "Sugestão"}
+                                                        </StatusBadge>
 
-                        );
+                                                        {viewMode === "active" ? (
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                fullWidth
+                                                                onClick={() =>
+                                                                    setIgnoredProducts(prev => ({
+                                                                        ...prev,
+                                                                        [s.productId]: true
+                                                                    }))
+                                                                }
+                                                            >
+                                                                Ignorar
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                fullWidth
+                                                                onClick={() =>
+                                                                    setIgnoredProducts(prev => {
+                                                                        const copy = { ...prev };
+                                                                        delete copy[s.productId];
+                                                                        return copy;
+                                                                    })
+                                                                }
+                                                            >
+                                                                Reativar
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </Td>
+                                            </Tr>
 
-                    })}
+                                        );
 
-                </tbody>
+                                    })}
 
-            </table>
+                                </React.Fragment>
+
+                            );
+
+                        })}
+
+                    </tbody>
+
+                </Table>
+            </TableWrapper>
 
         </div>
     );

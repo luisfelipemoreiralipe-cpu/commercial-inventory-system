@@ -1,6 +1,5 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "styled-components";
 import StockAuditHistory from "./pages/StockAuditHistory";
 
 import Register from "./pages/Register";
@@ -24,17 +23,16 @@ import PrivateRoute from "./components/PrivateRoute";
 import Users from "./pages/Users";
 
 import { AppProvider } from "./context/AppContext";
+import { ThemeModeProvider } from "./context/ThemeModeProvider";
 
 import GlobalStyles from "./styles/GlobalStyles";
-import { theme } from "./styles/theme";
 
 import { Toaster } from "react-hot-toast";
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeModeProvider>
       <GlobalStyles />
-
       <AppProvider>
         <BrowserRouter>
           <Toaster position="top-right" />
@@ -94,7 +92,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </AppProvider>
-    </ThemeProvider>
+    </ThemeModeProvider>
   );
 }
 

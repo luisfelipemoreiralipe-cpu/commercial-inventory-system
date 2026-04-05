@@ -42,7 +42,7 @@ const createOrder = async (data) => {
 };
 
 // 🔥 FUNÇÃO PRINCIPAL CORRIGIDA
-const completeOrder = async (orderId, establishmentId) => {
+const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
 
     const order = await getOrderById(orderId);
 
@@ -54,64 +54,80 @@ const completeOrder = async (orderId, establishmentId) => {
 
     const completedOrder = await prisma.$transaction(async (tx) => {
 
-        for (const item of order.items) {
+        for (const dbItem of order.items) {
 
-            if (!item.productId) continue;
+            if (!dbItem.productId) continue;
 
             const product = await tx.product.findUnique({
-                where: { id: item.productId }
+                where: { id: dbItem.productId }
             });
 
             if (!product) continue;
 
-            const quantity = Number(item.adjustedQuantity);
+            const incoming = incomingItems.find(i => i.id === dbItem.id) || {};
+            const quantity = Number(incoming.adjustedQuantity !== undefined ? incoming.adjustedQuantity : dbItem.adjustedQuantity);
+            const unitPrice = Number(incoming.unitPrice !== undefined ? incoming.unitPrice : dbItem.unitPrice);
 
-            // 🔥 ENTRADA PADRONIZADA
+            // 🔹 ATUALIZA O ITEM NA ORDEM DE COMPRA
+            await tx.purchaseOrderItem.update({
+                where: { id: dbItem.id },
+                data: {
+                    adjustedQuantity: quantity,
+                    unitPrice: unitPrice
+                }
+            });
+
+            // 🔥 ENTRADA PADRONIZADA NO ESTOQUE
             await stockMovementService.addStock({
-                productId: item.productId,
+                productId: dbItem.productId,
                 quantity,
                 establishmentId,
                 reason: "PURCHASE",
                 reference: ref
             }, tx);
 
-            // 🔹 ATUALIZA CUSTO
+            // 🔹 ATUALIZA CUSTO DO PRODUTO
             await tx.product.update({
-                where: { id: item.productId },
+                where: { id: dbItem.productId },
                 data: {
-                    currentCost: item.unitPrice
+                    currentCost: unitPrice
                 }
             });
 
-            // 🔹 FORNECEDOR
-            if (item.supplierId) {
+            // 🔹 HISTÓRICO DO FORNECEDOR
+            if (dbItem.supplierId) {
 
-                await tx.productSupplier.update({
+                await tx.productSupplier.upsert({
                     where: {
                         productId_supplierId: {
-                            productId: item.productId,
-                            supplierId: item.supplierId
+                            productId: dbItem.productId,
+                            supplierId: dbItem.supplierId
                         }
                     },
-                    data: {
-                        price: item.unitPrice
+                    update: {
+                        price: unitPrice
+                    },
+                    create: {
+                         productId: dbItem.productId,
+                         supplierId: dbItem.supplierId,
+                         price: unitPrice
                     }
                 });
 
                 const lastPrice = await tx.supplierPriceHistory.findFirst({
                     where: {
-                        productId: item.productId,
-                        supplierId: item.supplierId
+                        productId: dbItem.productId,
+                        supplierId: dbItem.supplierId
                     },
                     orderBy: { createdAt: "desc" }
                 });
 
-                if (!lastPrice || Number(lastPrice.price) !== Number(item.unitPrice)) {
+                if (!lastPrice || Number(lastPrice.price) !== unitPrice) {
                     await tx.supplierPriceHistory.create({
                         data: {
-                            productId: item.productId,
-                            supplierId: item.supplierId,
-                            price: item.unitPrice,
+                            productId: dbItem.productId,
+                            supplierId: dbItem.supplierId,
+                            price: unitPrice,
                             purchaseOrderId: orderId
                         }
                     });

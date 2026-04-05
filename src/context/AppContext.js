@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import LoadingOverlay from '../components/LoadingOverlay';
 
 // ─── Initial State ───────────────────────────────────────────────────────────
 const initialState = {
@@ -17,10 +18,15 @@ const initialState = {
 
     loading: true,
     error: null,
+    isSaving: false,
 };
 
 // ─── Action Types ────────────────────────────────────────────────────────────
 export const ACTIONS = {
+    // 🛡️ Adicionados para garantir sincronia
+    SET_PRODUCTS: 'SET_PRODUCTS',
+    SET_CATEGORIES: 'SET_CATEGORIES',
+
     ADD_PRODUCT: 'ADD_PRODUCT',
     UPDATE_PRODUCT: 'UPDATE_PRODUCT',
     DELETE_PRODUCT: 'DELETE_PRODUCT',
@@ -33,11 +39,15 @@ export const ACTIONS = {
     COMPLETE_PURCHASE_ORDER: 'COMPLETE_PURCHASE_ORDER',
     DELETE_PURCHASE_ORDER: 'DELETE_PURCHASE_ORDER',
     SET_PURCHASE_ORDERS: 'SET_PURCHASE_ORDERS',
+    SET_SAVING: 'SET_SAVING',
 };
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
 const appReducer = (state, action) => {
     switch (action.type) {
+
+        case ACTIONS.SET_SAVING:
+            return { ...state, isSaving: action.payload };
 
         case 'SET_LOADING':
             return { ...state, loading: action.payload };
@@ -63,38 +73,41 @@ const appReducer = (state, action) => {
         case ACTIONS.SET_PURCHASE_ORDERS:
             return {
                 ...state,
-                purchaseOrders: Array.isArray(action.payload)
-                    ? action.payload
-                    : action.payload?.data || []
+                purchaseOrders: Array.isArray(action.payload) ? action.payload : []
             };
 
-        // Products
-
-
-
-        case ACTIONS.SET_PRODUCTS:
+        // 🛡️ Produtos - Agora com proteção contra o wrapper {success, data}
+        case ACTIONS.SET_PRODUCTS: {
+            const productsData = action.payload?.data || (Array.isArray(action.payload) ? action.payload : []);
             return {
                 ...state,
-                products: Array.isArray(action.payload)
-                    ? action.payload
-                    : action.payload?.data || []
+                products: [...productsData],
+                loading: false
             };
+        }
+
+        // 🛡️ Categorias - Adicionado para evitar que caiam no estado de produtos
+        case ACTIONS.SET_CATEGORIES: {
+            const categoriesData = action.payload?.data || (Array.isArray(action.payload) ? action.payload : []);
+            return {
+                ...state,
+                categories: [...categoriesData],
+                loading: false
+            };
+        }
 
         case ACTIONS.UPDATE_PRODUCT:
         case ACTIONS.UPDATE_PRODUCT_QUANTITY:
             return {
                 ...state,
                 products: state.products.map((x) =>
-                    x.id !== action.payload.id ? x : { ...x, quantity: action.payload.quantity }
+                    x.id !== action.payload.id ? x : { ...x, ...action.payload }
                 ),
             };
-
-
 
         // Suppliers
         case ACTIONS.ADD_SUPPLIER:
             if (!action.payload || !action.payload.id) return state;
-
             return {
                 ...state,
                 suppliers: [...state.suppliers, action.payload]
@@ -144,39 +157,44 @@ export const AppProvider = ({ children }) => {
 
     const [state, dispatchRaw] = useReducer(appReducer, initialState);
 
+    // Helper para extrair dados do wrapper da API
+    const getData = (res) => res?.data || (Array.isArray(res) ? res : []);
+
     const loadProducts = async () => {
-
         try {
-
-            const products = await api.get("/products");
-
-            dispatch({
+            const res = await api.get("/products");
+            dispatchRaw({
                 type: ACTIONS.SET_PRODUCTS,
-                payload: products
+                payload: res
             });
-
         } catch (error) {
-
             console.error("Erro ao carregar produtos:", error);
-
         }
+    };
 
+    const loadCategories = async () => {
+        try {
+            const res = await api.get("/categories");
+            dispatchRaw({
+                type: ACTIONS.SET_CATEGORIES,
+                payload: res
+            });
+        } catch (error) {
+            console.error("Erro ao carregar categorias:", error);
+        }
     };
 
     // ─── Fetch Context (Auth) ───────────────────────────────────────────────
     const fetchContext = useCallback(async () => {
-
         try {
-
             const token = localStorage.getItem("token");
+            if (!token) return;
 
             const res = await api.get("/auth/context", {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                headers: { Authorization: `Bearer ${token}` }
             });
 
-            const data = res.data;
+            const data = res.data || res;
 
             dispatchRaw({
                 type: "SET_CONTEXT",
@@ -184,46 +202,17 @@ export const AppProvider = ({ children }) => {
                     user: data.user,
                     organization: data.organization,
                     establishment: data.establishment,
-                    establishments: data.establishments
+                    establishments: Array.isArray(data.establishments) ? data.establishments : []
                 }
             });
-
         } catch (err) {
-
             console.error("Erro ao carregar contexto:", err);
-
         }
-
     }, []);
 
-    // ─── Fetch Side Effects ─────────────────────────────────────────────────
-
-    const switchEstablishment = async (establishmentId) => {
-
-        const res = await api.post("/auth/switch-establishment", {
-            establishmentId
-        });
-        console.log("SWITCH RESPONSE:", res);
-        const { token } = res;
-
-        if (!token) {
-            console.error("ERRO: token não veio", res);
-            throw new Error("Token inválido");
-        }
-
-        localStorage.setItem("token", token);
-
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-        await fetchContext();
-        await fetchAllData();
-
-    };
-
+    // ─── Side Effects ────────────────────────────────────────────────────────
     const fetchSideEffects = useCallback(async () => {
-
         try {
-
             const [movRes, logsRes] = await Promise.all([
                 api.get('/stock-movements'),
                 api.get('/audit-logs')
@@ -232,26 +221,20 @@ export const AppProvider = ({ children }) => {
             dispatchRaw({
                 type: 'UPDATE_LOGS_MOVEMENTS',
                 payload: {
-                    stockMovements: movRes.data,
-                    auditLogs: logsRes.data
+                    stockMovements: getData(movRes),
+                    auditLogs: getData(logsRes)
                 }
             });
-
         } catch (e) {
-
             console.error("Erro ao carregar auditorias contínuas:", e);
-
         }
-
     }, []);
 
     // ─── Fetch All Data ─────────────────────────────────────────────────────
     const fetchAllData = useCallback(async (showLoading = true) => {
-
         if (showLoading) dispatchRaw({ type: 'SET_LOADING', payload: true });
 
         try {
-
             const [cRes, pRes, sRes, poRes, mRes, lRes] = await Promise.all([
                 api.get('/categories'),
                 api.get('/products'),
@@ -264,139 +247,110 @@ export const AppProvider = ({ children }) => {
             dispatchRaw({
                 type: 'SET_ALL_DATA',
                 payload: {
-                    categories: Array.isArray(cRes.data) ? cRes.data : [],
-                    products: pRes.data.data || pRes.data,
-                    suppliers: sRes.data.data || sRes.data,
-                    purchaseOrders: poRes.data.data || poRes.data,
-                    stockMovements: mRes.data.data || mRes.data,
-                    auditLogs: lRes.data.data || lRes.data,
+                    categories: getData(cRes),
+                    products: getData(pRes),
+                    suppliers: getData(sRes),
+                    purchaseOrders: getData(poRes),
+                    stockMovements: getData(mRes),
+                    auditLogs: getData(lRes),
                 },
             });
-
         } catch (err) {
-
             console.error("Dispatch API Error:", err);
-
-            const message =
-                err.response?.data?.message ||
-                err.response?.data?.error ||
-                err.message ||
-                "Erro inesperado";
-
+            const message = err.response?.data?.message || err.message || "Erro inesperado";
             dispatchRaw({ type: 'SET_ERROR', payload: message });
-
         }
-
     }, []);
+
+    const switchEstablishment = async (establishmentId) => {
+        try {
+            const res = await api.post("/auth/switch-establishment", { establishmentId });
+            const token = res.data?.token || res.token;
+
+            if (!token) throw new Error("Token não recebido");
+
+            localStorage.setItem("token", token);
+            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+            await fetchContext();
+            await fetchAllData();
+        } catch (err) {
+            console.error("Erro no switch:", err);
+            throw err;
+        }
+    };
 
     // ─── App Init ───────────────────────────────────────────────────────────
     useEffect(() => {
-
         const init = async () => {
-
             const token = localStorage.getItem("token");
-
-            if (!token) return;
-
-            await fetchContext();   // 🔥 primeiro
-            await fetchAllData();   // 🔥 depois
-
+            if (!token) {
+                dispatchRaw({ type: 'SET_LOADING', payload: false });
+                return;
+            };
+            await fetchContext();
+            await fetchAllData();
         };
-
         init();
-
-    }, []);
-
+    }, [fetchContext, fetchAllData]);
 
     async function reloadContext() {
-
         try {
-
             const res = await api.get("/auth/context");
-
-            const data = res;
-
+            const data = res.data || res;
             dispatchRaw({
                 type: "SET_CONTEXT",
                 payload: {
                     user: data.user,
                     organization: data.organization,
                     establishment: data.establishment,
-                    establishments: data.establishments
+                    establishments: Array.isArray(data.establishments) ? data.establishments : []
                 }
             });
-
         } catch (err) {
             console.error("Erro ao carregar contexto:", err);
-            localStorage.removeItem("token"); // força logout limpo
+            localStorage.removeItem("token");
             window.location.href = "/login";
         }
     }
 
     // ─── Dispatch Async ─────────────────────────────────────────────────────
     const dispatch = useCallback(async (action) => {
-
+        dispatchRaw({ type: ACTIONS.SET_SAVING, payload: true });
         try {
-
             switch (action.type) {
-
                 case ACTIONS.ADD_PRODUCT: {
                     const res = await api.post('/products', action.payload);
-                    dispatchRaw({ type: ACTIONS.ADD_PRODUCT, payload: res.data });
+                    dispatchRaw({ type: ACTIONS.ADD_PRODUCT, payload: res.data || res });
                     fetchSideEffects();
                     break;
                 }
-
-
-
                 case ACTIONS.UPDATE_PRODUCT: {
-
                     await api.put(`/products/${action.payload.id}`, action.payload);
-
                     const updated = await api.get(`/products/${action.payload.id}`);
-
                     dispatchRaw({
                         type: ACTIONS.UPDATE_PRODUCT,
-                        payload: updated.data
+                        payload: updated.data || updated
                     });
-
                     fetchSideEffects();
                     break;
                 }
-
                 case ACTIONS.DELETE_PRODUCT: {
-
                     await api.delete(`/products/${action.payload}`);
-
-                    dispatchRaw({
-                        type: ACTIONS.DELETE_PRODUCT,
-                        payload: action.payload
-                    });
-
+                    dispatchRaw({ type: ACTIONS.DELETE_PRODUCT, payload: action.payload });
                     fetchSideEffects();
                     break;
                 }
-
                 default:
                     dispatchRaw(action);
-
             }
-
         } catch (err) {
-
             console.error("Dispatch API Error:", err);
-
-            const message =
-                err.response?.data?.message ||
-                err.response?.data?.error ||
-                err.message ||
-                "Erro inesperado";
-
-            throw new Error(message);
-
+            throw err;
+        } finally {
+            dispatchRaw({ type: ACTIONS.SET_SAVING, payload: false });
         }
-
-    }, [fetchAllData, fetchSideEffects]);
+    }, [fetchSideEffects]);
 
     // ─── Selectors ──────────────────────────────────────────────────────────
     const getLowStockProducts = useCallback(
@@ -431,24 +385,18 @@ export const AppProvider = ({ children }) => {
                 getSupplierById,
                 getProductById,
                 loadProducts,
+                loadCategories,
                 fetchAllData
-
             }}
         >
+            {state.isSaving && <LoadingOverlay />}
             {children}
         </AppContext.Provider>
     );
 };
 
-// ─── Hook ───────────────────────────────────────────────────────────────────
 export const useApp = () => {
-
     const ctx = useContext(AppContext);
-
-    if (!ctx) {
-        throw new Error('useApp must be used inside <AppProvider>');
-    }
-
+    if (!ctx) throw new Error('useApp must be used inside <AppProvider>');
     return ctx;
-
 };

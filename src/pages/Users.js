@@ -1,8 +1,131 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import { MdAdd, MdEdit } from 'react-icons/md';
 import api from '../services/api';
+
 import Modal from '../components/Modal';
 import Button from '../components/Button';
+import Card from '../components/Card';
+import { Input } from '../components/FormFields';
 import Select from '../components/Select';
+
+/* -------------------------------------------------------------------------- */
+/* Styled UI                                   */
+/* -------------------------------------------------------------------------- */
+
+const PageHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  gap: 16px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+`;
+
+const Title = styled.h1`
+  font-size: ${({ theme }) => theme.fontSizes['3xl']};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`;
+
+const TableWrapper = styled.div`
+  width: 100%;
+  overflow-x: auto;
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+  }
+`;
+
+const Th = styled.th`
+  text-align: left;
+  padding: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textMuted};
+  text-transform: uppercase;
+  background: ${({ theme }) => theme.colors.bgHover};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const Tr = styled.tr`
+  transition: all 0.2s;
+  &:hover { background: ${({ theme }) => theme.colors.bgHover}; }
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 12px;
+    padding: 12px;
+  }
+`;
+
+const Td = styled.td`
+  padding: 16px;
+  font-size: 14px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+    width: 100%;
+
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+
+    &:last-child { 
+        border-bottom: none; 
+        padding-top: 12px;
+    }
+  }
+`;
+
+const RoleBadge = styled.span`
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: ${({ role }) => (role === 'ADMIN' ? '#E0E7FF' : '#F3E8FF')};
+  color: ${({ role }) => (role === 'ADMIN' ? '#4338CA' : '#7E22CE')};
+`;
+
+const FormContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+`;
+
+/* -------------------------------------------------------------------------- */
+/* Component                                   */
+/* -------------------------------------------------------------------------- */
 
 export default function Users() {
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -13,15 +136,13 @@ export default function Users() {
     const loadUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res || []);
+            setUsers(res.data || res || []);
         } catch (err) {
             console.error('Erro ao carregar usuários:', err);
-
             // 🔥 tratamento de permissão
             if (err.response?.status === 403) {
                 alert('Você não tem permissão para visualizar usuários');
             }
-
             // 🔥 fallback para não quebrar UI
             setUsers([]);
         }
@@ -33,17 +154,86 @@ export default function Users() {
 
     return (
         <div>
-            <h1>Usuários</h1>
+            <PageHeader>
+                <div>
+                    <Title>Usuários</Title>
+                    <p style={{ color: "#64748B", fontSize: "14px", marginTop: "4px" }}>
+                        Gerencie os acessos da sua equipe
+                    </p>
+                </div>
 
-            <Button onClick={() => setShowCreateModal(true)}>
-                + Criar Usuário
-            </Button>
+                <Button
+                    onClick={() => setShowCreateModal(true)}
+                    style={{ width: window.innerWidth < 768 ? "100%" : "auto" }}
+                >
+                    <MdAdd size={20} />
+                    Criar Usuário
+                </Button>
+            </PageHeader>
+
+            <Card padding="0">
+                <TableWrapper>
+                    <Table>
+                        <thead>
+                            <tr>
+                                <Th>Nome</Th>
+                                <Th>Email</Th>
+                                <Th>Perfil de Acesso</Th>
+                                <Th>Ações</Th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.length === 0 ? (
+                                <tr>
+                                    <Td colSpan="4" style={{ textAlign: "center", padding: "40px", color: "#64748B" }}>
+                                        Nenhum usuário encontrado.
+                                    </Td>
+                                </tr>
+                            ) : (
+                                users.map(user => (
+                                    <Tr key={user.id}>
+                                        <Td data-label="Nome">
+                                            <strong>{user.nome}</strong>
+                                        </Td>
+
+                                        <Td data-label="Email">
+                                            {user.email}
+                                        </Td>
+
+                                        <Td data-label="Perfil de Acesso">
+                                            <RoleBadge role={user.role}>
+                                                {user.role === 'ADMIN' ? 'Administrador' : 'Gerente'}
+                                            </RoleBadge>
+                                        </Td>
+
+                                        <Td data-label="Ações">
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                fullWidth={window.innerWidth < 768}
+                                                onClick={() => {
+                                                    setSelectedUser(user);
+                                                    setShowEditModal(true);
+                                                }}
+                                            >
+                                                <MdEdit size={16} />
+                                                Editar
+                                            </Button>
+                                        </Td>
+                                    </Tr>
+                                ))
+                            )}
+                        </tbody>
+                    </Table>
+                </TableWrapper>
+            </Card>
 
             {/* MODAL CRIAR */}
             <Modal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
-                title="Criar Usuário"
+                title="Criar Novo Usuário"
+                style={{ maxWidth: "450px" }}
             >
                 <CreateUserForm
                     onClose={() => setShowCreateModal(false)}
@@ -54,8 +244,12 @@ export default function Users() {
             {/* MODAL EDITAR */}
             <Modal
                 isOpen={showEditModal}
-                onClose={() => setShowEditModal(false)}
+                onClose={() => {
+                    setShowEditModal(false);
+                    setSelectedUser(null);
+                }}
                 title="Editar Usuário"
+                style={{ maxWidth: "450px" }}
             >
                 {selectedUser && (
                     <EditUserForm
@@ -65,41 +259,12 @@ export default function Users() {
                     />
                 )}
             </Modal>
-
-            {/* LISTA */}
-            <div style={{ marginTop: 20 }}>
-                {users.map(user => (
-                    <div
-                        key={user.id}
-                        style={{
-                            padding: 12,
-                            borderBottom: '1px solid #eee',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}
-                    >
-                        <span>{user.nome}</span>
-                        <span>{user.email}</span>
-                        <span>{user.role}</span>
-
-                        <Button
-                            onClick={() => {
-                                setSelectedUser(user);
-                                setShowEditModal(true);
-                            }}
-                        >
-                            Editar
-                        </Button>
-                    </div>
-                ))}
-            </div>
         </div>
     );
 }
 
 /* ========================= */
-/* CREATE USER */
+/* CREATE USER FORM */
 /* ========================= */
 
 function CreateUserForm({ onClose, onCreated }) {
@@ -109,6 +274,7 @@ function CreateUserForm({ onClose, onCreated }) {
         senha: '',
         role: 'STOCK_COUNTER'
     });
+    const [saving, setSaving] = useState(false);
 
     const handleChange = (e) => {
         setForm({
@@ -118,157 +284,153 @@ function CreateUserForm({ onClose, onCreated }) {
     };
 
     const handleSubmit = async () => {
+        if (!form.nome || !form.email || !form.senha) {
+            alert("Preencha todos os campos obrigatórios.");
+            return;
+        }
+
+        setSaving(true);
         try {
             await api.post('/users', {
                 ...form,
-                establishmentIds: [
-                    localStorage.getItem('establishmentId')
-                ]
+                establishmentIds: [localStorage.getItem('establishmentId')]
             });
 
-            onCreated(); // atualiza lista
+            onCreated();
             onClose();
         } catch (err) {
             console.error(err);
-            alert('Erro ao criar usuário');
+            alert(err.response?.data?.error || 'Erro ao criar usuário');
+        } finally {
+            setSaving(false);
         }
     };
 
     return (
-        <div style={containerStyle}>
-            <div style={formStyle}>
-                <input
+        <>
+            <FormContainer>
+                <Input
+                    label="Nome Completo"
                     name="nome"
-                    placeholder="Nome do usuário"
+                    placeholder="Ex: João da Silva"
+                    value={form.nome}
                     onChange={handleChange}
-                    style={inputStyle}
                 />
 
-                <input
+                <Input
+                    label="E-mail"
                     name="email"
-                    placeholder="Email"
+                    type="email"
+                    placeholder="usuario@empresa.com"
+                    value={form.email}
                     onChange={handleChange}
-                    style={inputStyle}
                 />
 
-                <input
+                <Input
+                    label="Senha"
                     name="senha"
                     type="password"
-                    placeholder="Senha"
+                    placeholder="Mínimo 6 caracteres"
+                    value={form.senha}
                     onChange={handleChange}
-                    style={inputStyle}
                 />
 
                 <Select
+                    label="Nível de Acesso"
+                    name="role"
                     value={form.role}
-                    onChange={(value) =>
-                        setForm({
-                            ...form,
-                            role: value
-                        })
-                    }
+                    onChange={(val) => setForm({ ...form, role: val })}
                     options={[
-                        { label: 'Administrador', value: 'ADMIN' },
-                        { label: 'Operador de Estoque', value: 'STOCK_COUNTER' }
+                        { value: 'ADMIN', label: 'Administrador' },
+                        { value: 'STOCK_COUNTER', label: 'Gerente' }
                     ]}
                 />
-            </div>
+            </FormContainer>
 
-            <div style={footerStyle}>
-                <Button onClick={onClose}>Cancelar</Button>
-                <Button onClick={handleSubmit}>Criar usuário</Button>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                <Button variant="secondary" onClick={onClose} fullWidth>
+                    Cancelar
+                </Button>
+                <Button variant="primary" onClick={handleSubmit} disabled={saving} fullWidth>
+                    {saving ? "Salvando..." : "Criar Usuário"}
+                </Button>
             </div>
-        </div>
+        </>
     );
 }
 
 /* ========================= */
-/* EDIT USER */
+/* EDIT USER FORM */
 /* ========================= */
 
 function EditUserForm({ user, onClose, onUpdated }) {
     const [form, setForm] = useState({
-        nome: user.nome,
-        email: user.email,
-        role: user.role
+        nome: user.nome || '',
+        email: user.email || '',
+        role: user.role || 'STOCK_COUNTER'
     });
+    const [saving, setSaving] = useState(false);
+
+    const handleChange = (e) => {
+        setForm({
+            ...form,
+            [e.target.name]: e.target.value
+        });
+    };
 
     const handleSubmit = async () => {
+        setSaving(true);
         try {
+            console.log("ENVIANDO PUT USUÁRIO:", form);
             await api.put(`/users/${user.id}`, form);
-
-            onUpdated(); // atualiza lista
+            onUpdated();
             onClose();
         } catch (err) {
             console.error(err);
-            alert('Erro ao atualizar usuário');
+            alert(err.response?.data?.error || 'Erro ao atualizar usuário');
+        } finally {
+            setSaving(false);
         }
     };
 
     return (
-        <div style={containerStyle}>
-            <div style={formStyle}>
-                <input
+        <>
+            <FormContainer>
+                <Input
+                    label="Nome Completo"
+                    name="nome"
                     value={form.nome}
-                    onChange={(e) =>
-                        setForm({ ...form, nome: e.target.value })
-                    }
-                    style={inputStyle}
+                    onChange={handleChange}
                 />
 
-                <input
+                <Input
+                    label="E-mail"
+                    name="email"
+                    type="email"
                     value={form.email}
-                    onChange={(e) =>
-                        setForm({ ...form, email: e.target.value })
-                    }
-                    style={inputStyle}
+                    onChange={handleChange}
                 />
 
                 <Select
+                    label="Nível de Acesso"
+                    name="role"
                     value={form.role}
-                    onChange={(value) =>
-                        setForm({ ...form, role: value })
-                    }
+                    onChange={(val) => setForm({ ...form, role: val })}
                     options={[
-                        { label: 'Administrador', value: 'ADMIN' },
-                        { label: 'Operador de Estoque', value: 'STOCK_COUNTER' }
+                        { value: 'ADMIN', label: 'Administrador' },
+                        { value: 'STOCK_COUNTER', label: 'Gerente' }
                     ]}
                 />
-            </div>
+            </FormContainer>
 
-            <div style={footerStyle}>
-                <Button onClick={onClose}>Cancelar</Button>
-                <Button onClick={handleSubmit}>Salvar</Button>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                <Button variant="secondary" onClick={onClose} fullWidth>
+                    Cancelar
+                </Button>
+                <Button variant="primary" onClick={handleSubmit} disabled={saving} fullWidth>
+                    {saving ? "Salvando..." : "Salvar Alterações"}
+                </Button>
             </div>
-        </div>
+        </>
     );
 }
-
-/* ========================= */
-/* STYLES */
-/* ========================= */
-
-const containerStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 20
-};
-
-const formStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12
-};
-
-const footerStyle = {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 10
-};
-
-const inputStyle = {
-    padding: '10px 12px',
-    borderRadius: 6,
-    border: '1px solid #e2e8f0',
-    fontSize: 14
-};

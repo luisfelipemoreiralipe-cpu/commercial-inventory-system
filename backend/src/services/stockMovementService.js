@@ -61,46 +61,51 @@ const consumeProduct = async ({
 
     // 🟢 INVENTORY
     if (product.type === "INVENTORY") {
+        try {
+            const updatedResult = await tx.product.updateMany({
+                where: {
+                    id: product.id,
+                    establishmentId,
+                    quantity: { gte: quantity }
+                },
+                data: {
+                    quantity: { decrement: quantity }
+                }
+            });
 
-        if (Number(product.quantity) < Number(quantity)) {
-            throw new Error(`Estoque insuficiente para ${product.name}`);
-        }
-
-        const previousQuantity = Number(product.quantity);
-        const newQuantity = previousQuantity - Number(quantity);
-
-        const unitCost = await getProductCost(product.id, tx);
-        const totalCost = unitCost * Number(quantity);
-
-        const updated = await tx.product.updateMany({
-            where: {
-                id: product.id,
-                quantity: { gte: quantity }
-            },
-            data: {
-                quantity: newQuantity
+            if (updatedResult.count === 0) {
+                throw new Error(`Estoque insuficiente para ${product.name}`);
             }
-        });
 
-        if (updated.count === 0) {
-            throw new Error(`Estoque insuficiente para ${product.name}`);
+            // Busca saldo atualizado para o log de movimentação
+            const finalProduct = await tx.product.findUnique({ where: { id: product.id } });
+
+            const previousQuantity = Number(finalProduct.quantity) + Number(quantity);
+            const newQuantity = Number(finalProduct.quantity);
+
+            const unitCost = await getProductCost(product.id, tx);
+            const totalCost = unitCost * Number(quantity);
+
+            await tx.stockMovement.create({
+                data: {
+                    productId: product.id,
+                    productName: product.name,
+                    type: "OUT",
+                    quantity,
+                    previousQuantity,
+                    newQuantity,
+                    reference,
+                    reason,
+                    establishmentId,
+                    unitCost,
+                    totalCost
+                }
+            });
+
+        } catch (err) {
+            console.error("❌ ERRO REAL DETECTADO (INVENTORY):", err);
+            throw err;
         }
-
-        await tx.stockMovement.create({
-            data: {
-                productId: product.id,
-                productName: product.name,
-                type: "OUT",
-                quantity,
-                previousQuantity,
-                newQuantity,
-                reference,
-                reason,
-                establishmentId,
-                unitCost,
-                totalCost
-            }
-        });
 
         return;
     }
@@ -119,18 +124,6 @@ const consumeProduct = async ({
 
     const { convertToBaseUnit } = require('../utils/unitConverter');
 
-    // 🔒 VALIDAÇÃO
-    for (const item of recipe.items) {
-        const totalNeeded = convertToBaseUnit(
-            Number(item.quantity) * Number(quantity),
-            item.product.unit
-        );
-
-        if (Number(item.product.quantity) < totalNeeded) {
-            throw new Error(`Estoque insuficiente para ${item.product.name}`);
-        }
-    }
-
     // 🔥 BAIXA
     for (const item of recipe.items) {
 
@@ -141,32 +134,47 @@ const consumeProduct = async ({
             ingredient.unit
         );
 
-        const previousQuantity = Number(ingredient.quantity);
-        const newQuantity = previousQuantity - totalNeeded;
+        console.log(`[CONVERSÃO_RECIPE] Ingrediente: ${ingredient.name} | Original: ${item.quantity} * ${quantity} | Unidade: ${ingredient.unit} | Result: ${totalNeeded}`);
 
-        const unitCost = await getProductCost(ingredient.id, tx);
-        const totalCost = unitCost * Number(totalNeeded);
+        try {
+            const updatedIngRes = await tx.product.updateMany({
+                where: {
+                    id: ingredient.id,
+                    quantity: { gte: totalNeeded }
+                },
+                data: {
+                    quantity: { decrement: totalNeeded }
+                }
+            });
 
-        await tx.product.update({
-            where: { id: ingredient.id },
-            data: { quantity: newQuantity }
-        });
-
-        await tx.stockMovement.create({
-            data: {
-                productId: ingredient.id,
-                productName: ingredient.name,
-                type: "OUT",
-                quantity: totalNeeded,
-                previousQuantity,
-                newQuantity,
-                reference,
-                reason,
-                establishmentId,
-                unitCost,
-                totalCost
+            if (updatedIngRes.count === 0) {
+                throw new Error(`Estoque insuficiente para ${ingredient.name}`);
             }
-        });
+
+            const finalIngredient = await tx.product.findUnique({ where: { id: ingredient.id } });
+
+            const previousQuantity = Number(finalIngredient.quantity) + Number(totalNeeded);
+            const newQuantity = Number(finalIngredient.quantity);
+
+            await tx.stockMovement.create({
+                data: {
+                    productId: ingredient.id,
+                    productName: ingredient.name,
+                    type: "OUT",
+                    quantity: totalNeeded,
+                    previousQuantity,
+                    newQuantity,
+                    reference,
+                    reason,
+                    establishmentId,
+                    unitCost: await getProductCost(ingredient.id, tx),
+                    totalCost: (await getProductCost(ingredient.id, tx)) * Number(totalNeeded)
+                }
+            });
+        } catch (err) {
+            console.error("❌ ERRO REAL DETECTADO (PRODUCTION):", err);
+            throw err;
+        }
     }
 };
 

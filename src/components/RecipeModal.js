@@ -12,6 +12,8 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
     const [ingredientId, setIngredientId] = useState("");
     const [quantity, setQuantity] = useState("");
     const [cost, setCost] = useState(0);
+    const [useFractional, setUseFractional] = useState('base');
+    const [selectedIngUnit, setSelectedIngUnit] = useState('');
 
     useEffect(() => {
 
@@ -75,6 +77,8 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
 
         try {
 
+            const finalQty = useFractional === 'fractional' ? Number(quantity) / 1000 : Number(quantity);
+
             let currentRecipe = recipe;
 
             if (!currentRecipe) {
@@ -112,7 +116,7 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
             if (existingIngredient) {
 
                 const newQuantity =
-                    Number(existingIngredient.quantity) + Number(quantity);
+                    Number(existingIngredient.quantity) + Number(finalQty);
 
                 await api.put(`/recipes/items/${existingIngredient.id}`, {
                     quantity: newQuantity
@@ -123,13 +127,14 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                 await api.post("/recipes/items", {
                     recipeId: currentRecipe.id,
                     productId: ingredientId,
-                    quantity: Number(quantity)
+                    quantity: Number(finalQty)
                 });
 
             }
 
             setIngredientId("");
             setQuantity("");
+            setUseFractional("base");
 
             await loadCost(currentRecipe.id);
 
@@ -175,7 +180,14 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                 <Select
                     label="Ingrediente"
                     value={ingredientId}
-                    onChange={(e) => setIngredientId(e.target.value)}
+                    onChange={(e) => {
+                        const id = e.target.value;
+                        setIngredientId(id);
+                        setUseFractional('base');
+
+                        const found = products.find(p => p.id === id);
+                        setSelectedIngUnit(found?.unit?.toLowerCase() || "");
+                    }}
                 >
 
                     <option value="">Selecionar produto</option>
@@ -190,13 +202,38 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
 
                 </Select>
 
-                <Input
-                    label="Quantidade"
-                    type="number"
-                    min="0"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                />
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 15 }}>
+
+                    <div style={{ flex: 1 }}>
+                        <Input
+                            label="Quantidade"
+                            type="number"
+                            min="0"
+                            value={quantity}
+                            onChange={(e) => setQuantity(e.target.value)}
+                        />
+                    </div>
+
+                    {(selectedIngUnit === 'litro' || selectedIngUnit === 'kg') && (
+                        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+                            <Button
+                                size="small"
+                                variant={useFractional === 'base' ? 'primary' : 'outline'}
+                                onClick={() => setUseFractional('base')}
+                            >
+                                {selectedIngUnit === 'litro' ? 'L' : 'kg'}
+                            </Button>
+                            <Button
+                                size="small"
+                                variant={useFractional === 'fractional' ? 'primary' : 'outline'}
+                                onClick={() => setUseFractional('fractional')}
+                            >
+                                {selectedIngUnit === 'litro' ? 'ml' : 'g'}
+                            </Button>
+                        </div>
+                    )}
+
+                </div>
 
                 <Button
                     style={{ marginTop: 10 }}

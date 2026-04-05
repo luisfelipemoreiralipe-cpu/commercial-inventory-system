@@ -13,6 +13,9 @@ import { formatCurrency } from "../utils/formatCurrency";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import EmptyState from "../components/EmptyState";
+import Select from "../components/Select";
+import { Input } from "../components/FormFields";
+import toast from "react-hot-toast";
 
 import api from "../services/api";
 
@@ -21,67 +24,109 @@ import api from "../services/api";
 /* -------------------------------------------------------------------------- */
 
 const StatsGrid = styled.div`
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-gap:16px;
-margin-bottom:24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const PageHeader = styled.div`
-display:flex;
-justify-content:space-between;
-align-items:flex-start;
-margin-bottom:24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
 `;
 
 const PageTitle = styled.h1`
-font-size:28px;
-font-weight:700;
+  font-size: ${({ theme }) => theme.fontSizes['3xl']};
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
 const PageSubtitle = styled.p`
-color:#64748B;
-font-size:14px;
-margin-top:4px;
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  margin-top: 4px;
 `;
 
 const SectionTitle = styled.h2`
-font-size:18px;
-font-weight:600;
-margin-bottom:16px;
+  font-size: ${({ theme }) => theme.fontSizes.xl};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+`;
+
+const TableWrapper = styled.div`
+  width: 100%;
+  overflow-x: auto;
 `;
 
 const Table = styled.table`
-width:100%;
-border-collapse:collapse;
+  width: 100%;
+  border-collapse: collapse;
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px;
+    background: transparent;
+  }
 `;
 
 const Th = styled.th`
-text-align:left;
-padding:14px 16px;
-font-size:12px;
-background:#F8FAFC;
-border-bottom:1px solid #E5E7EB;
+  text-align: left;
+  padding: 12px 16px;
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  color: ${({ theme }) => theme.colors.textMuted};
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: ${({ theme }) => theme.colors.bgHover};
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
-padding:14px 16px;
-border-bottom:1px solid #E5E7EB;
+  padding: 14px 16px;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  @media (max-width: 768px) {
+    display: block;
+    padding: 8px 12px;
+  }
 `;
 
 const Tr = styled.tr`
-&:hover{
-background:#F8FAFC;
-}
+  transition: ${({ theme }) => theme.transition};
+  &:hover { background: ${({ theme }) => theme.colors.bgHover}; }
+  @media (max-width: 768px) {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radii.md};
+    overflow: hidden;
+  }
 `;
 
 const StatusBadge = styled.span`
-padding:4px 10px;
-border-radius:999px;
-font-size:12px;
-font-weight:600;
-background:#FEF3C7;
-color:#D97706;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #FEF3C7;
+  color: #D97706;
+  @media (max-width: 768px) {
+    margin-left: 0;
+    margin-top: 4px;
+  }
 `;
 
 /* -------------------------------------------------------------------------- */
@@ -111,9 +156,9 @@ const PurchaseOrders = () => {
                 const res = await api.get("/api/purchase-suggestions");
 
                 console.log("SUGGESTIONS RAW:", res);
-                console.log("SUGGESTIONS PARSED:", res.data?.data);
+                console.log("SUGGESTIONS PARSED:", res.items);
 
-                setSuggestions(res.data?.data || []);
+                setSuggestions(res.items || []);
 
             } catch (err) {
 
@@ -133,7 +178,7 @@ const PurchaseOrders = () => {
 
             const res = await api.get("/api/purchase-orders");
 
-            const orders = res.data?.data || res.data || [];
+            const orders = res || [];
 
             dispatch({
                 type: ACTIONS.SET_PURCHASE_ORDERS,
@@ -198,30 +243,44 @@ const PurchaseOrders = () => {
     /* -------------------------------------------------------------------------- */
 
     const handleCompleteOrder = async () => {
-
         try {
-
+            // 🛡️ Mapeia os itens garantindo a prioridade dos valores editados (como o preço de 55)
             const items = selectedOrder.items.map(item => ({
-                id: item.id,
-                adjustedQuantity:
-                    receivedQty[item.productId] ?? item.adjustedQuantity,
-                unitPrice:
-                    receivedPrice[item.productId] ?? item.unitPrice
+                id: item.id, // ID técnico do vínculo item-ordem
+                productId: item.productId,
+
+                // Se houve alteração manual na quantidade, usa ela. Senão, mantém a original.
+                adjustedQuantity: receivedQty[item.productId] !== undefined
+                    ? Number(receivedQty[item.productId])
+                    : Number(item.adjustedQuantity),
+
+                // 🔥 Se você digitou 55 no modal, o receivedPrice[id] existirá e será convertido aqui
+                unitPrice: receivedPrice[item.productId] !== undefined
+                    ? Number(receivedPrice[item.productId])
+                    : Number(item.unitPrice)
             }));
 
+            console.log("🚀 Enviando para finalização com valores atualizados:", items);
+
+            // Chamada à API para completar a ordem e atualizar o custo e estoque do produto
             await api.put(`/api/purchase-orders/${selectedOrder.id}/complete`, {
                 items
             });
 
-            await fetchOrders();
+            toast.success("Recebimento concluído e estoque atualizado!");
 
+            // 🔄 Atualiza a lista de ordens e fecha o modal
+            await fetchOrders();
             setSelectedOrder(null);
 
-        } catch (err) {
-            console.error(err);
-            alert("Erro ao finalizar pedido");
-        }
+            // ✨ Limpa os estados temporários para não "sujar" o próximo recebimento
+            setReceivedQty({});
+            setReceivedPrice({});
 
+        } catch (err) {
+            console.error("❌ Erro ao finalizar ordem:", err);
+            toast.error(err.response?.data?.error || "Erro ao finalizar pedido");
+        }
     };
 
     const handleDownloadPdf = async () => {
@@ -298,24 +357,18 @@ Segue o pedido em PDF.
 
     return (
         <>
-
             <PageHeader>
-
                 <div>
-
                     <PageTitle>Ordens de Compra</PageTitle>
 
                     <PageSubtitle>
                         Gerencie e acompanhe suas ordens de reposição
                     </PageSubtitle>
-
                 </div>
-
-
             </PageHeader>
             <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
 
-                <button
+                <Button
                     onClick={() => setTab("PENDING")}
                     style={{
                         padding: "8px 16px",
@@ -328,9 +381,9 @@ Segue o pedido em PDF.
                     }}
                 >
                     Pendentes
-                </button>
+                </Button>
 
-                <button
+                <Button
                     onClick={() => setTab("COMPLETED")}
                     style={{
                         padding: "8px 16px",
@@ -343,7 +396,7 @@ Segue o pedido em PDF.
                     }}
                 >
                     Finalizadas
-                </button>
+                </Button>
 
             </div>
             {filteredOrders.length > 0 && (
@@ -353,104 +406,104 @@ Segue o pedido em PDF.
                     <SectionTitle>Ordens Pendentes</SectionTitle>
 
                     <Card padding="0">
+                        <TableWrapper>
+                            <Table>
 
-                        <Table>
+                                <thead>
 
-                            <thead>
+                                    <tr>
 
-                                <tr>
+                                        <Th>Pedido</Th>
+                                        <Th>Fornecedor</Th>
+                                        <Th>Itens</Th>
+                                        <Th>Total</Th>
+                                        <Th>Status</Th>
+                                        <Th>Ações</Th>
 
-                                    <Th>Pedido</Th>
-                                    <Th>Fornecedor</Th>
-                                    <Th>Itens</Th>
-                                    <Th>Total</Th>
-                                    <Th>Status</Th>
-                                    <Th>Ações</Th>
+                                    </tr>
 
-                                </tr>
+                                </thead>
 
-                            </thead>
+                                <tbody>
 
-                            <tbody>
+                                    {filteredOrders.map(order => {
 
-                                {filteredOrders.map(order => {
+                                        const total = order.items.reduce(
+                                            (s, i) => s + i.adjustedQuantity * i.unitPrice,
+                                            0
+                                        );
 
-                                    const total = order.items.reduce(
-                                        (s, i) => s + i.adjustedQuantity * i.unitPrice,
-                                        0
-                                    );
+                                        return (
 
-                                    return (
+                                            <Tr key={order.id}>
 
-                                        <Tr key={order.id}>
+                                                <Td>#{order.id.slice(-4)}</Td>
 
-                                            <Td>#{order.id.slice(-4)}</Td>
+                                                <Td>
+                                                    {(() => {
+                                                        const supplierId = order.items?.[0]?.supplierId;
 
-                                            <Td>
-                                                {(() => {
-                                                    const supplierId = order.items?.[0]?.supplierId;
+                                                        const supplier = state.suppliers.find(
+                                                            s => s.id === supplierId
+                                                        );
 
-                                                    const supplier = state.suppliers.find(
-                                                        s => s.id === supplierId
-                                                    );
+                                                        return supplier?.name || "Fornecedor";
+                                                    })()}
+                                                </Td>
 
-                                                    return supplier?.name || "Fornecedor";
-                                                })()}
-                                            </Td>
+                                                <Td>{order.items.length}</Td>
 
-                                            <Td>{order.items.length}</Td>
+                                                <Td>{formatCurrency(total)}</Td>
 
-                                            <Td>{formatCurrency(total)}</Td>
+                                                <Td>
 
-                                            <Td>
+                                                    <StatusBadge>
+                                                        Pendente
+                                                    </StatusBadge>
 
-                                                <StatusBadge>
-                                                    Pendente
-                                                </StatusBadge>
+                                                </Td>
 
-                                            </Td>
+                                                <Td>
 
-                                            <Td>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="success"
+                                                        onClick={() => setSelectedOrder(order)}
+                                                    >
+                                                        <MdCheckCircle />
+                                                    </Button>
 
-                                                <Button
-                                                    size="sm"
-                                                    variant="success"
-                                                    onClick={() => setSelectedOrder(order)}
-                                                >
-                                                    <MdCheckCircle />
-                                                </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="danger"
+                                                        onClick={() =>
+                                                            dispatch({
+                                                                type: ACTIONS.DELETE_PURCHASE_ORDER,
+                                                                payload: order.id
+                                                            })
+                                                        }
+                                                    >
+                                                        <MdDelete />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleSendWhatsApp(order)}
+                                                    >
+                                                        📲
+                                                    </Button>
 
-                                                <Button
-                                                    size="sm"
-                                                    variant="danger"
-                                                    onClick={() =>
-                                                        dispatch({
-                                                            type: ACTIONS.DELETE_PURCHASE_ORDER,
-                                                            payload: order.id
-                                                        })
-                                                    }
-                                                >
-                                                    <MdDelete />
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleSendWhatsApp(order)}
-                                                >
-                                                    📲
-                                                </Button>
+                                                </Td>
 
-                                            </Td>
+                                            </Tr>
 
-                                        </Tr>
+                                        )
 
-                                    )
+                                    })}
 
-                                })}
+                                </tbody>
 
-                            </tbody>
-
-                        </Table>
-
+                            </Table>
+                        </TableWrapper>
                     </Card>
 
                 </>
@@ -471,10 +524,11 @@ Segue o pedido em PDF.
                 isOpen={!!selectedOrder}
                 onClose={() => setSelectedOrder(null)}
                 title={`Pedido #${selectedOrder?.id.slice(-4)}`}
+                style={{ maxWidth: "95%", borderRadius: 0 }}
             >
                 {selectedOrder && (
                     <>
-                        {/* 🔍 LOGS PARA DEBUG */}
+                        {/* 🔍 LOGS PARA DEBUG PRESERVADOS */}
                         {console.log("ORDER:", selectedOrder)}
                         {console.log("SUPPLIER ID:", selectedOrder?.supplierId)}
                         {console.log("SUPPLIERS:", state.suppliers)}
@@ -482,14 +536,10 @@ Segue o pedido em PDF.
                         {/* 🔍 BUSCA DO FORNECEDOR */}
                         {(() => {
                             const supplierId = selectedOrder.items[0]?.supplierId;
-
-                            const supplier = state.suppliers.find(
-                                s => s.id === supplierId
-                            );
+                            const supplier = state.suppliers.find(s => s.id === supplierId);
 
                             return (
                                 <div>
-
                                     {/* 🔥 HEADER COM FORNECEDOR + PDF */}
                                     <div
                                         style={{
@@ -497,11 +547,13 @@ Segue o pedido em PDF.
                                             justifyContent: "space-between",
                                             alignItems: "center",
                                             marginBottom: 20,
+                                            flexWrap: "wrap",
+                                            gap: "10px"
                                         }}
                                     >
-                                        <div style={{ color: "#64748B" }}>
+                                        <div style={{ color: "#64748B", fontSize: "14px" }}>
                                             Fornecedor:{" "}
-                                            <strong>
+                                            <strong style={{ color: "#111827" }}>
                                                 {supplier?.name || "Fornecedor não encontrado"}
                                             </strong>
                                         </div>
@@ -512,25 +564,21 @@ Segue o pedido em PDF.
                                                 background: "#111827",
                                                 color: "#fff",
                                                 border: "none",
-                                                padding: "8px 12px",
+                                                padding: "10px 16px",
                                                 borderRadius: 6,
                                                 cursor: "pointer",
                                                 fontSize: 13,
-                                                fontWeight: 500,
+                                                fontWeight: 600,
                                             }}
                                         >
                                             Exportar PDF
                                         </button>
                                     </div>
 
-                                    {/* 🔥 LISTA DE ITENS */}
+                                    {/* 🔥 LISTA DE ITENS AJUSTADA COM LABELS */}
                                     {selectedOrder.items.map((item) => {
-                                        const qty =
-                                            receivedQty[item.productId] ?? item.adjustedQuantity;
-
-                                        const price =
-                                            receivedPrice[item.productId] ?? item.unitPrice;
-
+                                        const qty = receivedQty[item.productId] ?? item.adjustedQuantity;
+                                        const price = receivedPrice[item.productId] ?? item.unitPrice;
                                         const total = qty * price;
 
                                         return (
@@ -538,65 +586,84 @@ Segue o pedido em PDF.
                                                 key={item.productId}
                                                 style={{
                                                     marginBottom: 16,
-                                                    padding: 12,
+                                                    padding: "16px 12px",
                                                     border: "1px solid #e5e7eb",
-                                                    borderRadius: 8,
-                                                    background: "#fff",
+                                                    borderRadius: 12,
+                                                    background: "#F9FAFB",
                                                 }}
                                             >
-                                                <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                                                <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15, color: "#111827" }}>
                                                     {item.productName}
                                                 </div>
 
-                                                <div style={{ display: "flex", gap: 10 }}>
-                                                    <input
-                                                        type="number"
-                                                        value={qty}
-                                                        min="0"
-                                                        onChange={(e) =>
-                                                            setReceivedQty((prev) => ({
-                                                                ...prev,
-                                                                [item.productId]: Number(e.target.value),
-                                                            }))
-                                                        }
-                                                        style={{
-                                                            flex: 1,
-                                                            padding: 10,
-                                                            borderRadius: 6,
-                                                            border: "1px solid #e5e7eb",
-                                                        }}
-                                                        placeholder="Quantidade"
-                                                    />
+                                                {/* Grid de Inputs Responsivo */}
+                                                <div style={{
+                                                    display: "flex",
+                                                    gap: 12,
+                                                    flexDirection: window.innerWidth < 640 ? "column" : "row"
+                                                }}>
 
-                                                    <input
-                                                        type="number"
-                                                        value={price}
-                                                        min="0"
-                                                        step="0.01"
-                                                        onChange={(e) =>
-                                                            setReceivedPrice((prev) => ({
-                                                                ...prev,
-                                                                [item.productId]: Number(e.target.value),
-                                                            }))
-                                                        }
-                                                        style={{
-                                                            flex: 1,
-                                                            padding: 10,
-                                                            borderRadius: 6,
-                                                            border: "1px solid #e5e7eb",
-                                                        }}
-                                                        placeholder="Preço"
-                                                    />
+                                                    {/* Campo de Quantidade */}
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6, textTransform: "uppercase" }}>
+                                                            Qtd. Recebida
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            inputMode="decimal"
+                                                            // 🛡️ Mantemos como string para permitir edição fluida
+                                                            value={receivedQty[item.productId] ?? item.adjustedQuantity}
+                                                            min="0"
+                                                            onChange={(e) =>
+                                                                setReceivedQty((prev) => ({
+                                                                    ...prev,
+                                                                    [item.productId]: e.target.value, // ⚡ Removido o Number() aqui
+                                                                }))
+                                                            }
+                                                            style={{
+                                                                width: "100%",
+                                                                padding: "12px",
+                                                                borderRadius: 8,
+                                                                border: "1px solid #D1D5DB",
+                                                                background: "#fff",
+                                                                fontSize: "16px"
+                                                            }}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+
+                                                    {/* Campo de Preço */}
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6, textTransform: "uppercase" }}>
+                                                            Preço Unitário
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            inputMode="decimal"
+                                                            value={price}
+                                                            min="0"
+                                                            step="0.01"
+                                                            onChange={(e) =>
+                                                                setReceivedPrice((prev) => ({
+                                                                    ...prev,
+                                                                    [item.productId]: Number(e.target.value),
+                                                                }))
+                                                            }
+                                                            style={{
+                                                                width: "100%",
+                                                                padding: "12px",
+                                                                borderRadius: 8,
+                                                                border: "1px solid #D1D5DB",
+                                                                background: "#fff",
+                                                                fontSize: "16px"
+                                                            }}
+                                                            placeholder="0.00"
+                                                        />
+                                                    </div>
                                                 </div>
 
-                                                <div
-                                                    style={{
-                                                        marginTop: 6,
-                                                        fontSize: 13,
-                                                        color: "#6b7280",
-                                                    }}
-                                                >
-                                                    Total: <strong>R$ {total.toFixed(2)}</strong>
+                                                <div style={{ marginTop: 10, fontSize: 13, color: "#4B5563", textAlign: "right", fontWeight: 500 }}>
+                                                    Subtotal: <strong style={{ color: "#111827" }}>{formatCurrency(total)}</strong>
                                                 </div>
                                             </div>
                                         );
@@ -605,30 +672,25 @@ Segue o pedido em PDF.
                                     {/* 🔥 TOTAL GERAL */}
                                     <div
                                         style={{
-                                            marginTop: 10,
-                                            paddingTop: 10,
-                                            borderTop: "1px solid #e5e7eb",
-                                            fontWeight: 600,
+                                            marginTop: 20,
+                                            padding: "16px 0",
+                                            borderTop: "2px solid #e5e7eb",
+                                            fontWeight: 700,
                                             display: "flex",
                                             justifyContent: "space-between",
+                                            fontSize: "18px",
+                                            color: "#111827"
                                         }}
                                     >
                                         <span>Total do Pedido</span>
                                         <span>
-                                            R${" "}
-                                            {selectedOrder.items
-                                                .reduce((acc, item) => {
-                                                    const qty =
-                                                        receivedQty[item.productId] ??
-                                                        item.adjustedQuantity;
-
-                                                    const price =
-                                                        receivedPrice[item.productId] ??
-                                                        item.unitPrice;
-
-                                                    return acc + qty * price;
+                                            {formatCurrency(
+                                                selectedOrder.items.reduce((acc, item) => {
+                                                    const qty = receivedQty[item.productId] ?? item.adjustedQuantity;
+                                                    const price = receivedPrice[item.productId] ?? item.unitPrice;
+                                                    return acc + (qty * price);
                                                 }, 0)
-                                                .toFixed(2)}
+                                            )}
                                         </span>
                                     </div>
 
@@ -637,14 +699,17 @@ Segue o pedido em PDF.
                                         onClick={handleCompleteOrder}
                                         style={{
                                             width: "100%",
-                                            marginTop: 16,
-                                            padding: "12px",
+                                            marginTop: 10,
+                                            padding: "14px",
                                             background: "#111827",
                                             color: "#fff",
                                             border: "none",
-                                            borderRadius: 8,
-                                            fontWeight: 600,
+                                            borderRadius: 10,
+                                            fontWeight: 700,
+                                            fontSize: "16px",
                                             cursor: "pointer",
+                                            minHeight: 48,
+                                            transition: "background 0.2s"
                                         }}
                                     >
                                         Concluir Recebimento

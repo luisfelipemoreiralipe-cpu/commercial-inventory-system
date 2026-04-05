@@ -196,7 +196,7 @@ const Suppliers = () => {
 
                 dispatch({
                     type: ACTIONS.UPDATE_SUPPLIER,
-                    payload: res.data
+                    payload: res
                 });
 
             } else {
@@ -205,7 +205,7 @@ const Suppliers = () => {
 
                 dispatch({
                     type: ACTIONS.ADD_SUPPLIER,
-                    payload: res.data
+                    payload: res
                 });
 
             }

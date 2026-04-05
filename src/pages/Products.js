@@ -11,7 +11,8 @@ import toast from "react-hot-toast";
 import EmptyState from '../components/EmptyState';
 import api from "../services/api";
 import RecipeModal from "../components/RecipeModal";
-import { Input, Select } from '../components/FormFields';
+import { Input } from '../components/FormFields';
+import Select from '../components/Select';
 import { useLocation } from "react-router-dom";
 import { MdMenuBook } from "react-icons/md";
 import {
@@ -234,16 +235,27 @@ const Products = () => {
     // 🔥 FUNÇÃO FORA (CORRETO)
     const loadProducts = async () => {
         try {
+            console.log("📡 [FRONT-DEBUG] Iniciando busca de produtos...");
 
             const res = await api.get("/products");
 
+            // 🚨 O LOG MAIS IMPORTANTE:
+            console.log("📦 [FRONT-DEBUG] Dados recebidos da API:", {
+                totalRecebido: res.data?.length || res.length,
+                dados: res.data || res
+            });
+
+            if (!res || (Array.isArray(res) && res.length === 0)) {
+                console.warn("⚠️ [FRONT-DEBUG] Atenção: A API retornou uma lista VAZIA!");
+            }
+
             dispatch({
                 type: ACTIONS.SET_PRODUCTS,
-                payload: res.data
+                payload: res
             });
 
         } catch (error) {
-            console.error("Erro ao carregar produtos:", error);
+            console.error("❌ [FRONT-DEBUG] Erro crítico na requisição:", error);
         }
     };
 
@@ -255,7 +267,7 @@ const Products = () => {
 
             dispatch({
                 type: ACTIONS.SET_CATEGORIES,
-                payload: res.data.data
+                payload: res
             });
 
         } catch (error) {
@@ -813,23 +825,22 @@ const Products = () => {
                         <option value="PRODUCTION">Produção</option>
                     </select>
 
-                    <Select label="Categoria *" {...field('categoryId')}>
-                        <option value="">-- Selecione uma categoria --</option>
+                    <Select 
+                        label="Categoria *" 
+                        value={form.categoryId}
+                        onChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
+                        options={[
+                            { value: "", label: "-- Selecione uma categoria --" },
+                            ...categories.map((c) => ({ value: c.id, label: c.name }))
+                        ]}
+                    />
 
-                        {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
-                    </Select>
-
-                    <Select label="Unidade de Compra" {...field('unit')}>
-                        {UNITS.map((u) => (
-                            <option key={u} value={u}>
-                                {u}
-                            </option>
-                        ))}
-                    </Select>
+                    <Select 
+                        label="Unidade de Compra" 
+                        value={form.unit}
+                        onChange={(val) => setForm((f) => ({ ...f, unit: val }))}
+                        options={UNITS.map((u) => ({ value: u, label: u }))}
+                    />
 
                     {form.type !== 'PRODUCTION' && (
                         <>
@@ -850,15 +861,15 @@ const Products = () => {
                             />
 
                             <FormFull>
-                                <Select label="Fornecedor Vinculado" {...field('supplierId')}>
-                                    <option value="">-- Selecione um fornecedor --</option>
-
-                                    {state.suppliers.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.name}
-                                        </option>
-                                    ))}
-                                </Select>
+                                <Select 
+                                    label="Fornecedor Vinculado" 
+                                    value={form.supplierId}
+                                    onChange={(val) => setForm((f) => ({ ...f, supplierId: val }))}
+                                    options={[
+                                        { value: "", label: "-- Selecione um fornecedor --" },
+                                        ...state.suppliers.map((s) => ({ value: s.id, label: s.name }))
+                                    ]}
+                                />
                             </FormFull>
                         </>
                     )}
@@ -960,20 +971,12 @@ const Products = () => {
                 <Select
                     label="Adicionar fornecedor"
                     value={selectedSupplier}
-                    onChange={(e) => setSelectedSupplier(e.target.value)}
-                >
-
-                    <option value="">Selecionar fornecedor</option>
-
-                    {availableSuppliers.map((s) => (
-
-                        <option key={s.id} value={s.id}>
-                            {s.name}
-                        </option>
-
-                    ))}
-
-                </Select>
+                    onChange={(val) => setSelectedSupplier(val)}
+                    options={[
+                        { value: "", label: "Selecionar fornecedor" },
+                        ...availableSuppliers.map((s) => ({ value: s.id, label: s.name }))
+                    ]}
+                />
 
                 <Input
                     label="Preço do fornecedor"

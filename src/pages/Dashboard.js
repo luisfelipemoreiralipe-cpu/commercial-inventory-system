@@ -4,6 +4,7 @@ import { MdCalendarToday, } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
+
 import {
   BarChart,
   Bar,
@@ -29,6 +30,8 @@ const PageTitle = styled.h1`
   color: ${({ theme }) => theme.colors.textPrimary};
   margin-bottom: 4px;
 `;
+
+
 
 const PageSubtitle = styled.p`
   color: ${({ theme }) => theme.colors.textMuted};
