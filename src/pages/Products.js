@@ -11,8 +11,7 @@ import toast from "react-hot-toast";
 import EmptyState from '../components/EmptyState';
 import api from "../services/api";
 import RecipeModal from "../components/RecipeModal";
-import { Input } from '../components/FormFields';
-import Select from '../components/Select';
+import { Input, Select } from '../components/FormFields';
 import { useLocation } from "react-router-dom";
 import { MdMenuBook } from "react-icons/md";
 import {
@@ -98,25 +97,11 @@ const SearchInput = styled.input`
   &::placeholder { color: ${({ theme }) => theme.colors.textMuted}; }
 `;
 
-const FilterSelect = styled.select`
-  background: ${({ theme }) => theme.colors.bgCard};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  padding: 10px 12px;
-  outline: none;
-  cursor: pointer;
-  transition: ${({ theme }) => theme.transition};
-  &:hover {
-    border-color: ${({ theme }) => theme.colors.textMuted};
-  }
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-  }
-  option {
-    background: ${({ theme }) => theme.colors.bgCard};
-  }
+const FilterGroup = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 `;
 const Table = styled.table`
   width: 100%;
@@ -648,15 +633,22 @@ const Products = () => {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </SearchBox>
-                <FilterSelect value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                <Select 
+                    value={filterCategory} 
+                    onChange={setFilterCategory}
+                >
                     <option value="">Todas as categorias</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </FilterSelect>
-                <FilterSelect value={filterStock} onChange={(e) => setFilterStock(e.target.value)}>
+                </Select>
+
+                <Select 
+                    value={filterStock} 
+                    onChange={setFilterStock}
+                >
                     <option value="all">Todos os estoques</option>
                     <option value="low">Abaixo do mínimo</option>
                     <option value="ok">Estoque adequado</option>
-                </FilterSelect>
+                </Select>
             </SearchRow>
 
             {/* Table */}
@@ -815,15 +807,16 @@ const Products = () => {
 
 
                     {/* TIPO DE PRODUTO */}
-                    <select
+                    <Select
+                        label="Tipo de Produto *"
                         value={form.type}
-                        onChange={(e) =>
-                            setForm((f) => ({ ...f, type: e.target.value }))
+                        onChange={(val) =>
+                            setForm((f) => ({ ...f, type: val }))
                         }
                     >
                         <option value="INVENTORY">Estoque</option>
                         <option value="PRODUCTION">Produção</option>
-                    </select>
+                    </Select>
 
                     <Select 
                         label="Categoria *" 

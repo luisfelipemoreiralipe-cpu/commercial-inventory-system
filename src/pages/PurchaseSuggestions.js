@@ -2,13 +2,10 @@ import React, { useState, useMemo, useEffect } from "react";
 import { MdRefresh, MdWarning } from "react-icons/md";
 import Card from "../components/Card";
 import Button from "../components/Button";
-import { Input } from "../components/FormFields";
-
-
+import { Input, Select } from "../components/FormFields";
 import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
 import styled, { useTheme } from "styled-components";
-import Select from "../components/Select";
 import toast from "react-hot-toast";
 
 
@@ -837,7 +834,7 @@ const PurchaseSuggestions = () => {
                                                         let optionList = s.suppliers?.map((sup) => ({
                                                             value: sup.supplierId,
                                                             label: sup.supplierId === s.bestSupplierId
-                                                                ? `⭐ ${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
+                                                                ? `💎 ${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
                                                                 : `${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
                                                         })) || [];
 

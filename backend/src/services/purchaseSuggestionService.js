@@ -51,6 +51,9 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             establishmentId
         );
 
+        // Prevenção de Duplicidade
+        if (hasOpenOrder) continue;
+
         const consumption = await calculateAverageConsumption(
             product.id,
             establishmentId,
@@ -82,13 +85,47 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
 
         if (suggestedQuantity <= 0) continue;
 
-        const suppliers = product.productSuppliers.map(ps => ({
-            supplierId: ps.supplier.id,
-            supplierName: ps.supplier.name,
-            price: Number(ps.price)
-        }));
+        const suppliers = [];
 
-        suppliers.sort((a, b) => a.price - b.price);
+        for (const ps of product.productSuppliers) {
+            const sid = ps.supplier.id;
+
+            // Histórico (Últimas 3 compras deste fornecedor/produto)
+            const history = await prisma.supplierPriceHistory.findMany({
+                where: { productId: product.id, supplierId: sid },
+                orderBy: { createdAt: 'desc' },
+                take: 3
+            });
+
+            let nominalPrice = Number(ps.price);
+            if (history.length > 0) {
+                nominalPrice = Math.min(...history.map(h => Number(h.price)));
+            }
+
+            // Fator Bônus
+            const bonusCount = await prisma.stockMovement.count({
+                where: {
+                    productId: product.id,
+                    supplierId: sid,
+                    type: 'IN',
+                    reason: 'BONUS'
+                }
+            });
+
+            // Fornecedor ganha "vantagem competitiva" de 5% de desconto no score para cada Bônus recebido, capado em 20%.
+            const bonusAdvantage = Math.min(bonusCount * 0.05, 0.20);
+            const score = nominalPrice * (1 - bonusAdvantage);
+
+            suppliers.push({
+                supplierId: sid,
+                supplierName: ps.supplier.name,
+                price: nominalPrice, // Preço real a ser exibido e usado (ex: R$55)
+                score,
+                bonusCount
+            });
+        }
+
+        suppliers.sort((a, b) => a.score - b.score);
 
         let bestSupplierId = null;
         let bestSupplierName = null;
@@ -97,15 +134,14 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
         let saving = null;
 
         if (suppliers.length > 0) {
-
-            const cheapest = suppliers[0];
-            const mostExpensive = suppliers[suppliers.length - 1];
+            const cheapest = suppliers[0]; // Esse agora é o vencedor pelo Score (Custo-benefício)
+            const mostExpensive = [...suppliers].sort((a,b) => b.price - a.price)[0];
 
             bestSupplierId = cheapest.supplierId;
             bestSupplierName = cheapest.supplierName;
             bestPrice = cheapest.price;
-
-            if (suppliers.length > 1) {
+            
+            if (suppliers.length > 1 && mostExpensive.price > cheapest.price) {
                 saving = mostExpensive.price - cheapest.price;
             }
         }

@@ -11,6 +11,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
+import { Select } from '../components/FormFields';
 
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
@@ -47,18 +48,7 @@ const FilterGroup = styled.label`
   font-weight: ${({ theme }) => theme.fontWeights.medium};
 `;
 
-const FilterSelect = styled.select`
-  background: ${({ theme }) => theme.colors.bgInput};
-  border: 1.5px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  padding: 7px 10px;
-  outline: none;
-  cursor: pointer;
-  transition: ${({ theme }) => theme.transition};
-  &:focus { border-color: ${({ theme }) => theme.colors.borderFocus}; }
-`;
+
 
 const DateInput = styled.input`
   background: ${({ theme }) => theme.colors.bgInput};
@@ -280,22 +270,21 @@ const StockHistory = () => {
 
                 <FilterGroup>
                     Produto:
-                    <FilterSelect value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)}>
+                    <Select value={filterProduct} onChange={setFilterProduct}>
                         <option value="">Todos</option>
                         {movementProducts.map((p) => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
-                    </FilterSelect>
+                    </Select>
                 </FilterGroup>
 
                 <FilterGroup>
                     Tipo:
-                    <FilterSelect value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                    <Select value={filterType} onChange={setFilterType}>
                         <option value="">Todos</option>
                         <option value="entry">Entrada</option>
                         <option value="exit">Saída</option>
-
-                    </FilterSelect>
+                    </Select>
                 </FilterGroup>
 
                 <FilterGroup>

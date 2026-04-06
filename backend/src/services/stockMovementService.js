@@ -178,13 +178,13 @@ const consumeProduct = async ({
     }
 };
 
-// 🔥 ENTRADA DE ESTOQUE
 const addStock = async ({
     productId,
     quantity,
     establishmentId,
     reason,
-    reference
+    reference,
+    supplierId
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -209,7 +209,13 @@ const addStock = async ({
     });
 
     let movementType = "PURCHASE";
-    if (reason === "BONUS") movementType = "BONUS";
+    if (reason === "BONUS") movementType = "IN";
+
+    let finalSupplierId = supplierId;
+    if (!finalSupplierId) {
+        const ps = await tx.productSupplier.findFirst({ where: { productId } });
+        if (ps) finalSupplierId = ps.supplierId;
+    }
 
     await tx.stockMovement.create({
         data: {
@@ -223,7 +229,8 @@ const addStock = async ({
             reason,
             establishmentId,
             unitCost,
-            totalCost
+            totalCost,
+            supplierId: finalSupplierId
         }
     });
 };
@@ -232,7 +239,8 @@ const addStock = async ({
 const addBonus = async ({
     productId,
     quantity,
-    establishmentId
+    establishmentId,
+    supplierId
 }) => {
 
     if (!productId) throw new Error("Produto é obrigatório");
@@ -244,7 +252,8 @@ const addBonus = async ({
             quantity,
             establishmentId,
             reason: "BONUS",
-            reference: "BONIFICAÇÃO"
+            reference: "BONIFICAÇÃO",
+            supplierId
         }, tx);
     });
 };

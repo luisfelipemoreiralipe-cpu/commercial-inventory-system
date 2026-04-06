@@ -1,5 +1,7 @@
 const productService = require('../services/productService');
+const reportsService = require('../services/reportsService'); 
 const asyncHandler = require('../utils/asyncHandler');
+const prisma = require('../utils/prisma');
 
 // ─── PURCHASE SAVINGS REPORT ───────────────────────────────────────────
 
@@ -85,8 +87,6 @@ const getLossByProduct = asyncHandler(async (req, res) => {
 
 });
 
-const prisma = require('../utils/prisma');
-
 const getLoss = asyncHandler(async (req, res) => {
 
     const establishmentId = req.user.establishmentId;
@@ -142,9 +142,25 @@ const getLoss = asyncHandler(async (req, res) => {
 
 });
 
+const getMonthlyBonusTrend = asyncHandler(async (req, res) => {
+    const { dateFrom, dateTo } = req.query;
+    const establishmentId = req.user.establishmentId;
+
+    const data = await reportsService.getMonthlyBonusTrend(
+        establishmentId,
+        dateFrom,
+        dateTo
+    );
+
+    res.json({
+        success: true,
+        data
+    });
+});
+
 module.exports = {
     getPurchaseSavings,
     getLoss,
-    getLossByProduct
-
+    getLossByProduct,
+    getMonthlyBonusTrend
 };

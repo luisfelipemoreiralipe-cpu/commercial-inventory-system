@@ -190,6 +190,28 @@ const Dashboard = () => {
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+
+  React.useEffect(() => {
+    const fetchSuggestions = async () => {
+      try {
+        const { default: api } = await import('../services/api');
+        const res = await api.get('/api/purchase-suggestions?days=7');
+        setSuggestions(res.items || []);
+      } catch (err) {
+        console.error("Erro ao buscar suggestions no dashboard:", err);
+      }
+    };
+    fetchSuggestions();
+  }, []);
+
+  const totalEstimatedPurchase = useMemo(() => {
+    return suggestions.reduce((sum, s) => {
+      const price = Number(s.bestPrice || 0);
+      const qty = Number(s.suggestedQuantity || 0);
+      return sum + (price * qty);
+    }, 0);
+  }, [suggestions]);
 
   const filteredProducts = useMemo(() => {
     return state.products || [];
@@ -587,7 +609,7 @@ const Dashboard = () => {
           <StatInfo>
             <StatLabel>Abaixo do Mínimo</StatLabel>
             <StatValue>{lowStock.length}</StatValue>
-            <StatSub>requerem reposição</StatSub>
+            <StatSub>Reposição: {formatCurrency(totalEstimatedPurchase)}</StatSub>
           </StatInfo>
         </StatCard>
 
@@ -685,12 +707,16 @@ const Dashboard = () => {
                   <Th>Qtd. Atual</Th>
                   <Th>Estoque Mínimo</Th>
                   <Th>Progresso</Th>
-                  <Th>Valor Total</Th>
+                  <Th>Estimativa Reposição</Th>
                 </tr>
               </thead>
               <tbody>
                 {lowStock.map((p) => {
                   const pct = p.minQuantity > 0 ? (p.quantity / p.minQuantity) * 100 : 0;
+                  const suggestion = suggestions.find(s => s.productId === p.id);
+                  const price = suggestion ? Number(suggestion.bestPrice || p.currentCost || p.unitPrice) : Number(p.currentCost || p.unitPrice);
+                  const needs = Math.max(0, Number(p.minQuantity) - Number(p.quantity));
+                  
                   return (
                     <Tr key={p.id}>
                       <Td style={{ fontWeight: 600 }}>{p.name}</Td>
@@ -704,9 +730,7 @@ const Dashboard = () => {
                         <StockBar><StockFill pct={pct} /></StockBar>
                       </Td>
                       <Td>
-                        {formatCurrency(
-                          Number(p.currentCost || 0) * Number(p.quantity || 0)
-                        )}
+                        {formatCurrency(price * Math.ceil(needs))}
                       </Td>
                     </Tr>
                   );

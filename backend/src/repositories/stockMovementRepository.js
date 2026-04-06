@@ -6,7 +6,7 @@ const prisma = require('../utils/prisma');
  * @param {string} [filters.dateFrom]  ISO string
  * @param {string} [filters.dateTo]    ISO string
  */
-const findAll = ({ productId, dateFrom, dateTo } = {}) => {
+const findAll = ({ productId, dateFrom, dateTo, type, reason, supplierId } = {}) => {
     const where = {};
 
     if (productId) {
@@ -14,6 +14,18 @@ const findAll = ({ productId, dateFrom, dateTo } = {}) => {
             id: productId
         };
     }
+
+    if (type === 'IN' && reason === 'BONUS') {
+        where.OR = [
+            { type: 'IN', reason: 'BONUS' },
+            { type: 'BONUS' }
+        ];
+    } else {
+        if (type) where.type = type;
+        if (reason) where.reason = reason;
+    }
+
+    if (supplierId) where.supplierId = supplierId;
 
     if (dateFrom || dateTo) {
         where.createdAt = {};
@@ -25,6 +37,7 @@ const findAll = ({ productId, dateFrom, dateTo } = {}) => {
         where,
         include: {
             product: { select: { id: true, name: true, unit: true } },
+            supplier: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
     });

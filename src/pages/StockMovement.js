@@ -5,8 +5,7 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import api from "../services/api";
 import toast from "react-hot-toast";
-import { Input } from "../components/FormFields";
-import Select from "../components/Select"
+import { Input, Select } from "../components/FormFields";
 import { MdAddCircle, MdRemoveCircle, MdUploadFile } from "react-icons/md";
 
 /* -------------------------------------------------------------------------- */

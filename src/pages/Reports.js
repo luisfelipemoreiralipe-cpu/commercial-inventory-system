@@ -1,9 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styled from 'styled-components';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import { Input } from '../components/FormFields';
 import Button from '../components/Button';
+import Modal from '../components/Modal';
+import { formatCurrency } from '../utils/formatCurrency';
+import api from '../services/api';
 import { 
     BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
@@ -35,33 +38,6 @@ const StatusBadge = styled.span`
         color: ${theme.colors.success};
       `;
         }
-        const TypeBadge = styled.span`
-  padding: 4px 8px;
-  border-radius: ${({ theme }) => theme.radii.sm};
-  font-size: ${({ theme }) => theme.fontSizes.xs};
-  font-weight: ${({ theme }) => theme.fontWeights.medium};
-
-  ${({ type, theme }) => {
-                if (type === 'IN') {
-                    return `
-        background: ${theme.colors.successLight};
-        color: ${theme.colors.success};
-      `;
-                }
-
-                if (type === 'OUT') {
-                    return `
-        background: ${theme.colors.dangerLight};
-        color: ${theme.colors.danger};
-      `;
-                }
-
-                return `
-      background: ${theme.colors.bgHover};
-      color: ${theme.colors.textSecondary};
-    `;
-            }}
-`;
 
         if (status === 'excesso') {
             return `
@@ -160,6 +136,15 @@ const Tabs = styled.div`
 
 const Content = styled.div``;
 
+const SupplierLink = styled.span`
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.primary};
+  font-weight: 600;
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
 // ─── Component ──────────────────────────────────
 const Reports = () => {
     const { state } = useApp();
@@ -167,6 +152,74 @@ const Reports = () => {
     const [activeTab, setActiveTab] = useState('consumption');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+
+    const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+    const [selectedSupplierDetails, setSelectedSupplierDetails] = useState(null);
+    const [supplierModalLoading, setSupplierModalLoading] = useState(false);
+    const [supplierModalData, setSupplierModalData] = useState([]);
+
+    const [bonusTrend, setBonusTrend] = useState([]);
+    const [bonusTrendLoading, setBonusTrendLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchBonusTrend = async () => {
+            setBonusTrendLoading(true);
+            try {
+                let url = '/reports/bonus-trend';
+                const params = new URLSearchParams();
+                if (dateFrom) params.append('dateFrom', dateFrom);
+                if (dateTo) params.append('dateTo', dateTo);
+                if (params.toString()) url += `?${params.toString()}`;
+
+                const res = await api.get(url);
+                console.log("Dados da Tendência Mensal (Bruto):", res);
+
+                // Smart Unwrap handle: se 'res' já for a lista, usa direto.
+                const monthlyData = Array.isArray(res) ? res : (res?.data || []);
+                console.log("Dados da Tendência Mensal (Array Processado):", monthlyData);
+                
+                setBonusTrend(monthlyData);
+            } catch (err) {
+                console.error("Erro ao carregar tendência de bônus:", err);
+            } finally {
+                setBonusTrendLoading(false);
+            }
+        };
+
+        fetchBonusTrend();
+    }, [dateFrom, dateTo]);
+
+    const handleOpenSupplierDetails = async (supplierItem) => {
+        setSelectedSupplierDetails(supplierItem);
+        setIsSupplierModalOpen(true);
+        setSupplierModalLoading(true);
+        setSupplierModalData([]);
+
+        try {
+            // Tenta obter o supplierId: primeiro do próprio item, depois busca por nome
+            const supplierId = supplierItem.supplierId 
+                || state.suppliers?.find(s => s.name === supplierItem.name)?.id;
+            
+            // Monta URL — funciona com ou sem supplierId
+            let url = `/stock-movements?type=IN&reason=BONUS&page=1&limit=100`;
+            if (supplierId) url += `&supplierId=${supplierId}`;
+            if (dateFrom) url += `&dateFrom=${dateFrom}`;
+            if (dateTo) url += `&dateTo=${dateTo}`;
+
+            const res = await api.get(url);
+            console.log("Dados do Raio-X (Resposta Completa):", res);
+
+            // Simplifica extração: res pode ser o array direto ou estar em res.data
+            const rawData = Array.isArray(res) ? res : (res.data || []);
+            console.log("Dados do Raio-X (Array Processado):", rawData);
+            
+            setSupplierModalData(Array.isArray(rawData) ? rawData : []);
+        } catch (err) {
+            console.error("Erro ao carregar detalhes do Raio-X:", err);
+        } finally {
+            setSupplierModalLoading(false);
+        }
+    };
 
     const consumptionData = useMemo(() => {
         if (!state.stockMovements?.length) return [];
@@ -278,7 +331,9 @@ const Reports = () => {
 
         // 2. FORNECEDOR QUE MAIS COMPRAMOS (Baseado nas Ordens)
         orders.forEach((order) => {
-            const supplier = order.supplierName || 'Sem fornecedor';
+            const orderSupplierId = order.items?.[0]?.supplierId;
+            const mappedSupplier = state.suppliers?.find(sup => sup.id === orderSupplierId);
+            const supplier = order.supplierName || mappedSupplier?.name || 'Sem fornecedor';
 
             if (!map[supplier]) {
                 map[supplier] = {
@@ -299,22 +354,18 @@ const Reports = () => {
             });
         });
 
-        // 3. FORNECEDOR QUE MAIS BONIFICA (StockMovements type=IN reason=BONUS)
-        // Como o bônus não salva o Fornecedor nativamente, tentamos deduzir pelo fornecedor principal do produto ou agrupamos em 'Bonificação Avulsa'
+        // 3. FORNECEDOR QUE MAIS BONIFICA (Aceita novo formato type=IN+reason=BONUS E legado type=BONUS)
         movements
-            .filter(m => m.type === 'IN' && m.reason === 'BONUS')
+            .filter(m => (m.type === 'IN' && m.reason === 'BONUS') || m.type === 'BONUS')
             .forEach(m => {
                 const product = state.products?.find(p => p.id === m.productId);
                 
-                // Busca o fornecedor principal do produto para atribuir o bônus a ele
-                let supplierName = 'Indefinido';
-                if (product?.supplierId) {
-                    // Nós precisariamos buscar o nome do fornecedor nos cadastros, mas faremos fallback para o nome já registrado no map via compras ou 'Fornecedor Produto'
-                     supplierName = product.supplierId; 
+                // Busca o fornecedor diretamente do movimento (incluído pelo Backend)
+                let supplierName = 'Diversos/Sem Fornecedor';
+                if (m.supplier?.name) {
+                    supplierName = m.supplier.name;
                 } else if (map['Sem fornecedor']) {
-                     supplierName = 'Sem fornecedor';
-                } else {
-                     supplierName = 'Diversos/Sem Fornecedor';
+                    supplierName = 'Sem fornecedor';
                 }
 
                 // Match name if possible (heuristic based on existing orders)
@@ -608,6 +659,14 @@ const Reports = () => {
                 >
                     Perdas
                 </Button>
+
+                <Button
+                    variant={activeTab === 'metrics' ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => setActiveTab('metrics')}
+                >
+                    Métricas
+                </Button>
             </Tabs>
 
             {/* Conteúdo */}
@@ -795,7 +854,11 @@ const Reports = () => {
                                     const avgOrder = item.orderCount > 0 ? (item.purchaseValue / item.orderCount) : 0;
                                     return (
                                     <Tr key={index}>
-                                        <Td style={{ fontWeight: 600 }}>{item.name}</Td>
+                                        <Td>
+                                            <SupplierLink onClick={() => handleOpenSupplierDetails(item)}>
+                                                {item.name}
+                                            </SupplierLink>
+                                        </Td>
                                         <Td>{item.orderCount}</Td>
                                         <Td>{item.purchaseQuantity}</Td>
                                         <Td>R$ {item.purchaseValue.toFixed(2)}</Td>
@@ -844,7 +907,109 @@ const Reports = () => {
                     </Card>
                 )}
 
+                {activeTab === 'metrics' && (
+                    <Card padding="24px">
+                        <div style={{ marginBottom: 24 }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>
+                                Evolução Mensal de Bonificações
+                            </h3>
+                            <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+                                Acompanhe o lucro bruto injetado via bonificações no seu estoque (Histórico {dateFrom || dateTo ? 'filtrado' : 'últimos 6 meses'}).
+                            </p>
+                        </div>
+
+                        <div style={{ height: 400, width: '100%', minHeight: 300 }}>
+                            {bonusTrendLoading ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B' }}>
+                                    Carregando dados evolutivos...
+                                </div>
+                            ) : bonusTrend.length === 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B', background: '#F8FAFC', borderRadius: 12 }}>
+                                    Nenhum dado de bonificação encontrado para este período.
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={bonusTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                        <XAxis 
+                                            dataKey="month" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#64748B', fontSize: 12 }} 
+                                            dy={10}
+                                        />
+                                        <YAxis 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#64748B', fontSize: 12 }}
+                                            tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}
+                                        />
+                                        <Tooltip 
+                                            cursor={{ fill: '#F1F5F9', radius: 4 }}
+                                            contentStyle={{ 
+                                                borderRadius: '12px', 
+                                                border: 'none', 
+                                                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                                                padding: '12px',
+                                                background: '#FFF'
+                                            }}
+                                            formatter={(value) => [formatCurrency(value), 'Bonificação Total']}
+                                            labelStyle={{ fontWeight: 600, color: '#1E293B', marginBottom: 4 }}
+                                        />
+                                        <Bar 
+                                            dataKey="total" 
+                                            fill="#10B981" 
+                                            radius={[6, 6, 0, 0]} 
+                                            barSize={32} 
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </Card>
+                )}
+
+
             </Content>
+
+            <Modal 
+                isOpen={isSupplierModalOpen} 
+                onClose={() => setIsSupplierModalOpen(false)}
+                title={`Detalhamento de Bônus: ${selectedSupplierDetails?.name}`}
+            >
+                <div style={{ marginBottom: 16 }}>
+                    <strong>Total Geral Ganho:</strong> <span style={{ color: '#10B981' }}>{formatCurrency(selectedSupplierDetails?.bonusValue || 0)}</span>
+                </div>
+                
+                {supplierModalLoading ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#64748B' }}>
+                        Carregando detalhes...
+                    </div>
+                ) : (
+                    <Card padding="0">
+                        <Table>
+                            <thead>
+                                <tr>
+                                    <Th>Data</Th>
+                                    <Th>Produto</Th>
+                                    <Th>Quantidade</Th>
+                                    <Th>Valor Total</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {supplierModalData.map((item, index) => (
+                                    <Tr key={index}>
+                                        <Td>{new Date(item.createdAt).toLocaleDateString('pt-BR')}</Td>
+                                        <Td>{item.productName}</Td>
+                                        <Td>{item.quantity}</Td>
+                                        <Td style={{ color: '#10B981', fontWeight: 600 }}>{formatCurrency(item.totalCost)}</Td>
+                                    </Tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    </Card>
+                )}
+            </Modal>
         </>
     );
 };

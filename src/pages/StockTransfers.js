@@ -3,7 +3,7 @@ import { useApp } from "../context/AppContext";
 import styled from "styled-components";
 import api from "../services/api";
 import Badge from "../components/Badge";
-import Select from "../components/Select";
+import { Select } from "../components/FormFields";
 import toast from "react-hot-toast"
 import Button from "../components/Button";
 
@@ -137,17 +137,7 @@ const Label = styled.label`
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
 `;
 
-const StyledSelect = styled.select`
-  padding: 10px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bgInput};
 
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.borderFocus};
-  }
-`;
 
 const Input = styled.input`
   padding: 10px;

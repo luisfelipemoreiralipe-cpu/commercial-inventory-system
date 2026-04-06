@@ -13,7 +13,6 @@ import { formatCurrency } from "../utils/formatCurrency";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import EmptyState from "../components/EmptyState";
-import Select from "../components/Select";
 import { Input } from "../components/FormFields";
 import toast from "react-hot-toast";
 
@@ -121,8 +120,8 @@ const StatusBadge = styled.span`
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: #FEF3C7;
-  color: #D97706;
+  background: ${({ theme }) => theme.colors.warningLight};
+  color: ${({ theme }) => theme.colors.warning};
   @media (max-width: 768px) {
     margin-left: 0;
     margin-top: 4px;
@@ -558,21 +557,12 @@ Segue o pedido em PDF.
                                             </strong>
                                         </div>
 
-                                        <button
+                                        <Button
+                                            variant="primary"
                                             onClick={handleDownloadPdf}
-                                            style={{
-                                                background: "#111827",
-                                                color: "#fff",
-                                                border: "none",
-                                                padding: "10px 16px",
-                                                borderRadius: 6,
-                                                cursor: "pointer",
-                                                fontSize: 13,
-                                                fontWeight: 600,
-                                            }}
                                         >
                                             Exportar PDF
-                                        </button>
+                                        </Button>
                                     </div>
 
                                     {/* 🔥 LISTA DE ITENS AJUSTADA COM LABELS */}
@@ -605,10 +595,8 @@ Segue o pedido em PDF.
 
                                                     {/* Campo de Quantidade */}
                                                     <div style={{ flex: 1 }}>
-                                                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6, textTransform: "uppercase" }}>
-                                                            Qtd. Recebida
-                                                        </label>
-                                                        <input
+                                                        <Input
+                                                            label="Qtd. Recebida"
                                                             type="number"
                                                             inputMode="decimal"
                                                             // 🛡️ Mantemos como string para permitir edição fluida
@@ -617,27 +605,17 @@ Segue o pedido em PDF.
                                                             onChange={(e) =>
                                                                 setReceivedQty((prev) => ({
                                                                     ...prev,
-                                                                    [item.productId]: e.target.value, // ⚡ Removido o Number() aqui
+                                                                    [item.productId]: e.target.value,
                                                                 }))
                                                             }
-                                                            style={{
-                                                                width: "100%",
-                                                                padding: "12px",
-                                                                borderRadius: 8,
-                                                                border: "1px solid #D1D5DB",
-                                                                background: "#fff",
-                                                                fontSize: "16px"
-                                                            }}
                                                             placeholder="0"
                                                         />
                                                     </div>
 
                                                     {/* Campo de Preço */}
                                                     <div style={{ flex: 1 }}>
-                                                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6, textTransform: "uppercase" }}>
-                                                            Preço Unitário
-                                                        </label>
-                                                        <input
+                                                        <Input
+                                                            label="Preço Unitário"
                                                             type="number"
                                                             inputMode="decimal"
                                                             value={price}
@@ -649,14 +627,6 @@ Segue o pedido em PDF.
                                                                     [item.productId]: Number(e.target.value),
                                                                 }))
                                                             }
-                                                            style={{
-                                                                width: "100%",
-                                                                padding: "12px",
-                                                                borderRadius: 8,
-                                                                border: "1px solid #D1D5DB",
-                                                                background: "#fff",
-                                                                fontSize: "16px"
-                                                            }}
                                                             placeholder="0.00"
                                                         />
                                                     </div>
@@ -695,25 +665,14 @@ Segue o pedido em PDF.
                                     </div>
 
                                     {/* 🔥 BOTÃO FINAL */}
-                                    <button
+                                    <Button
+                                        variant="primary"
+                                        fullWidth
                                         onClick={handleCompleteOrder}
-                                        style={{
-                                            width: "100%",
-                                            marginTop: 10,
-                                            padding: "14px",
-                                            background: "#111827",
-                                            color: "#fff",
-                                            border: "none",
-                                            borderRadius: 10,
-                                            fontWeight: 700,
-                                            fontSize: "16px",
-                                            cursor: "pointer",
-                                            minHeight: 48,
-                                            transition: "background 0.2s"
-                                        }}
+                                        style={{ marginTop: 10, minHeight: 48 }}
                                     >
                                         Concluir Recebimento
-                                    </button>
+                                    </Button>
 
                                 </div>
                             );
