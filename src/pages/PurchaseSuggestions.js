@@ -1,10 +1,15 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { MdRefresh, MdWarning } from "react-icons/md";
+import { MdRefresh, MdWarning, MdPrint } from "react-icons/md";
 import Card from "../components/Card";
-
+import Button from "../components/Button";
+import { Input, Select } from "../components/FormFields";
 import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
+import toast from "react-hot-toast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 
 
 const PageHeader = styled.div`
@@ -14,16 +19,53 @@ const PageHeader = styled.div`
   margin-bottom: 32px;
 `;
 
+const Tabs = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+`;
+
+const Tab = styled.button`
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+
+  background: ${({ active, theme }) =>
+        active ? theme.colors.primary : theme.colors.bgCard};
+
+  color: ${({ active, theme }) =>
+        active ? "#fff" : theme.colors.textPrimary};
+
+  border: 1px solid ${({ theme }) => theme.colors.border};
+
+  transition: 0.2s;
+
+  &:hover {
+    background: ${({ active, theme }) =>
+        active ? theme.colors.primaryDark : theme.colors.bgHover};
+  }
+`;
 
 const PageTitle = styled.h1`
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
+  font-size: ${({ theme }) => theme.fontSizes['3xl']};
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
 const PageSubtitle = styled.p`
-  color: #6b7280;
-  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
+
+const StatusBadge = styled.span`
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: ${({ isSug, theme }) => isSug ? theme.colors.warningLight : theme.colors.successLight};
+  color: ${({ isSug, theme }) => isSug ? theme.colors.warning : theme.colors.success};
 `;
 
 const StatsGrid = styled.div`
@@ -50,16 +92,21 @@ const StatValue = styled.div`
   font-weight: 600;
 `;
 
-const TableCard = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 20px;
+const TableWrapper = styled.div`
+  width: 100%;
+  overflow-x: auto;
 `;
 
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px;
+    background: transparent;
+  }
 `;
 
 const Th = styled.th`
@@ -72,7 +119,10 @@ const Th = styled.th`
   letter-spacing: 0.05em;
   background: ${({ theme }) => theme.colors.bgHover};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-   white-space: nowrap;
+  white-space: nowrap;
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
@@ -81,46 +131,106 @@ const Td = styled.td`
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   vertical-align: middle;
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+  }
 `;
 
 const Tr = styled.tr`
   transition: ${({ theme }) => theme.transition};
-
   &:hover {
     background: ${({ theme }) => theme.colors.bgHover};
+  }
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radii.md};
+    overflow: hidden;
+    background: #fff;
   }
 `;
 
 const SupplierRow = styled.tr`
   background: ${({ theme }) => theme.colors.bgHover};
+  @media (max-width: 768px) {
+    display: block;
+    border-radius: ${({ theme }) => theme.radii.md};
+    margin-bottom: 12px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+  }
 `;
 
 const SupplierHeader = styled.td`
   padding: 14px 16px;
-  font-weight: ${({ theme }) => theme.fontWeights.semibold};
-  color: ${({ theme }) => theme.colors.textSecondary};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  @media (max-width: 768px) {
+    display: block;
+  }
 `;
 
 
 const PurchaseSuggestions = () => {
     const [generatedSuggestions, setGeneratedSuggestions] = useState({});
     const { state, dispatch, getSupplierById } = useApp();
-    const [selectedSuppliers, setSelectedSuppliers] = useState({});
+    
+    // 🛡️ Definição de Cache Key Multi-Tenant
+    const CACHE_KEY = `draft_po_qtys_${state.user?.establishmentId || 'global'}`;
+    const SUPPLIER_CACHE_KEY = `draft_po_suppliers_${state.user?.establishmentId || 'global'}`;
+
+    const [selectedSuppliers, setSelectedSuppliers] = useState(() => {
+        const saved = sessionStorage.getItem(SUPPLIER_CACHE_KEY);
+        return saved ? JSON.parse(saved) : {};
+    });
+
     const [suggestions, setSuggestions] = useState([]);
-    const [adjustedQtys, setAdjustedQtys] = useState({});
+
+    const [adjustedQtys, setAdjustedQtys] = useState(() => {
+        const saved = sessionStorage.getItem(CACHE_KEY);
+        return saved ? JSON.parse(saved) : {};
+    });
+
     const [targetDays, setTargetDays] = useState(7);
+    const [ignoredProducts, setIgnoredProducts] = useState({});
+    const [viewMode, setViewMode] = useState("active"); // active | ignored
+    const theme = useTheme();
+
+    const productsMap = useMemo(() => {
+        const map = {};
+        state.products.forEach((p) => {
+            map[p.id] = p;
+        });
+        return map;
+    }, [state.products]);
 
     const getAdjusted = (s) => {
         return adjustedQtys[s.productId] ?? s.suggestedQuantity;
     };
 
+
     useEffect(() => {
 
         const fetchSuggestions = async () => {
             try {
-                const res = await api.get("/api/purchase-suggestions");
-                setSuggestions(res.data.items || []);
+                const res = await api.get(
+                    `/api/purchase-suggestions?days=${targetDays}`
+                );
+                setSuggestions(res.items || []);
+                // Não limpamos mais o adjustedQtys aqui para permitir persistência entre re-fetches de dias
             } catch (err) {
                 console.error(err);
             }
@@ -128,7 +238,21 @@ const PurchaseSuggestions = () => {
 
         fetchSuggestions();
 
-    }, []);
+    }, [targetDays]);
+
+    // 💾 Auto-Save Quantidades
+    useEffect(() => {
+        if (Object.keys(adjustedQtys).length > 0) {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(adjustedQtys));
+        }
+    }, [adjustedQtys, CACHE_KEY]);
+
+    // 💾 Auto-Save Fornecedores
+    useEffect(() => {
+        if (Object.keys(selectedSuppliers).length > 0) {
+            sessionStorage.setItem(SUPPLIER_CACHE_KEY, JSON.stringify(selectedSuppliers));
+        }
+    }, [selectedSuppliers, SUPPLIER_CACHE_KEY]);
 
     const lowStockProducts = useMemo(() => {
         return state.products.filter(
@@ -136,24 +260,56 @@ const PurchaseSuggestions = () => {
         );
     }, [state.products]);
 
-    const productsMap = useMemo(() => {
-
-        const map = {};
-
-        state.products.forEach((p) => {
-            map[p.id] = p;
-        });
-
-
-        return map;
-
-    }, [state.products]);
-
 
 
     const newSuggestions = useMemo(() => {
-        return suggestions.filter(s => !s.hasOpenOrder);
-    }, [suggestions]);
+        return suggestions.filter(s =>
+            !s.hasOpenOrder &&
+            !ignoredProducts[s.productId]
+        );
+    }, [suggestions, ignoredProducts]);
+
+    const ignoredSuggestions = useMemo(() => {
+        return suggestions.filter(s => ignoredProducts[s.productId]);
+    }, [suggestions, ignoredProducts]);
+
+    const coverageStats = useMemo(() => {
+
+        let critical = 0;
+        let warning = 0;
+        let ok = 0;
+
+        newSuggestions.forEach(s => {
+
+            const product = productsMap[s.productId];
+            const pack = Number(product?.packQuantity || 1);
+            const consumption = Number(s.consumptionLast7Days || 0);
+
+            // Qtd ajustada (em GARRAFAS) convertida para ML para comparar com consumo em ML
+            const qtyMl = Number(getAdjusted(s) ?? s.suggestedQuantity ?? 0) * pack;
+
+            if (consumption <= 0) return;
+
+            const coverage = qtyMl / consumption;
+
+            if (coverage < 1) {
+                critical++;
+            } else if (coverage < 1.3) {
+                warning++;
+            } else {
+                ok++;
+            }
+
+        });
+
+        return {
+            critical,
+            warning,
+            ok
+        };
+
+    }, [newSuggestions, adjustedQtys, productsMap]);
+    console.log("STATS:", coverageStats);
 
     const openOrderSuggestions = useMemo(() => {
         return suggestions.filter(s => s.hasOpenOrder);
@@ -166,8 +322,9 @@ const PurchaseSuggestions = () => {
 
         newSuggestions.forEach((s) => {
 
+            const p = productsMap[s.productId];
             const supplierId =
-                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId ?? "unassigned";
 
             if (!groups[supplierId]) {
                 groups[supplierId] = [];
@@ -181,40 +338,66 @@ const PurchaseSuggestions = () => {
 
     }, [newSuggestions, selectedSuppliers]);
 
+    const groupedIgnoredSuggestions = useMemo(() => {
+
+        const groups = {};
+
+        ignoredSuggestions.forEach((s) => {
+
+            const p = productsMap[s.productId];
+            const supplierId =
+                selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId ?? "unassigned";
+
+            if (!groups[supplierId]) {
+                groups[supplierId] = [];
+            }
+
+            groups[supplierId].push(s);
+
+        });
+
+
+        return groups;
+
+    }, [ignoredSuggestions, selectedSuppliers]);
+
     // 👇 continua normal
-    const totalEstimatedCost = (suggestions || []).reduce((acc, s) => {
+    const totalEstimatedCost = (newSuggestions || []).reduce((acc, s) => {
 
         const qty = getAdjusted(s);
 
+        const p = productsMap[s.productId];
         const selectedSupplierId =
-            selectedSuppliers[s.productId] ?? s.bestSupplierId;
+            selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
         const supplier = s.suppliers?.find(
             sup => sup.supplierId === selectedSupplierId
         );
 
-        const price = Number(supplier?.price || 0);
+        const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
         return acc + qty * price;
 
     }, 0);
 
-    const totalEstimatedSaving = (suggestions || []).reduce((acc, s) => {
+    const totalEstimatedSaving = (newSuggestions || []).reduce((acc, s) => {
 
         const qty = getAdjusted(s);
 
+
+
+        const p = productsMap[s.productId];
         const selectedSupplierId =
-            selectedSuppliers[s.productId] ?? s.bestSupplierId;
+            selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
         const supplier = s.suppliers?.find(
             sup => sup.supplierId === selectedSupplierId
         );
 
-        const price = Number(supplier?.price || 0);
+        const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
-        const highestPrice = Math.max(
-            ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
-        );
+        const prices = s.suppliers?.map(sup => Number(sup.price)) || [];
+        const highestPrice = prices.length > 0 ? Math.max(...prices, price) : price;
 
         const saving = (highestPrice - price) * qty;
 
@@ -222,69 +405,182 @@ const PurchaseSuggestions = () => {
 
     }, 0);
 
+    const handleExportPDF = () => {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Cabeçalho
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59); // Slate-800
+        doc.text('Ordem de Compra - Controle de Compras BDS', 14, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139); // Slate-500
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 26);
+        doc.text(`Estabelecimento: ${state.establishment?.nome_fantasia || 'N/A'}`, 14, 31);
+
+        // Preparar os dados para a tabela
+        const tableData = newSuggestions.map(s => {
+            const p = productsMap[s.productId];
+            const selectedSupplierId = selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
+            const supplierData = s.suppliers?.find(sup => sup.supplierId === selectedSupplierId);
+            const supplierName = getSupplierById(selectedSupplierId)?.name || 'Sem Fornecedor';
+            
+            const qty = Number(getAdjusted(s));
+            const price = Number(supplierData?.price || p?.currentCost || p?.unitPrice || 0);
+            const total = qty * price;
+
+            return [
+                s.productName,
+                supplierName,
+                qty.toFixed(2),
+                p?.purchaseUnit || 'un',
+                `R$ ${price.toFixed(2)}`,
+                `R$ ${total.toFixed(2)}`
+            ];
+        });
+
+        // Tabela
+        autoTable(doc, {
+            startY: 40,
+            head: [['Produto', 'Fornecedor', 'Qtd. Comprar', 'Unidade', 'Custo Unit.', 'Total Est.']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59] },
+            styles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 40 },
+                1: { cellWidth: 35 },
+                2: { halign: 'center' },
+                3: { halign: 'center' },
+                4: { halign: 'right' },
+                5: { halign: 'right' }
+            }
+        });
+
+        // Rodapé (Resumo Financeiro)
+        const finalY = (doc).lastAutoTable.finalY + 15;
+
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('Resumo Financeiro', 14, finalY);
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Total da Compra: R$ ${totalEstimatedCost.toFixed(2)}`, 14, finalY + 8);
+
+        // Destaque da Economia
+        doc.setTextColor(22, 163, 74); // Verde (green-600)
+        doc.setFont(undefined, 'bold');
+        doc.text(`Economia Estimada: R$ ${totalEstimatedSaving.toFixed(2)}`, 14, finalY + 14);
+
+        doc.setTextColor(30, 41, 59);
+        doc.setFont(undefined, 'normal');
+
+        // Assinaturas
+        const signY = finalY + 35;
+        doc.text('_________________________________', 14, signY);
+        doc.text('Aprovado por (Assinatura)', 14, signY + 7);
+
+        doc.save(`ordem-compra-sugestao-${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const handleGenerate = async () => {
 
+        try {
 
-
-        const groupedBySupplier = {};
-
-        newSuggestions.forEach((s) => {
-
-            const p = state.products.find(
-                prod => prod.id === s.productId
+            // 🔥 1. DEFINIR newSuggestions PRIMEIRO (ESSENCIAL)
+            const newSuggestions = suggestions.filter(s =>
+                !s.hasOpenOrder &&
+                !ignoredProducts[s.productId]
             );
 
-            const supplierId =
-                selectedSuppliers[s.productId] ||
-                s.bestSupplierId ||
-                p?.supplierId;
-
-            // 🔥 pega o fornecedor correto
-            const supplier = s.suppliers?.find(
-                sup => sup.supplierId === supplierId
-            );
-
-            // 🔥 garante que o preço é válido
-            const price = Number(supplier?.price || 0);
-
-            if (!groupedBySupplier[supplierId]) {
-                groupedBySupplier[supplierId] = [];
+            if (newSuggestions.length === 0) {
+                alert("Nenhuma sugestão para gerar pedido.");
+                return;
             }
 
-            groupedBySupplier[supplierId].push({
-                productId: s.productId,
-                productName: s.productName,
-                unitPrice: price, // ✅ agora correto
-                adjustedQuantity: Number(getAdjusted(s)), // ✅ garante número
-                supplierId
+            const groupedBySupplier = {};
+
+            newSuggestions.forEach((s) => {
+
+                const p = state.products.find(
+                    prod => prod.id === s.productId
+                );
+
+                const supplierId =
+                    selectedSuppliers[s.productId] ||
+                    s.bestSupplierId ||
+                    p?.supplierId || 
+                    "unassigned";
+
+                const supplier = s.suppliers?.find(
+                    sup => sup.supplierId === supplierId
+                );
+
+                const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
+
+                if (!groupedBySupplier[supplierId]) {
+                    groupedBySupplier[supplierId] = [];
+                }
+
+                groupedBySupplier[supplierId].push({
+                    productId: s.productId,
+                    productName: s.productName,
+                    unitPrice: price,
+                    adjustedQuantity: Number(getAdjusted(s)),
+                    supplierId
+                });
+
             });
 
-        });
+            // 🔥 2. CRIAR ORDENS
+            for (const items of Object.values(groupedBySupplier)) {
 
+                await api.post("/api/purchase-orders", {
+                    items
+                });
 
+            }
 
-        for (const items of Object.values(groupedBySupplier)) {
+            // 🔥 3. LIMPAR STORAGE (DRAFT)
+            sessionStorage.removeItem(CACHE_KEY);
+            sessionStorage.removeItem(SUPPLIER_CACHE_KEY);
 
-            await api.post("/api/purchase-orders", {
-                items
+            // 🔥 4. LIMPAR STATE
+            setAdjustedQtys({});
+            setSelectedSuppliers({});
+            setSuggestions([]);
+
+            // 🔥 5. BUSCAR NOVAS SUGESTÕES
+            const res = await api.get(`/api/purchase-suggestions?days=${targetDays}`);
+            const freshSuggestions = res.items || [];
+
+            setSuggestions(freshSuggestions);
+
+            // 🔥 6. MARCAR GERADOS (USA OS ANTIGOS)
+            const generated = {};
+            newSuggestions.forEach((s) => {
+                generated[s.productId] = true;
             });
 
+            setGeneratedSuggestions(generated);
+
+        } catch (err) {
+            console.error(err);
+
+            const status = err.response?.status;
+            const message = err.response?.data?.error;
+
+            if (status === 403 || message?.includes('Acesso negado')) {
+                toast.error('Você não tem permissão para gerar pedidos');
+            } else if (status === 401) {
+                toast.error('Sessão expirada, faça login novamente');
+            } else {
+                toast.error('Erro ao gerar pedidos');
+            }
         }
-
-        // 🔄 recarregar sugestões
-        const res = await api.get("/api/purchase-suggestions");
-        setSuggestions(res.data.items || []);
-
-
-
-        const generated = {};
-
-        suggestions.forEach((s) => {
-            generated[s.productId] = true;
-        });
-
-        setGeneratedSuggestions(generated);
-
     };
 
     const groupedSuggestions = useMemo(() => {
@@ -293,8 +589,9 @@ const PurchaseSuggestions = () => {
 
         (suggestions || []).forEach((s) => {
 
+            const p = productsMap[s.productId];
             const supplierId =
-                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId ?? "unassigned";
 
             if (!groups[supplierId]) {
                 groups[supplierId] = [];
@@ -307,6 +604,12 @@ const PurchaseSuggestions = () => {
         return groups;
 
     }, [suggestions, selectedSuppliers]);
+
+    // 👇 COLOCA EXATAMENTE AQUI
+    const currentGroupedSuggestions =
+        viewMode === "active"
+            ? groupedNewSuggestions
+            : groupedIgnoredSuggestions;
 
     return (
         <div>
@@ -324,324 +627,417 @@ const PurchaseSuggestions = () => {
             </PageHeader>
 
             <StatsGrid>
-
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Produtos abaixo do mínimo
+                <Card padding="16px" accent={theme.colors.primary}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary, marginBottom: 8 }}>
+                        Situação do estoque
                     </div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: theme.colors.danger }}>
+                        🔴 {coverageStats.critical} crítico
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: theme.colors.warning }}>
+                        🟡 {coverageStats.warning} atenção
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: theme.colors.success }}>
+                        🟢 {coverageStats.ok} ok
+                    </div>
+                </Card>
 
-                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                <Card padding="16px" accent={theme.colors.danger}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
+                        Abaixo do mínimo
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.textPrimary }}>
                         {lowStockProducts.length}
                     </div>
-                </div>
+                </Card>
 
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Sugestões encontradas
+                <Card padding="16px" accent={theme.colors.warning}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
+                        Pendentes
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600 }}>
-                        {suggestions.length}
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.textPrimary }}>
+                        {newSuggestions.length}
                     </div>
-                </div>
+                </Card>
 
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                <Card padding="16px" accent={theme.colors.primary}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
                         Custo estimado
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600 }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.textPrimary }}>
                         R$ {totalEstimatedCost.toFixed(2)}
                     </div>
-                </div>
-                <div style={{
-                    background: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    padding: 16
-                }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
+                </Card>
+
+                <Card padding="16px" accent={theme.colors.success}>
+                    <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
                         Economia estimada
                     </div>
-
-                    <div style={{ fontSize: 22, fontWeight: 600, color: "#059669" }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: theme.colors.success }}>
                         R$ {totalEstimatedSaving.toFixed(2)}
                     </div>
-                </div>
+                </Card>
             </StatsGrid>
 
-            <hr style={{ margin: "20px 0" }} />
+            <hr style={{ margin: "20px 0", border: 'none', borderTop: `1px solid ${theme.colors.border}` }} />
 
             <div style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 10
+                marginBottom: 16,
+                flexWrap: "wrap",
+                gap: "10px"
             }}>
+                <h3 style={{ margin: 0, fontSize: theme.fontSizes.xl, color: theme.colors.textPrimary }}>
+                    Lista de Compras
+                </h3>
 
-                <h3 style={{ margin: 0 }}>Lista de Compras</h3>
-
-                <button
-                    onClick={handleGenerate}
-                    disabled={!newSuggestions.length}
-                    style={{
-                        background: "#111827",
-                        color: "white",
-                        border: "none",
-                        padding: "10px 16px",
-                        borderRadius: 6,
-                        cursor: !newSuggestions.length ? "not-allowed" : "pointer"
-                    }}
-                >
-                    Gerar Ordens de Compra
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <Button
+                        variant="secondary"
+                        onClick={handleExportPDF}
+                        disabled={!newSuggestions.length}
+                    >
+                        <MdPrint /> Exportar Ordem (PDF)
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={handleGenerate}
+                        disabled={!newSuggestions.length}
+                    >
+                        Gerar Ordens de Compra
+                    </Button>
+                </div>
 
             </div>
 
-            <div style={{ marginTop: 15, marginBottom: 10 }}>
-
-                <label style={{ fontWeight: 500 }}>
+            <div style={{ marginTop: 15, marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontWeight: 500, fontSize: theme.fontSizes.sm, color: theme.colors.textSecondary }}>
                     Dias de estoque desejado:
-                </label>
-
-                <input
-                    type="number"
-                    value={targetDays}
-                    onChange={(e) => setTargetDays(Number(e.target.value))}
-                    style={{
-                        marginLeft: 10,
-                        width: 60,
-                        padding: 4
-                    }}
-                />
-
+                </span>
+                <div style={{ width: "80px" }}>
+                    <Input
+                        type="number"
+                        inputMode="decimal"
+                        size="sm"
+                        value={targetDays}
+                        onChange={(e) => setTargetDays(Number(e.target.value))}
+                    />
+                </div>
             </div>
+            <Tabs>
 
-            <table>
+                <Tab
+                    active={viewMode === "active"}
+                    onClick={() => setViewMode("active")}
+                >
+                    Compras
+                </Tab>
 
-                <thead>
-                    <tr>
-                        <th>Produto</th>
-                        <th>Estoque</th>
-                        <th>Mínimo</th>
-                        <th>Ajustar</th>
-                        <th>Preço</th>
-                        <th>Total</th>
-                        <th>Economia</th>
-                        <th>Fornecedor</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
+                <Tab
+                    active={viewMode === "ignored"}
+                    onClick={() => setViewMode("ignored")}
+                >
+                    Ignorados
+                </Tab>
 
-                <tbody>
+            </Tabs>
 
-                    {Object.entries(groupedSuggestions).map(([supplierId, items]) => {
+            <TableWrapper>
+                <Table>
 
-                        const supplierName =
-                            getSupplierById(supplierId)?.name || "Fornecedor";
-                        const supplierTotal = items.reduce((acc, s) => {
+                    <thead>
+                        <tr>
+                            <Th>Produto</Th>
+                            <Th>Estoque</Th>
+                            <Th>Mínimo</Th>
+                            <Th>Ajustar</Th>
+                            <Th>Preço</Th>
+                            <Th>Total</Th>
+                            <Th>Economia</Th>
+                            <Th>Fornecedor</Th>
+                            <Th>Status</Th>
+                        </tr>
+                    </thead>
 
-                            const qty = getAdjusted(s);
+                    <tbody>
 
-                            const selectedSupplierId =
-                                selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                        {Object.entries(currentGroupedSuggestions).map(([supplierId, items]) => {
 
-                            const supplier = s.suppliers?.find(
-                                sup => sup.supplierId === selectedSupplierId
-                            );
+                            const supplierName =
+                                getSupplierById(supplierId)?.name || "Fornecedor";
+                            const supplierTotal = items.reduce((acc, s) => {
 
-                            const price = Number(supplier?.price || 0);
 
-                            return acc + qty * price;
+                                const qty = getAdjusted(s);
 
-                        }, 0);
+                                const p = productsMap[s.productId];
+                                const selectedSupplierId =
+                                    selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
-                        return (
+                                const supplier = s.suppliers?.find(
+                                    sup => sup.supplierId === selectedSupplierId
+                                );
 
-                            <React.Fragment key={supplierId}>
+                                const price = Number(supplier?.price || p?.costPrice || p?.unitPrice || 0);
 
-                                <SupplierRow>
-                                    <SupplierHeader colSpan="9">
+                                return acc + qty * price;
 
-                                        <div style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center"
-                                        }}>
+                            }, 0);
 
-                                            <strong>{supplierName}</strong>
+                            return (
 
-                                            <div style={{ display: "flex", gap: 15, fontSize: 12, color: "#6b7280" }}>
+                                <React.Fragment key={supplierId}>
 
-                                                <span>
-                                                    {items.length} produtos
-                                                </span>
+                                    <SupplierRow>
+                                        <SupplierHeader colSpan="9">
 
-                                                <span style={{ fontWeight: 600 }}>
-                                                    Total: R$ {supplierTotal.toFixed(2)}
-                                                </span>
+                                            <div style={{
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "center"
+                                            }}>
+
+                                                <strong>{supplierName}</strong>
+
+                                                <div style={{ display: "flex", gap: 15, fontSize: 12, color: "#6b7280" }}>
+
+                                                    <span>
+                                                        {items.length} produtos
+                                                    </span>
+
+                                                    <span style={{ fontWeight: 600 }}>
+                                                        Total: R$ {supplierTotal.toFixed(2)}
+                                                    </span>
+
+                                                </div>
 
                                             </div>
 
-                                        </div>
+                                        </SupplierHeader>
+                                    </SupplierRow>
 
-                                    </SupplierHeader>
-                                </SupplierRow>
+                                    {items.map(s => {
+                                        const product = productsMap[s.productId];
+                                        if (!product) return null;
 
-                                {items.map(s => {
+                                        const selectedSupplierId =
+                                            selectedSuppliers[s.productId] ?? s.bestSupplierId ?? product?.supplierId;
 
+                                        const supplier = s.suppliers?.find(
+                                            sup => sup.supplierId === selectedSupplierId
+                                        );
 
-                                    const qty = getAdjusted(s);
+                                        const price = Number(supplier?.price || product?.costPrice || product?.unitPrice || 0);
 
-                                    const selectedSupplierId =
-                                        selectedSuppliers[s.productId] ?? s.bestSupplierId;
+                                        const consumption = Number(s.consumptionLast7Days || 0);
+                                        const qty = Number(getAdjusted(s));
 
-                                    const supplier = s.suppliers?.find(
-                                        sup => sup.supplierId === selectedSupplierId
-                                    );
+                                        const total = qty * price;
 
-                                    const price = Number(supplier?.price || 0);
+                                        const prices = s.suppliers?.map(sup => Number(sup.price)) || [];
+                                        const highestPrice = prices.length > 0 ? Math.max(...prices, price) : price;
 
-                                    const total = qty * price;
+                                        const savingTotal = (highestPrice - price) * qty;
 
-                                    const highestPrice = Math.max(
-                                        ...(s.suppliers?.map(sup => Number(sup.price)) || [price])
-                                    );
+                                        let coverage = null;
 
-                                    const savingTotal = (highestPrice - price) * qty;
+                                        if (consumption > 0) {
+                                            coverage = qty / consumption;
+                                        }
+                                        let coverageLabel = null;
+                                        let coverageColor = "#6b7280";
 
-                                    const product = productsMap[s.productId];
+                                        if (coverage !== null) {
+                                            if (coverage < 1) {
+                                                coverageLabel = "crítico";
+                                                coverageColor = "#dc2626"; // vermelho
+                                            } else if (coverage < 1.3) {
+                                                coverageLabel = "atenção";
+                                                coverageColor = "#d97706"; // amarelo
+                                            } else {
+                                                coverageLabel = "ok";
+                                                coverageColor = "#059669"; // verde
+                                            }
+                                        }
 
-                                    return (
+                                        return (
 
-                                        <Tr key={s.productId}>
+                                            <Tr key={s.productId}>
 
-                                            <Td>{s.productName}</Td>
+                                                <Td data-label="Produto">
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                        <span style={{ fontWeight: 600 }}>{s.productName}</span>
+                                                        {consumption > 0 && (
+                                                            <span style={{ fontSize: 11, color: coverageColor }}>
+                                                                {coverage < 1 ? "🔴" : coverage < 1.3 ? "🟡" : "🟢"}{" "}
+                                                                cobre ~{coverage.toFixed(1)} períodos
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
-                                                {product?.quantity}
-                                            </Td>
+                                                <Td data-label="Estoque" style={{ textAlign: "center" }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: 500 }}>{(Number(product?.quantity || 0) / Number(product?.packQuantity || 1)).toFixed(2)} {product?.purchaseUnit}</span>
+                                                        <span style={{ fontSize: '11px', color: '#64748B' }}>({product?.quantity} {product?.unit})</span>
+                                                    </div>
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
-                                                {product?.minQuantity}
-                                            </Td>
+                                                <Td data-label="Mínimo" style={{ textAlign: "center" }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: 500 }}>{(Number(product?.minQuantity || 0) / Number(product?.packQuantity || 1)).toFixed(2)} {product?.purchaseUnit}</span>
+                                                        <span style={{ fontSize: '11px', color: '#64748B' }}>({product?.minQuantity} {product?.unit})</span>
+                                                    </div>
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
+                                                <Td data-label="Ajustar" style={{ textAlign: "center" }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                                        <div style={{ width: '80px' }}>
+                                                            <Input
+                                                                type="number"
+                                                                inputMode="decimal"
+                                                                size="sm"
+                                                                min="0"
+                                                                value={getAdjusted(s)}
+                                                                onChange={(e) => {
+                                                                    const updated = {
+                                                                        ...adjustedQtys,
+                                                                        [s.productId]: Number(e.target.value)
+                                                                    };
 
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getAdjusted(s)}
-                                                    onChange={(e) =>
-                                                        setAdjustedQtys({
-                                                            ...adjustedQtys,
-                                                            [s.productId]: Number(e.target.value)
-                                                        })
-                                                    }
-                                                    style={{
-                                                        width: 60,
-                                                        padding: 4,
-                                                        textAlign: "center"
-                                                    }}
-                                                />
+                                                                    setAdjustedQtys(updated);
+                                                                    sessionStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                                                            {product?.purchaseUnit || 'un'}
+                                                        </span>
+                                                    </div>
+                                                </Td>
 
-                                            </Td>
+                                                <Td data-label="Preço" style={{ textAlign: "center" }}>
+                                                    R$ {price.toFixed(2)}
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center" }}>
-                                                R$ {price.toFixed(2)}
-                                            </Td>
+                                                <Td data-label="Total" style={{ textAlign: "center", fontWeight: 600 }}>
+                                                    R$ {total.toFixed(2)}
+                                                </Td>
 
-                                            <Td style={{ textAlign: "center", fontWeight: 600 }}>
-                                                R$ {total.toFixed(2)}
-                                            </Td>
+                                                <Td data-label="Economia" style={{
+                                                    textAlign: "center",
+                                                    color: savingTotal > 0 ? theme.colors.success : theme.colors.textMuted
+                                                }}>
+                                                    {savingTotal > 0
+                                                        ? `R$ ${savingTotal.toFixed(2)}`
+                                                        : "R$ 0.00"}
+                                                </Td>
 
-                                            <Td style={{
-                                                textAlign: "center",
-                                                color: savingTotal > 0 ? "#059669" : "#6b7280"
-                                            }}>
-                                                {savingTotal > 0
-                                                    ? `R$ ${savingTotal.toFixed(2)}`
-                                                    : "R$ 0.00"}
-                                            </Td>
+                                                <Td data-label="Fornecedor" style={{ textAlign: "center" }}>
 
-                                            <Td style={{ textAlign: "center" }}>
+                                                    {(() => {
+                                                        const p = productsMap[s.productId];
+                                                        const activeSupplierId = selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
 
-                                                <select
-                                                    value={selectedSuppliers[s.productId] ?? s.bestSupplierId ?? ""}
-                                                    onChange={(e) =>
-                                                        setSelectedSuppliers({
-                                                            ...selectedSuppliers,
-                                                            [s.productId]: e.target.value
-                                                        })
-                                                    }
-                                                >
+                                                        let optionList = s.suppliers?.map((sup) => ({
+                                                            value: sup.supplierId,
+                                                            label: sup.supplierId === s.bestSupplierId
+                                                                ? `💎 ${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
+                                                                : `${sup.supplierName} — R$ ${Number(sup.price).toFixed(2)}`
+                                                        })) || [];
 
-                                                    {s.suppliers?.map((sup) => (
+                                                        if (activeSupplierId && !optionList.some(o => o.value === activeSupplierId)) {
+                                                            const fallbackName = getSupplierById(activeSupplierId)?.name || 'Fornecedor Padrão';
+                                                            const fallbackPrice = p?.costPrice || p?.unitPrice || 0;
+                                                            optionList.push({
+                                                                value: activeSupplierId,
+                                                                label: `${fallbackName} (Padrão) — R$ ${Number(fallbackPrice).toFixed(2)}`
+                                                            });
+                                                        }
 
-                                                        <option key={sup.supplierId} value={sup.supplierId}>
-                                                            {sup.supplierName} — R$ {Number(sup.price).toFixed(2)}
-                                                        </option>
+                                                        if (optionList.length === 0) {
+                                                            optionList.push({ value: "", label: "Sem Fornecedor" });
+                                                        }
 
+                                                        return (
+                                                            <Select
+                                                                value={activeSupplierId ?? ""}
+                                                                options={optionList}
+                                                                onChange={(val) => {
+                                                                    const value = val?.target?.value !== undefined ? val.target.value : val;
+                                                                    const updated = {
+                                                                        ...selectedSuppliers,
+                                                                        [s.productId]: value
+                                                                    };
 
-                                                    ))}
+                                                                    setSelectedSuppliers(updated);
 
-                                                </select>
+                                                                    localStorage.setItem(
+                                                                        "purchase_selected_suppliers",
+                                                                        JSON.stringify(updated)
+                                                                    );
+                                                                }}
+                                                            />
+                                                        );
+                                                    })()}
 
-                                            </Td>
-                                            <Td style={{ textAlign: "center" }}>
-                                                {s.hasOpenOrder ? (
-                                                    <span style={{
-                                                        background: "#e0f2fe",
-                                                        color: "#0369a1",
-                                                        padding: "4px 8px",
-                                                        borderRadius: 6,
-                                                        fontSize: 12,
-                                                        fontWeight: 500
-                                                    }}>
-                                                        Pedido gerado
-                                                    </span>
-                                                ) : (
-                                                    <span style={{
-                                                        background: "#f3f4f6",
-                                                        color: "#6b7280",
-                                                        padding: "4px 8px",
-                                                        borderRadius: 6,
-                                                        fontSize: 12
-                                                    }}>
-                                                        Sugestão
-                                                    </span>
-                                                )}
-                                            </Td>
-                                        </Tr>
+                                                </Td>
+                                                <Td data-label="Status" style={{ textAlign: "center" }}>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
+                                                        <StatusBadge isSug={!s.hasOpenOrder}>
+                                                            {s.hasOpenOrder ? "Pedido gerado" : "Sugestão"}
+                                                        </StatusBadge>
 
-                                    );
+                                                        {viewMode === "active" ? (
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                fullWidth
+                                                                onClick={() =>
+                                                                    setIgnoredProducts(prev => ({
+                                                                        ...prev,
+                                                                        [s.productId]: true
+                                                                    }))
+                                                                }
+                                                            >
+                                                                Ignorar
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                fullWidth
+                                                                onClick={() =>
+                                                                    setIgnoredProducts(prev => {
+                                                                        const copy = { ...prev };
+                                                                        delete copy[s.productId];
+                                                                        return copy;
+                                                                    })
+                                                                }
+                                                            >
+                                                                Reativar
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </Td>
+                                            </Tr>
 
-                                })}
+                                        );
 
-                            </React.Fragment>
+                                    })}
 
-                        );
+                                </React.Fragment>
 
-                    })}
+                            );
 
-                </tbody>
+                        })}
 
-            </table>
+                    </tbody>
+
+                </Table>
+            </TableWrapper>
 
         </div>
     );

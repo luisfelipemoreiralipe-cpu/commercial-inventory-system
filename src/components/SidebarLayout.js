@@ -13,9 +13,15 @@ import {
   MdLightbulb,
   MdChecklist,
   MdCompareArrows,
-  Mdinventory,
+  MdWbSunny,
+  MdNightlightRound,
+  MdLogout
 } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeModeProvider';
+import Select from 'react-select';
+
+import logo from '../assets/logobds.png';
 
 const shimmer = keyframes`
   0%   { background-position: -200% center; }
@@ -28,9 +34,55 @@ const Layout = styled.div`
   min-height: 100vh;
 `;
 
+const HamburgerBtn = styled.button`
+  display: none;
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 900;
+    background: ${({ theme }) => theme.colors.bgCard || '#fff'};
+    border: 1px solid ${({ theme }) => theme.colors.border || '#e5e7eb'};
+    border-radius: 8px;
+    padding: 8px;
+    color: ${({ theme }) => theme.colors.text || '#111827'};
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+`;
+
+const LogoutButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  margin-top: auto; // Isso empurra o botão para o final da Sidebar
+  background: transparent;
+  border: none;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.dangerLight};
+    color: ${({ theme }) => theme.colors.danger};
+  }
+
+  svg {
+    font-size: 20px;
+  }
+`;
+
 const Sidebar = styled.aside`
-  width: ${({ collapsed }) => (collapsed ? '68px' : '252px')};
-  min-height: 100vh;
+  width: ${({ $collapsed }) => ($collapsed ? '68px' : '252px')};
+  height: 100vh;
   background: ${({ theme }) => theme.colors.bgSidebar};
   border-right: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
@@ -40,6 +92,13 @@ const Sidebar = styled.aside`
   z-index: 200;
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    width: 260px;
+    transform: ${({ $isOpen }) => ($isOpen ? 'translateX(0)' : 'translateX(-100%)')};
+    transition: ${({ theme }) => theme.transition};
+    z-index: 1000;
+  }
 
   &::after {
     content: '';
@@ -60,8 +119,8 @@ const Sidebar = styled.aside`
 const SidebarHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: ${({ collapsed }) => (collapsed ? 'center' : 'space-between')};
-  padding: ${({ collapsed }) => (collapsed ? '18px 0' : '18px 16px')};
+  justify-content: ${({ $collapsed }) => ($collapsed ? 'center' : 'space-between')};
+  padding: ${({ $collapsed }) => ($collapsed ? '18px 0' : '18px 16px')};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   min-height: 68px;
   gap: 10px;
@@ -71,7 +130,6 @@ const LogoBlock = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  overflow: hidden;
 `;
 
 /* Pacifico script wordmark with blue shimmer */
@@ -137,8 +195,8 @@ const DropdownItem = styled.div`
 
 /* Collapsed state: round blue circle with "C" */
 const LogoCircle = styled.div`
-  width: 38px;
-  height: 38px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: ${({ theme }) => theme.colors.primary};
   box-shadow: ${({ theme }) => theme.shadows.glow};
@@ -169,20 +227,24 @@ const CollapseBtn = styled.button`
     color: ${({ theme }) => theme.colors.primary};
     background: ${({ theme }) => theme.colors.primaryLight};
   }
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Nav = styled.nav`
   flex: 1;
-  padding: ${({ theme }) => theme.spacing.md} 0;
+  padding: ${({ theme }) => theme.spacing.sm} 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow-y: auto;
   overflow-x: hidden;
 `;
 
 const NavSection = styled.div`
-  padding: ${({ collapsed }) => (collapsed === 'true' ? '8px 0 2px' : '8px 16px 2px')};
+  padding: ${({ $collapsed }) => ($collapsed ? '8px 0 2px' : '8px 16px 2px')};
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -195,13 +257,13 @@ const NavSection = styled.div`
 const StyledNavLink = styled(NavLink)`
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: ${({ collapsed }) => (collapsed === 'true' ? '11px 0' : '11px 14px')};
-  justify-content: ${({ collapsed }) => (collapsed === 'true' ? 'center' : 'flex-start')};
-  margin: 0 8px;
+  gap: 10px;
+  padding: ${({ $collapsed }) => ($collapsed ? '9px 0' : '9px 12px')};
+  justify-content: ${({ $collapsed }) => ($collapsed ? 'center' : 'flex-start')};
+  margin: 0 6px;
   border-radius: ${({ theme }) => theme.radii.md};
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-size: 13px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   transition: ${({ theme }) => theme.transition};
   white-space: nowrap;
@@ -270,10 +332,14 @@ const FooterBrand = styled.span`
 
 const Main = styled.main`
   flex: 1;
-  margin-left: ${({ collapsed }) => (collapsed ? '68px' : '252px')};
+  margin-left: ${({ $collapsed }) => ($collapsed ? '68px' : '252px')};
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg};
   transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @media (max-width: 768px) {
+    margin-left: 0;
+  }
 `;
 
 const PageWrapper = styled.div`
@@ -293,8 +359,12 @@ const NAV_GROUPS = [
       { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
       { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
       { to: '/stock-transfers', label: 'Transferencia de estoque', icon: <MdCompareArrows /> },
-      { to: '/stock-audits/history', label: 'historico de auditorias', icon: <MdChecklist /> },
+      { to: '/marketing-events', label: 'Eventos de Marketing', icon: <MdEventNote /> },
       { to: '/stock-movement/', label: 'movimentação de estoque', icon: <MdCompareArrows /> },
+      { to: '/stock-audits/history', label: 'historico de auditorias', icon: <MdChecklist /> },
+      { to: '/reports', label: 'relatorios', icon: <MdChecklist /> },
+
+      { to: '/users/', label: 'usuarios', icon: <MdPeople /> },
 
 
     ],
@@ -312,8 +382,10 @@ const NAV_GROUPS = [
 const SidebarLayout = ({ children }) => {
 
   const { state, switchEstablishment, getLowStockProducts } = useApp();
+  const { themeMode, toggleTheme } = useTheme();
 
   const [collapsed, setCollapsed] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const lowStockCount = getLowStockProducts().length;
 
@@ -325,42 +397,119 @@ const SidebarLayout = ({ children }) => {
       alert(err.message);
     }
   };
-
+  const handleLogout = () => {
+    if (window.confirm("Deseja realmente sair do sistema?")) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    }
+  };
   console.log("STATE:", state);
+
+  const { establishments = [], establishment } = state;
+  const options = (establishments || []).map(est => ({
+    value: est.id,
+    label: est.nome_fantasia || est.name || "Sem nome"
+  }));
+
+  const currentOption = options.find(opt => opt.value === establishment?.id) || null;
 
   return (
     <Layout>
-      <Sidebar collapsed={collapsed}>
+      <HamburgerBtn onClick={() => setIsMenuOpen(true)} title="Abrir menu">
+        <MdMenu size={24} />
+      </HamburgerBtn>
+      <Sidebar $collapsed={collapsed} $isOpen={isMenuOpen}>
         {/* Header */}
-        <SidebarHeader collapsed={collapsed}>
+        <SidebarHeader $collapsed={collapsed}>
           {!collapsed && (
-            <LogoBlock>
-              <BrandWordmark>Commercial</BrandWordmark>
+            <LogoBlock style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '200%', gap: '10px', marginTop: '0px', marginBottom: '5px' }}>
+              <img src={logo} alt="BDS Logo" style={{ height: '4.4rem', flexShrink: 0 }} />
 
-              {/* 🔽 SELECT DE ESTABELECIMENTO */}
-              {!state.loading && state.establishments && (
-                <select
-                  value={state.establishment?.id || ""}
-                  onChange={(e) => handleSwitch(e.target.value)}
-                  style={{
-                    fontSize: "11px",
-                    marginLeft: "8px",
-                    padding: "2px",
-                    borderRadius: "4px"
+              {/* Mobile close button */}
+              <button onClick={() => setIsMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: themeMode === 'light' ? '#111827' : '#f1f5f9', fontSize: '1.5rem', marginTop: '8px' }} title="Fechar menu">
+                <MdClose />
+              </button>
+
+              {/* 🔽 SELECT DE ESTABELECIMENTO (REACT-SELECT) */}
+              <div style={{ width: '100%', minWidth: 140 }}>
+                <Select
+                  options={options}
+                  value={currentOption}
+                  onChange={(selected) => switchEstablishment(selected?.value)}
+                  placeholder="Selecione..."
+                  isSearchable={false}
+                  menuPortalTarget={document.body}
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      minWidth: '120px',
+                      background: themeMode === 'light' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',
+                      border: '1px solid transparent',
+                      borderColor: 'transparent',
+                      borderRadius: '6px',
+                      boxShadow: 'none',
+                      minHeight: '32px',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        borderColor: themeMode === 'light' ? '#e2e8f0' : '#334155',
+                        background: themeMode === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
+                      }
+                    }),
+                    valueContainer: (base) => ({ ...base, padding: '0 8px' }),
+                    singleValue: (base) => ({
+                      ...base,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: themeMode === 'light' ? '#111827' : '#f1f5f9'
+                    }),
+                    placeholder: (base) => ({
+                      ...base,
+                      fontSize: '11px',
+                      color: themeMode === 'light' ? '#94a3b8' : '#64748b'
+                    }),
+                    indicatorSeparator: () => ({ display: 'none' }),
+                    dropdownIndicator: (base) => ({
+                      ...base,
+                      padding: '2px',
+                      color: themeMode === 'light' ? '#64748b' : '#94a3b8',
+                      '&:hover': { color: themeMode === 'light' ? '#111827' : '#f1f5f9' }
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      fontSize: '12px',
+                      background: themeMode === 'light' ? '#fff' : '#1e293b',
+                      border: '1px solid',
+                      borderColor: themeMode === 'light' ? '#e2e8f0' : '#334155',
+                      borderRadius: '8px',
+                      padding: '4px',
+                      zIndex: 1000,
+                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
+                    }),
+                    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                    option: (base, optState) => ({
+                      ...base,
+                      borderRadius: '4px',
+                      backgroundColor: optState.isSelected
+                        ? (themeMode === 'light' ? '#111827' : '#3b82f6')
+                        : optState.isFocused
+                          ? (themeMode === 'light' ? '#f1f5f9' : '#334155')
+                          : 'transparent',
+                      color: optState.isSelected
+                        ? '#fff'
+                        : themeMode === 'light' ? '#111827' : '#f1f5f9',
+                      cursor: 'pointer',
+                      padding: '6px 12px',
+                      fontWeight: optState.isSelected ? 600 : 400,
+                      '&:active': { background: themeMode === 'light' ? '#e2e8f0' : '#475569' }
+                    })
                   }}
-                >
-                  {state.establishments.map((est) => (
-                    <option key={est.id} value={est.id}>
-                      {est.nome_fantasia}
-                    </option>
-                  ))}
-                </select>
-              )}
+                />
+              </div>
 
             </LogoBlock>
           )}
 
-          {collapsed && <LogoCircle>C</LogoCircle>}
+          {collapsed && <LogoCircle>B</LogoCircle>}
 
           {!collapsed && (
             <CollapseBtn onClick={() => setCollapsed(true)} title="Recolher">
@@ -369,7 +518,7 @@ const SidebarLayout = ({ children }) => {
           )}
         </SidebarHeader>
 
-        {/* Expand button when collapsed */}
+        {/* Expand button when collapsed (desktop only) */}
         {collapsed && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
             <CollapseBtn onClick={() => setCollapsed(false)} title="Expandir">
@@ -383,7 +532,7 @@ const SidebarLayout = ({ children }) => {
           {NAV_GROUPS.map((group) => (
             <div key={group.label}>
               {!collapsed && (
-                <NavSection collapsed={collapsed.toString()}>
+                <NavSection $collapsed={collapsed}>
                   {group.label}
                 </NavSection>
               )}
@@ -392,8 +541,11 @@ const SidebarLayout = ({ children }) => {
                   key={to}
                   to={to}
                   end={to === '/'}
-                  collapsed={collapsed.toString()}
+                  $collapsed={collapsed}
                   title={collapsed ? label : undefined}
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                  }}
                 >
                   <NavIcon>{icon}</NavIcon>
                   {!collapsed && <NavLabel>{label}</NavLabel>}
@@ -405,15 +557,47 @@ const SidebarLayout = ({ children }) => {
             </div>
           ))}
         </Nav>
+        <LogoutButton onClick={handleLogout}>
+          <MdLogout />
+          {!collapsed && <span>Sair da Conta</span>}
+        </LogoutButton>
 
-        {!collapsed && (
-          <SidebarFooter>
-            <FooterBrand>Commercial · v1.0</FooterBrand>
-          </SidebarFooter>
-        )}
+        <SidebarFooter>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'space-between',
+            gap: 8,
+            marginBottom: 8
+          }}>
+            <button
+              onClick={toggleTheme}
+              title={themeMode === 'light' ? "Mudar para Modo Noturno" : "Mudar para Modo Claro"}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 6,
+                borderRadius: 6,
+                cursor: 'pointer',
+                transition: '0.2s',
+                backgroundColor: 'rgba(0,0,0,0.05)'
+              }}
+            >
+              {themeMode === 'light' ? <MdNightlightRound fontSize={18} /> : <MdWbSunny fontSize={18} />}
+            </button>
+            {!collapsed && <FooterBrand>Controle de Compras BDS · v1.0</FooterBrand>}
+          </div>
+        </SidebarFooter>
       </Sidebar>
 
-      <Main collapsed={collapsed}>
+      {/* Mobile overlay */}
+      <Overlay $isOpen={isMenuOpen} onClick={() => setIsMenuOpen(false)} />
+
+      <Main $collapsed={collapsed}>
         <PageWrapper>
           <Outlet />
         </PageWrapper>
@@ -421,4 +605,14 @@ const SidebarLayout = ({ children }) => {
     </Layout>
   );
 };
+
+
+const Overlay = styled.div`
+  display: ${({ $isOpen }) => ($isOpen ? 'block' : 'none')};
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+`;
+
 export default SidebarLayout;

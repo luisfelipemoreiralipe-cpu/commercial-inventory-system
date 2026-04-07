@@ -18,6 +18,8 @@ const getProductsBelowMinimum = async (establishmentId) => {
             unit: true,
             quantity: true,
             minQuantity: true,
+            purchaseUnit: true,
+            packQuantity: true,
 
             category: {
                 select: {

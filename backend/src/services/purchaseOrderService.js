@@ -7,7 +7,8 @@ const stockMovementService = require('./stockMovementService');
 
 // ─── Service ───────────────────────────────────────────────────────────────
 
-const getAllOrders = () => purchaseOrderRepo.findAll();
+const getAllOrders = (establishmentId) =>
+    purchaseOrderRepo.findAll(establishmentId);
 
 const getOrderById = async (id) => {
     const order = await purchaseOrderRepo.findById(id);
@@ -41,7 +42,7 @@ const createOrder = async (data) => {
 };
 
 // 🔥 FUNÇÃO PRINCIPAL CORRIGIDA
-const completeOrder = async (orderId, establishmentId) => {
+const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
 
     const order = await getOrderById(orderId);
 
@@ -53,64 +54,86 @@ const completeOrder = async (orderId, establishmentId) => {
 
     const completedOrder = await prisma.$transaction(async (tx) => {
 
-        for (const item of order.items) {
+        for (const dbItem of order.items) {
 
-            if (!item.productId) continue;
+            if (!dbItem.productId) continue;
 
             const product = await tx.product.findUnique({
-                where: { id: item.productId }
+                where: { id: dbItem.productId }
             });
 
             if (!product) continue;
 
-            const quantity = Number(item.adjustedQuantity);
+            const incoming = incomingItems.find(i => i.id === dbItem.id) || {};
+            const quantity = Number(incoming.adjustedQuantity !== undefined ? incoming.adjustedQuantity : dbItem.adjustedQuantity);
+            const unitPrice = Number(incoming.unitPrice !== undefined ? incoming.unitPrice : dbItem.unitPrice);
 
-            // 🔥 ENTRADA PADRONIZADA
-            await stockMovementService.addStock({
-                productId: item.productId,
-                quantity,
-                establishmentId,
-                reason: "PURCHASE",
-                reference: ref
-            }, tx);
+            // 🔥 CÁLCULO DO FATOR DE CONVERSÃO (PRODUTO COMPRA X CONSUMO)
+            const packQuantity = product.packQuantity || 1;
+            const finalQuantity = quantity * packQuantity;
+            const finalUnitCost = unitPrice / packQuantity;
 
-            // 🔹 ATUALIZA CUSTO
-            await tx.product.update({
-                where: { id: item.productId },
+            // 🔹 ATUALIZA O ITEM NA ORDEM DE COMPRA
+            await tx.purchaseOrderItem.update({
+                where: { id: dbItem.id },
                 data: {
-                    currentCost: item.unitPrice
+                    adjustedQuantity: quantity,
+                    unitPrice: unitPrice
                 }
             });
 
-            // 🔹 FORNECEDOR
-            if (item.supplierId) {
+            // 🔥 ENTRADA PADRONIZADA NO ESTOQUE (COM MULTIPLICAÇÃO)
+            await stockMovementService.addStock({
+                productId: dbItem.productId,
+                quantity: finalQuantity,
+                establishmentId,
+                reason: "PURCHASE",
+                reference: ref,
+                unitCost: finalUnitCost
+            }, tx);
 
-                await tx.productSupplier.update({
+            // 🔹 ATUALIZA CUSTO DO PRODUTO (CUSTO POR UNIDADE BASE)
+            await tx.product.update({
+                where: { id: dbItem.productId },
+                data: {
+                    currentCost: finalUnitCost
+                }
+            });
+
+            // 🔹 HISTÓRICO DO FORNECEDOR
+            if (dbItem.supplierId) {
+
+                await tx.productSupplier.upsert({
                     where: {
                         productId_supplierId: {
-                            productId: item.productId,
-                            supplierId: item.supplierId
+                            productId: dbItem.productId,
+                            supplierId: dbItem.supplierId
                         }
                     },
-                    data: {
-                        price: item.unitPrice
+                    update: {
+                        price: unitPrice
+                    },
+                    create: {
+                         productId: dbItem.productId,
+                         supplierId: dbItem.supplierId,
+                         price: unitPrice
                     }
                 });
 
                 const lastPrice = await tx.supplierPriceHistory.findFirst({
                     where: {
-                        productId: item.productId,
-                        supplierId: item.supplierId
+                        productId: dbItem.productId,
+                        supplierId: dbItem.supplierId
                     },
                     orderBy: { createdAt: "desc" }
                 });
 
-                if (!lastPrice || Number(lastPrice.price) !== Number(item.unitPrice)) {
+                if (!lastPrice || Number(lastPrice.price) !== unitPrice) {
                     await tx.supplierPriceHistory.create({
                         data: {
-                            productId: item.productId,
-                            supplierId: item.supplierId,
-                            price: item.unitPrice,
+                            productId: dbItem.productId,
+                            supplierId: dbItem.supplierId,
+                            price: unitPrice,
                             purchaseOrderId: orderId
                         }
                     });
@@ -207,6 +230,8 @@ const createOrdersGroupedBySupplier = async (data) => {
 
 // ─── PDF ─────────────────────────────────────────────────────────────────────
 
+
+
 const generatePdf = async (orderId) => {
 
     const order = await prisma.purchaseOrder.findUnique({
@@ -214,51 +239,167 @@ const generatePdf = async (orderId) => {
         include: { items: true }
     });
 
+    console.log("ORDER:", order);
+    console.log("ESTABLISHMENT ID:", order.establishmentId);
+
     if (!order) {
         throw new AppError('Ordem não encontrada.', 404);
     }
 
+    // 🔥 Estabelecimento
     const establishment = await prisma.establishment.findUnique({
-        where: { user_id: order.user_id }
+        where: {
+            id: order.establishmentId
+        }
     });
 
     if (!establishment) {
         throw new AppError('Estabelecimento não encontrado.', 404);
     }
 
-    const doc = new PDFDocument({ margin: 50 });
+    // 🔥 Fornecedor (vem do item)
+    const supplierId = order.items?.[0]?.supplierId;
+
+    const supplier = supplierId
+        ? await prisma.supplier.findUnique({ where: { id: supplierId } })
+        : null;
+
+    // 🔥 PDF
+    const doc = new PDFDocument({ margin: 40 });
     const buffers = [];
 
-    doc.on('data', buffers.push.bind(buffers));
+    doc.on("data", (chunk) => buffers.push(chunk));
 
-    doc.fontSize(18).text(establishment.nome_fantasia, { align: 'center' });
+    // =========================
+    // 🏢 HEADER EMPRESA
+    // =========================
+    doc
+        .fontSize(22)
+        .fillColor("#111827")
+        .text(establishment.nome_fantasia, { align: "center" });
+
+    doc.moveDown(0.5);
+
+    doc
+        .fontSize(10)
+        .fillColor("#6b7280");
+
+    const enderecoCompleto = [
+        establishment.endereco,
+        establishment.cidade,
+        establishment.estado
+    ]
+        .filter(Boolean)
+        .join(" - ");
+
+    doc
+        .fontSize(10)
+        .fillColor("#6b7280")
+        .text(`CNPJ: ${establishment.cnpj || "-"}`)
+        .text(`Telefone: ${establishment.telefone || "-"}`)
+        .text(`Endereço: ${enderecoCompleto || "-"}`);
+
+    doc.moveDown(2);
+
+    // =========================
+    // 📄 INFO PEDIDO
+    // =========================
+    doc
+        .fontSize(14)
+        .text(`Pedido #${order.id.slice(-6).toUpperCase()}`);
+
+    doc
+        .fontSize(10)
+        .text(`Data: ${new Date().toLocaleDateString()}`);
+
     doc.moveDown();
 
-    doc.fontSize(10);
-    doc.text(`CNPJ: ${establishment.cnpj || '-'}`);
-    doc.text(`Telefone: ${establishment.telefone || '-'}`);
-    doc.text(`${establishment.endereco || ''}`);
+    // =========================
+    // 🏪 FORNECEDOR
+    // =========================
+    doc
+        .fontSize(12)
+        .text(`Fornecedor: ${supplier?.name || "-"}`);
+
+    doc.moveDown(1.5);
+
+    // =========================
+    // 📊 TABELA HEADER
+    // =========================
+    const startY = doc.y;
+
+    doc
+        .fontSize(10)
+        .text("Produto", 40, startY)
+        .text("Qtd", 250, startY)
+        .text("Preço", 320, startY)
+        .text("Total", 420, startY);
 
     doc.moveDown();
 
-    doc.fontSize(14).text(`ORDEM #${order.id.slice(-6).toUpperCase()}`);
+    // linha separadora
+    doc
+        .strokeColor("#e5e7eb")
+        .moveTo(40, doc.y)
+        .lineTo(550, doc.y)
+        .stroke();
 
-    let total = 0;
+    doc.moveDown(0.5);
+
+    // =========================
+    // 📦 ITENS
+    // =========================
+    let totalGeral = 0;
 
     order.items.forEach(item => {
-        const itemTotal = item.adjustedQuantity * item.unitPrice;
-        total += itemTotal;
 
-        doc.text(`${item.productName} - Qtd: ${item.adjustedQuantity}`);
+        const total = item.adjustedQuantity * item.unitPrice;
+        totalGeral += total;
+
+        const y = doc.y;
+
+        doc
+            .fontSize(10)
+            .text(item.productName, 40, y)
+            .text(item.adjustedQuantity.toString(), 250, y)
+            .text(`R$ ${item.unitPrice.toFixed(2)}`, 320, y)
+            .text(`R$ ${total.toFixed(2)}`, 420, y);
+
+        doc.moveDown();
     });
 
-    doc.text(`TOTAL: R$ ${total.toFixed(2)}`);
+    doc.moveDown();
+
+    // linha final
+    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke();
+
+    doc.moveDown();
+
+    // =========================
+    // 💰 TOTAL FINAL
+    // =========================
+    doc
+        .fontSize(14)
+        .text(`TOTAL: R$ ${totalGeral.toFixed(2)}`, {
+            align: "right"
+        });
+
+    doc.moveDown(2);
+
+    doc.fontSize(10).text("Gerado automaticamente pelo sistema", {
+        align: "center"
+    });
+
+
+    // =========================
+    // FINALIZA
+    // =========================
     doc.end();
 
-    return await new Promise(resolve => {
-        doc.on('end', () => resolve(Buffer.concat(buffers)));
+    return await new Promise((resolve, reject) => {
+        doc.on("end", () => resolve(Buffer.concat(buffers)));
+        doc.on("error", reject);
     });
-
 };
 
 module.exports = {

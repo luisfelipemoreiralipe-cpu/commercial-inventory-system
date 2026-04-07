@@ -2,23 +2,50 @@ const { Router } = require('express');
 const controller = require('../controllers/purchaseOrderController');
 const validate = require('../middlewares/validate');
 const authMiddleware = require('../middlewares/authMiddleware');
+const requireRole = require('../middlewares/requireRole');
 const { createPurchaseOrderSchema } = require('../validations/purchaseOrderValidation');
 
 const router = Router();
 
-router.get('/', authMiddleware, controller.getAll);
+// 🔓 LISTAR → ADMIN + STOCK_COUNTER
+router.get(
+    '/',
+    authMiddleware,
+    requireRole(['ADMIN', 'STOCK_COUNTER']),
+    controller.getAll
+);
 
+// 🔒 CRIAR → só ADMIN
 router.post(
     '/',
     authMiddleware,
+    requireRole(['ADMIN']),
     validate(createPurchaseOrderSchema),
     controller.create
 );
 
-router.put('/:id/complete', authMiddleware, controller.complete);
+// 🔓 RECEBER (complete) → ADMIN + STOCK_COUNTER
+router.put(
+    '/:id/complete',
+    authMiddleware,
+    requireRole(['ADMIN', 'STOCK_COUNTER']),
+    controller.complete
+);
 
-router.get('/:id/pdf', authMiddleware, controller.exportPdf);
+// 🔓 PDF → ADMIN + STOCK_COUNTER
+router.get(
+    '/:id/pdf',
+    authMiddleware,
+    requireRole(['ADMIN', 'STOCK_COUNTER']),
+    controller.exportPdf
+);
 
-router.delete('/:id', authMiddleware, controller.remove);
+// 🔒 DELETAR → só ADMIN
+router.delete(
+    '/:id',
+    authMiddleware,
+    requireRole(['ADMIN']),
+    controller.remove
+);
 
 module.exports = router;

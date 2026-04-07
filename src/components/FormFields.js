@@ -70,10 +70,19 @@ export const Input = ({ label, error, ...props }) => (
   </Label>
 );
 
-export const Select = ({ label, error, children, ...props }) => (
+export const Select = ({ label, error, children, options, onChange, ...props }) => (
   <Label>
     {label && <span>{label}</span>}
-    <StyledSelect {...props}>{children}</StyledSelect>
+    <StyledSelect 
+      {...props} 
+      onChange={(e) => onChange && onChange(e.target.value)}
+    >
+      {options ? options.map((opt, idx) => (
+        <option key={idx} value={opt.value}>
+          {opt.label}
+        </option>
+      )) : children}
+    </StyledSelect>
     {error && <ErrorText>{error}</ErrorText>}
   </Label>
 );

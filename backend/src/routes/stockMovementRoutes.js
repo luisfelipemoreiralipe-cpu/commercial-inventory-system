@@ -1,14 +1,34 @@
 const { Router } = require('express');
 const controller = require('../controllers/stockMovementController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const requireRole = require('../middlewares/requireRole');
+const Roles = require('../constants/roles');
+console.log('ROLES DEBUG:', Roles);
 
 const router = Router();
 
-// 🔍 LISTAR MOVIMENTAÇÕES
-router.get('/', authMiddleware, controller.getAll);
+// 🔍 LISTAR MOVIMENTAÇÕES → ADMIN ONLY
+router.get(
+    '/',
+    authMiddleware,
+    requireRole(['ADMIN']),
+    controller.getAll
+);
 
-// 🔥 NOVO: CONSUMO INTERNO
-router.post('/internal-use', authMiddleware, controller.createInternalUse);
-router.post('/bonus', authMiddleware, controller.addBonus);
+// 🔥 CONSUMO INTERNO → ADMIN ONLY
+router.post(
+    '/internal-use',
+    authMiddleware,
+    requireRole(['ADMIN']),
+    controller.createInternalUse
+);
+
+// 🔥 BONUS → ADMIN ONLY (CRÍTICO)
+router.post(
+    '/bonus',
+    authMiddleware,
+    requireRole(['ADMIN']),
+    controller.addBonus
+);
 
 module.exports = router;

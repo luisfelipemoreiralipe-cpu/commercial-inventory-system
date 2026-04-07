@@ -1,3 +1,4 @@
+console.log('💣 SUPPLIER CONTROLLER HIT');
 const supplierService = require('../services/supplierService');
 const asyncHandler = require('../utils/asyncHandler');
 

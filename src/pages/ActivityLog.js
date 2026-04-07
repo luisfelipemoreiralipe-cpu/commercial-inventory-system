@@ -12,6 +12,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
+import { Select } from '../components/FormFields';
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 const PageHeader = styled.div`
@@ -47,18 +48,7 @@ const FilterGroup = styled.label`
   font-weight: ${({ theme }) => theme.fontWeights.medium};
 `;
 
-const FilterSelect = styled.select`
-  background: ${({ theme }) => theme.colors.bgInput};
-  border: 1.5px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  padding: 7px 10px;
-  outline: none;
-  cursor: pointer;
-  transition: ${({ theme }) => theme.transition};
-  &:focus { border-color: ${({ theme }) => theme.colors.borderFocus}; }
-`;
+
 
 const ClearBtn = styled.button`
   font-size: ${({ theme }) => theme.fontSizes.xs};
@@ -175,23 +165,23 @@ const ActivityLog = () => {
 
                 <FilterGroup>
                     Entidade:
-                    <FilterSelect value={filterEntity} onChange={(e) => setFilterEntity(e.target.value)}>
+                    <Select value={filterEntity} onChange={setFilterEntity}>
                         <option value="">Todas</option>
                         <option value="PRODUCT">Produto</option>
                         <option value="SUPPLIER">Fornecedor</option>
                         <option value="PURCHASE_ORDER">Ordem de Compra</option>
-                    </FilterSelect>
+                    </Select>
                 </FilterGroup>
 
                 <FilterGroup>
                     Ação:
-                    <FilterSelect value={filterAction} onChange={(e) => setFilterAction(e.target.value)}>
+                    <Select value={filterAction} onChange={setFilterAction}>
                         <option value="">Todas</option>
                         <option value="CREATE">Criação</option>
                         <option value="UPDATE">Edição</option>
                         <option value="DELETE">Exclusão</option>
                         <option value="COMPLETE">Conclusão</option>
-                    </FilterSelect>
+                    </Select>
                 </FilterGroup>
 
                 {hasFilters && (

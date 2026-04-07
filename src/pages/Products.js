@@ -21,12 +21,14 @@ import {
 } from "../services/productSupplierService";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const UNITS = ['unidade', 'kg', 'litro', 'caixa', 'pacote', 'saco', 'rolo', 'metro', 'pç'];
+const UNITS = ['unidade', 'kg', 'g', 'litro', 'ml', 'caixa', 'pacote', 'saco', 'rolo', 'metro', 'pç'];
 const EMPTY_FORM = {
     name: '',
     categoryId: '',
     type: 'INVENTORY',
     unit: 'unidade',
+    purchaseUnit: '',
+    packQuantity: 1,
     unitPrice: '',
     quantity: '',
     minQuantity: '',
@@ -97,25 +99,11 @@ const SearchInput = styled.input`
   &::placeholder { color: ${({ theme }) => theme.colors.textMuted}; }
 `;
 
-const FilterSelect = styled.select`
-  background: ${({ theme }) => theme.colors.bgCard};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  padding: 10px 12px;
-  outline: none;
-  cursor: pointer;
-  transition: ${({ theme }) => theme.transition};
-  &:hover {
-    border-color: ${({ theme }) => theme.colors.textMuted};
-  }
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-  }
-  option {
-    background: ${({ theme }) => theme.colors.bgCard};
-  }
+const FilterGroup = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
 `;
 const Table = styled.table`
   width: 100%;
@@ -234,16 +222,27 @@ const Products = () => {
     // 🔥 FUNÇÃO FORA (CORRETO)
     const loadProducts = async () => {
         try {
+            console.log("📡 [FRONT-DEBUG] Iniciando busca de produtos...");
 
             const res = await api.get("/products");
 
+            // 🚨 O LOG MAIS IMPORTANTE:
+            console.log("📦 [FRONT-DEBUG] Dados recebidos da API:", {
+                totalRecebido: res.data?.length || res.length,
+                dados: res.data || res
+            });
+
+            if (!res || (Array.isArray(res) && res.length === 0)) {
+                console.warn("⚠️ [FRONT-DEBUG] Atenção: A API retornou uma lista VAZIA!");
+            }
+
             dispatch({
                 type: ACTIONS.SET_PRODUCTS,
-                payload: res.data
+                payload: res
             });
 
         } catch (error) {
-            console.error("Erro ao carregar produtos:", error);
+            console.error("❌ [FRONT-DEBUG] Erro crítico na requisição:", error);
         }
     };
 
@@ -255,7 +254,7 @@ const Products = () => {
 
             dispatch({
                 type: ACTIONS.SET_CATEGORIES,
-                payload: res.data.data
+                payload: res
             });
 
         } catch (error) {
@@ -285,7 +284,11 @@ const Products = () => {
     ).length;
 
     const totalStockValue = state.products.reduce((sum, p) => {
-        return sum + (Number(p.unitPrice) * Number(p.quantity));
+        const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
+            ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
+            : Number(p.unitPrice || 0);
+
+        return sum + ((bestPriceOfProduct / (Number(p.packQuantity) || 1)) * Number(p.quantity));
     }, 0);
     const categories = state.categories || [];
     console.log("CATEGORIES:", state.categories);
@@ -385,11 +388,13 @@ const Products = () => {
             name: p.name,
             categoryId: p.categoryId || '',
             unit: p.unit,
+            purchaseUnit: p.purchaseUnit || '',
+            packQuantity: p.packQuantity || 1,
             unitPrice: p.unitPrice,
-            quantity: p.quantity,
-            minQuantity: p.minQuantity,
+            quantity: Number(p.quantity || 0) / Number(p.packQuantity || 1),
+            minQuantity: Number(p.minQuantity || 0) / Number(p.packQuantity || 1),
             supplierId: p.supplierId || '',
-            type: p.type || 'INVENTORY', // 🔥 ESSENCIAL
+            type: p.type || 'INVENTORY',
         });
         setErrors({});
         setModalOpen(true);
@@ -443,22 +448,19 @@ const Products = () => {
             name: form.name,
             categoryId: form.categoryId,
             unit: form.unit,
-            type: form.type ?? 'INVENTORY',
+            purchaseUnit: form.purchaseUnit || '',
+            packQuantity: Number(form.packQuantity || 1),
+            type: form.type || 'INVENTORY',
             unitPrice: Number(form.unitPrice || 0),
-            quantity: Number(form.quantity || 0),
-            minQuantity: Number(form.minQuantity || 0),
+            quantity: Number(form.quantity || 0) * Number(form.packQuantity || 1),
+            minQuantity: Number(form.minQuantity || 0) * Number(form.packQuantity || 1),
         };
-        console.log("ENVIANDO PRODUTO REAL:", JSON.stringify(payload));
+
         try {
-
             if (editTarget) {
-
                 await api.put(`/products/${editTarget.id}`, payload);
-
             } else {
-
-                await api.post('/products', JSON.parse(JSON.stringify(payload)));
-
+                await api.post('/products', payload);
             }
 
             await loadProducts(); // 🔥 ISSO RESOLVE
@@ -495,19 +497,28 @@ const Products = () => {
     };
 
     const handleQtyUpdate = async () => {
-
         if (qtyValue === '' || isNaN(qtyValue) || Number(qtyValue) < 0) return;
 
-        await dispatch({
-            type: ACTIONS.UPDATE_PRODUCT_QUANTITY,
-            payload: { id: qtyModal.id, quantity: Number(qtyValue) },
-        });
+        const newRealQuantity = Number(qtyValue) * (Number(qtyModal.packQuantity) || 1);
 
-        toast.success("Estoque atualizado");
+        try {
+            await api.put(`/products/${qtyModal.id}`, {
+                ...qtyModal,
+                quantity: newRealQuantity
+            });
 
-        setQtyModal(null);
-        setQtyValue('');
+            await dispatch({
+                type: ACTIONS.UPDATE_PRODUCT_QUANTITY,
+                payload: { id: qtyModal.id, quantity: newRealQuantity },
+            });
 
+            toast.success("Estoque atualizado");
+            setQtyModal(null);
+            setQtyValue('');
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao atualizar estoque");
+        }
     };
     const handleRemoveSupplier = async (supplierId) => {
 
@@ -636,15 +647,22 @@ const Products = () => {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </SearchBox>
-                <FilterSelect value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                <Select 
+                    value={filterCategory} 
+                    onChange={setFilterCategory}
+                >
                     <option value="">Todas as categorias</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </FilterSelect>
-                <FilterSelect value={filterStock} onChange={(e) => setFilterStock(e.target.value)}>
+                </Select>
+
+                <Select 
+                    value={filterStock} 
+                    onChange={setFilterStock}
+                >
                     <option value="all">Todos os estoques</option>
                     <option value="low">Abaixo do mínimo</option>
                     <option value="ok">Estoque adequado</option>
-                </FilterSelect>
+                </Select>
             </SearchRow>
 
             {/* Table */}
@@ -680,9 +698,7 @@ const Products = () => {
                                             ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
                                             : 0;
 
-                                    <Td>{formatCurrency(bestPrice * p.quantity)}</Td>
                                     return (
-
                                         <Tr key={p.id} lowStock={isLow}>
                                             <Td>
                                                 <div style={{ fontWeight: 600 }}>{p.name}</div>
@@ -692,15 +708,23 @@ const Products = () => {
                                             </Td>
                                             <Td>{p.category?.name || 'N/A'}</Td>
                                             <Td>{p.unit}</Td>
-                                            <Td>{bestPrice ? formatCurrency(bestPrice) : "-"}</Td>
+                                            <Td>{bestPrice || p.unitPrice ? formatCurrency(bestPrice || Number(p.unitPrice)) : "-"}</Td>
                                             <Td style={{ color: isLow ? '#413232ff' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
-                                                {p.quantity}
+                                                {p.quantity} {p.unit} ({(Number(p.quantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
                                             </Td>
-                                            <Td>{p.minQuantity}</Td>
-
+                                            <Td>
+                                                {p.minQuantity} {p.unit} ({(Number(p.minQuantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
+                                            </Td>
                                             <Td>
                                                 {p.suppliers?.length ? (
-                                                    <span>{p.suppliers.length}</span>
+                                                    <div style={{ fontSize: '13px', fontWeight: 500 }}>
+                                                        {p.suppliers[0]?.name}
+                                                        {p.suppliers.length > 1 && (
+                                                            <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '4px' }}>
+                                                                (+{p.suppliers.length - 1})
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <Badge variant="warning">
                                                         <MdWarning style={{ marginRight: 4 }} />
@@ -708,16 +732,16 @@ const Products = () => {
                                                     </Badge>
                                                 )}
                                             </Td>
-
                                             <Td>
                                                 {p.productSuppliers && p.productSuppliers.length > 0
-                                                    ? formatCurrency(
-                                                        Math.min(...p.productSuppliers.map(s => Number(s.price)))
-                                                    )
+                                                    ? formatCurrency(bestPrice)
                                                     : "-"}
                                             </Td>
-
-                                            <Td>{formatCurrency(p.unitPrice * p.quantity)}</Td>
+                                            <Td>
+                                                {formatCurrency(
+                                                    ((bestPrice || Number(p.unitPrice) || 0) / (Number(p.packQuantity) || 1)) * Number(p.quantity)
+                                                )}
+                                            </Td>
                                             <Td>
                                                 {isLow ? (
                                                     <Badge variant="danger">Baixo</Badge>
@@ -743,7 +767,10 @@ const Products = () => {
                                                     <IconBtn
                                                         title="Editar quantidade"
                                                         color="warning"
-                                                        onClick={() => { setQtyModal(p); setQtyValue(String(p.quantity)); }}
+                                                        onClick={() => { 
+                                                            setQtyModal(p); 
+                                                            setQtyValue(String(Number(p.quantity) / (Number(p.packQuantity) || 1))); 
+                                                        }}
                                                     >
                                                         <MdQty />
                                                     </IconBtn>
@@ -803,33 +830,65 @@ const Products = () => {
 
 
                     {/* TIPO DE PRODUTO */}
-                    <select
+                    <Select
+                        label="Tipo de Produto *"
                         value={form.type}
-                        onChange={(e) =>
-                            setForm((f) => ({ ...f, type: e.target.value }))
+                        onChange={(val) =>
+                            setForm((f) => ({ ...f, type: val }))
                         }
                     >
                         <option value="INVENTORY">Estoque</option>
                         <option value="PRODUCTION">Produção</option>
-                    </select>
-
-                    <Select label="Categoria *" {...field('categoryId')}>
-                        <option value="">-- Selecione uma categoria --</option>
-
-                        {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
                     </Select>
 
-                    <Select label="Unidade de Compra" {...field('unit')}>
-                        {UNITS.map((u) => (
-                            <option key={u} value={u}>
-                                {u}
-                            </option>
-                        ))}
-                    </Select>
+                    <Select 
+                        label="Categoria *" 
+                        value={form.categoryId}
+                        onChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
+                        options={[
+                            { value: "", label: "-- Selecione uma categoria --" },
+                            ...categories.map((c) => ({ value: c.id, label: c.name }))
+                        ]}
+                    />
+
+                    <FormFull>
+                        <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+                            gap: '16px',
+                            padding: '16px',
+                            background: 'rgba(0,0,0,0.02)',
+                            borderRadius: '8px',
+                            border: '1px dashed #cbd5e1'
+                        }}>
+                            <Select 
+                                label="Unidade Base (Consumo/Ficha) *" 
+                                value={form.unit}
+                                onChange={(val) => setForm((f) => ({ ...f, unit: val }))}
+                                options={UNITS.map((u) => ({ value: u, label: u }))}
+                            />
+
+                            <Input
+                                label="Unidade de Compra"
+                                placeholder="Ex: Garrafa, Caixa, Unidade"
+                                {...field('purchaseUnit')}
+                            />
+
+                            <div>
+                                <Input
+                                    label="Quantidade na Embalagem"
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    placeholder="Ex: 750"
+                                    {...field('packQuantity')}
+                                />
+                                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                                    Quantos ml/g/un vêm dentro da unidade de compra?
+                                </span>
+                            </div>
+                        </div>
+                    </FormFull>
 
                     {form.type !== 'PRODUCTION' && (
                         <>
@@ -850,15 +909,15 @@ const Products = () => {
                             />
 
                             <FormFull>
-                                <Select label="Fornecedor Vinculado" {...field('supplierId')}>
-                                    <option value="">-- Selecione um fornecedor --</option>
-
-                                    {state.suppliers.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.name}
-                                        </option>
-                                    ))}
-                                </Select>
+                                <Select 
+                                    label="Fornecedor Vinculado" 
+                                    value={form.supplierId}
+                                    onChange={(val) => setForm((f) => ({ ...f, supplierId: val }))}
+                                    options={[
+                                        { value: "", label: "-- Selecione um fornecedor --" },
+                                        ...state.suppliers.map((s) => ({ value: s.id, label: s.name }))
+                                    ]}
+                                />
                             </FormFull>
                         </>
                     )}
@@ -960,20 +1019,12 @@ const Products = () => {
                 <Select
                     label="Adicionar fornecedor"
                     value={selectedSupplier}
-                    onChange={(e) => setSelectedSupplier(e.target.value)}
-                >
-
-                    <option value="">Selecionar fornecedor</option>
-
-                    {availableSuppliers.map((s) => (
-
-                        <option key={s.id} value={s.id}>
-                            {s.name}
-                        </option>
-
-                    ))}
-
-                </Select>
+                    onChange={(val) => setSelectedSupplier(val)}
+                    options={[
+                        { value: "", label: "Selecionar fornecedor" },
+                        ...availableSuppliers.map((s) => ({ value: s.id, label: s.name }))
+                    ]}
+                />
 
                 <Input
                     label="Preço do fornecedor"

@@ -3,6 +3,10 @@ import { useApp } from "../context/AppContext";
 import styled from "styled-components";
 import api from "../services/api";
 import Badge from "../components/Badge";
+import { Select } from "../components/FormFields";
+import toast from "react-hot-toast"
+import Button from "../components/Button";
+
 
 const Container = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
@@ -57,19 +61,19 @@ const Tab = styled.button`
   font-size: ${({ theme }) => theme.fontSizes.sm};
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
 
-  background: ${({ active, theme }) =>
-        active ? theme.colors.primary : theme.colors.bgCard};
+  background: ${({ $active, theme }) =>
+        $active ? theme.colors.primary : theme.colors.bgCard};
 
-  color: ${({ active, theme }) =>
-        active ? "#fff" : theme.colors.textPrimary};
+  color: ${({ $active, theme }) =>
+        $active ? "#fff" : theme.colors.textPrimary};
 
   border: 1px solid ${({ theme }) => theme.colors.border};
 
   transition: ${({ theme }) => theme.transition};
 
   &:hover {
-    background: ${({ active, theme }) =>
-        active ? theme.colors.primaryHover : theme.colors.bgHover};
+    background: ${({ $active, theme }) =>
+        $active ? theme.colors.primaryHover : theme.colors.bgHover};
   }
 `;
 
@@ -133,17 +137,7 @@ const Label = styled.label`
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
 `;
 
-const Select = styled.select`
-  padding: 10px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bgInput};
 
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.borderFocus};
-  }
-`;
 
 const Input = styled.input`
   padding: 10px;
@@ -154,28 +148,6 @@ const Input = styled.input`
   &:focus {
     outline: none;
     border-color: ${({ theme }) => theme.colors.borderFocus};
-  }
-`;
-
-const Button = styled.button`
-  margin-top: ${({ theme }) => theme.spacing.md};
-  padding: 12px 18px;
-  border-radius: ${({ theme }) => theme.radii.md};
-
-  background: ${({ theme }) => theme.colors.primary};
-  color: white;
-
-  font-weight: ${({ theme }) => theme.fontWeights.semibold};
-
-  transition: ${({ theme }) => theme.transition};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.primaryHover};
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 `;
 
@@ -234,12 +206,12 @@ export default function StockTransfers() {
 
             const res = await api.get("/api/stock-transfers/sent");
 
-            setSentTransfers(res.data);
+            setSentTransfers(res);
 
         } catch (err) {
 
             console.error(err);
-            alert("Erro ao carregar transferências enviadas");
+            toast.error("Erro ao carregar transferências enviadas");
 
         }
     }
@@ -249,7 +221,7 @@ export default function StockTransfers() {
 
             const res = await api.get("/api/stock-transfers/received");
 
-            const pendingTransfers = res.data.filter(
+            const pendingTransfers = res.filter(
                 (t) => t.status === "PENDING"
             );
 
@@ -258,7 +230,7 @@ export default function StockTransfers() {
         } catch (err) {
 
             console.error(err);
-            alert("Erro ao carregar transferências recebidas");
+            toast.error("Erro ao carregar transferências recebidas");
 
         }
 
@@ -271,14 +243,13 @@ export default function StockTransfers() {
         try {
 
             await api.patch(`/api/stock-transfers/${id}/approve`);
+            toast.success("Transferência aprovada com sucesso");
 
             loadReceivedTransfers();
             loadSentTransfers();
 
         } catch (err) {
-
-            alert(err.message);
-
+            console.error(err);
         }
 
     }
@@ -292,9 +263,7 @@ export default function StockTransfers() {
             loadSentTransfers();
 
         } catch (err) {
-
-            alert(err.message);
-
+            console.error(err);
         }
 
     }
@@ -302,7 +271,13 @@ export default function StockTransfers() {
     async function handleTransfer() {
 
         if (!productId || !quantity || !destinationId) {
-            alert("Preencha todos os campos");
+            toast.error("Preencha todos os campos");
+            return;
+        }
+
+        const selectedProduct = products.find(p => p.id === productId);
+        if (selectedProduct && Number(quantity) > Number(selectedProduct.quantity)) {
+            toast.error(`Estoque insuficiente no estabelecimento de origem. Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}`);
             return;
         }
 
@@ -316,7 +291,7 @@ export default function StockTransfers() {
                 toEstablishmentId: destinationId
             });
 
-            alert("Transferência criada com sucesso");
+            toast.success("Transferência criada com sucesso");
 
             setProductId("");
             setQuantity("");
@@ -325,7 +300,13 @@ export default function StockTransfers() {
         } catch (err) {
 
             console.error(err);
-            alert(err.response?.data?.message || "Erro ao criar transferência");
+            const status = err.response?.status;
+
+            if (status === 403) {
+                toast.error("Você não tem permissão para criar transferência");
+            } else {
+                toast.error(err.response?.data?.message || "Erro ao criar transferência");
+            }
 
         } finally {
 
@@ -361,7 +342,7 @@ export default function StockTransfers() {
 
                 const res = await api.get("/auth/context");
 
-                const context = res.data.data || res.data;
+                const context = res;
 
                 const { establishments = [], establishment } = context;
 
@@ -396,14 +377,14 @@ export default function StockTransfers() {
             <Tabs>
 
                 <Tab
-                    active={tab === "create"}
+                    $active={tab === "create"}
                     onClick={() => setTab("create")}
                 >
                     Nova Transferência
                 </Tab>
 
                 <Tab
-                    active={tab === "sent"}
+                    $active={tab === "sent"}
                     onClick={() => {
                         setTab("sent");
                         loadSentTransfers();
@@ -413,7 +394,7 @@ export default function StockTransfers() {
                 </Tab>
 
                 <Tab
-                    active={tab === "received"}
+                    $active={tab === "received"}
                     onClick={() => {
                         setTab("received");
                         loadReceivedTransfers();
@@ -454,34 +435,26 @@ export default function StockTransfers() {
 
                         <Field>
 
-                            <Label>Produto</Label>
+
 
                             <Select
+                                label="Produto"
                                 value={productId}
-                                onChange={(e) => setProductId(e.target.value)}
-                            >
-
-                                <option value="">
-                                    Selecione um produto
-                                </option>
-
-                                {products.map((product) => (
-
-                                    <option key={product.id} value={product.id}>
-                                        {product.name}
-                                    </option>
-
-                                ))}
-
-                            </Select>
+                                onChange={setProductId}
+                                options={[
+                                    { value: "", label: "-- Selecione um produto --" },
+                                    ...products.map((product) => ({
+                                        value: product.id,
+                                        label: `${product.name} (Estoque: ${product.quantity || 0} ${product.unit || 'ml'})`,
+                                    }))
+                                ]}
+                            />
 
                         </Field>
 
 
                         <Field>
-
-                            <Label>Quantidade</Label>
-
+                            <Label>Quantidade ({products.find(p => p.id === productId)?.unit || 'ml'})</Label>
                             <Input
                                 type="number"
                                 min="1"
@@ -489,47 +462,58 @@ export default function StockTransfers() {
                                 value={quantity}
                                 onChange={(e) => setQuantity(e.target.value)}
                             />
-
+                            {(() => {
+                                const selectedProduct = products.find(p => p.id === productId);
+                                const q = Number(quantity);
+                                if (!selectedProduct || q <= 0) return null;
+                                
+                                const units = (q / (selectedProduct.packQuantity || 1)).toFixed(2);
+                                const isExceeded = q > Number(selectedProduct.quantity);
+                                
+                                return (
+                                    <div style={{ fontSize: '0.8rem', color: isExceeded ? '#ef4444' : '#64748b', marginTop: '4px', fontWeight: isExceeded ? 600 : 400 }}>
+                                        {isExceeded ? `⚠️ Estoque insuficiente! Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}` : `Equivale a ${units} ${selectedProduct.purchaseUnit || 'un'}(s)`}
+                                    </div>
+                                );
+                            })()}
                         </Field>
-
 
                         <Field>
 
-                            <Label>Destino</Label>
-
                             <Select
+                                label="Destino"
                                 value={destinationId}
-                                onChange={(e) => setDestinationId(e.target.value)}
-                            >
-
-                                <option value="">
-                                    Selecione o estabelecimento
-                                </option>
-
-                                {establishments.map((est) => (
-
-                                    <option key={est.id} value={est.id}>
-                                        {est.nome_fantasia}
-                                    </option>
-
-                                ))}
-
-                            </Select>
+                                onChange={setDestinationId}
+                                options={[
+                                    { value: "", label: "-- Selecione um destino --" },
+                                    ...establishments.map((est) => ({
+                                        value: est.id,
+                                        label: est.nome_fantasia,
+                                    }))
+                                ]}
+                            />
 
                         </Field>
 
-
-                        <Button
-                            onClick={handleTransfer}
-                            disabled={loading}
-                        >
-                            {loading ? "Transferindo..." : "Transferir"}
-                        </Button>
+                        {(() => {
+                            const selectedProduct = products.find(p => p.id === productId);
+                            const q = Number(quantity);
+                            const isExceeded = selectedProduct && q > Number(selectedProduct.quantity);
+                            
+                            return (
+                                <Button
+                                    onClick={handleTransfer}
+                                    disabled={loading || isExceeded}
+                                    variant={isExceeded ? "secondary" : "primary"}
+                                    style={{ opacity: isExceeded ? 0.6 : 1 }}
+                                >
+                                    {loading ? "Transferindo..." : isExceeded ? "Estoque Insuficiente" : "Transferir"}
+                                </Button>
+                            );
+                        })()}
 
                     </Form>
-
                 )}
-
                 {tab === "sent" && (
 
                     <table style={{ width: "100%" }}>
@@ -646,16 +630,22 @@ export default function StockTransfers() {
                                                 <>
                                                     <div style={{ display: "flex", gap: "8px" }}>
 
-                                                        <button
+                                                        <Button
+                                                            size="sm"
+                                                            variant="success"
                                                             onClick={() => approveTransfer(transfer.id)}
                                                             disabled={processingId === transfer.id}
                                                         >
                                                             {processingId === transfer.id ? "Aprovando..." : "Aprovar"}
-                                                        </button>
+                                                        </Button>
 
-                                                        <button onClick={() => rejectTransfer(transfer.id)}>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="danger"
+                                                            onClick={() => rejectTransfer(transfer.id)}
+                                                        >
                                                             Rejeitar
-                                                        </button>
+                                                        </Button>
 
                                                     </div>
                                                 </>

@@ -255,11 +255,65 @@ const rejectTransfer = async (transferId, userId) => {
 
     return updatedTransfer;
 };
+const completeTransfer = async (transferId, userId) => {
+
+    return prisma.$transaction(async (tx) => {
+
+        const transfer = await tx.stockTransfer.findUnique({
+            where: { id: transferId }
+        });
+
+        if (!transfer) {
+            throw new Error("Transferência não encontrada");
+        }
+
+        if (transfer.status !== "APPROVED") {
+            throw new Error("Transferência precisa estar aprovada");
+        }
+
+        const {
+            productId,
+            quantity,
+            fromEstablishmentId,
+            toEstablishmentId
+        } = transfer;
+
+        // 🔴 BAIXA ORIGEM
+        await consumeProduct({
+            productId,
+            quantity,
+            establishmentId: fromEstablishmentId,
+            reason: "TRANSFER",
+            reference: `Transferência para ${toEstablishmentId}`
+        }, tx);
+
+        // 🟢 ENTRADA DESTINO
+        await addStock({
+            productId: destinarionProduct.id,
+            quantity,
+            establishmentId: toEstablishmentId,
+            reason: "TRANSFER",
+            reference: `Transferência de ${fromEstablishmentId}`
+        }, tx);
+
+        return tx.stockTransfer.update({
+            where: { id: transferId },
+            data: {
+                status: "COMPLETED",
+                completedBy: userId,
+                completedAt: new Date()
+            }
+        });
+
+    });
+
+};
 
 module.exports = {
     createTransfer,
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
-    getReceivedTransfers
+    getReceivedTransfers,
+    completeTransfer
 };

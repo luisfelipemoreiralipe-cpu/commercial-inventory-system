@@ -1,18 +1,20 @@
 {
-    "name": "commercial-backend",
+    "name": "controle-de-compras-bds-backend",
     "version": "1.0.0",
     "description": "Internal Inventory Management System — REST API",
     "main": "src/server.js",
     "scripts": {
         "dev": "nodemon src/server.js",
+        "build": "npx prisma generate && npx prisma migrate deploy && npx prisma db seed",
         "start": "node src/server.js",
         "db:migrate": "prisma migrate dev",
         "db:deploy": "prisma migrate deploy",
         "db:studio": "prisma studio",
-        "db:generate": "prisma generate"
+        "db:generate": "prisma generate",
+        "clone-branch": "node scripts/cloneBranch.js"
     },
     "dependencies": {
-        "@prisma/client": "^5.10.2",
+        "@prisma/client": "^5.22.0",
         "bcrypt": "^6.0.0",
         "bcryptjs": "^3.0.3",
         "cors": "^2.8.5",
@@ -26,8 +28,8 @@
         "zod": "^3.22.4"
     },
     "devDependencies": {
-        "nodemon": "^3.1.0",
-        "prisma": "^5.10.2"
+        "nodemon": "^3.1.14",
+        "prisma": "^5.22.0"
     },
     "prisma": {
         "seed": "node prisma/seed.js"

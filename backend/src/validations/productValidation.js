@@ -8,6 +8,8 @@ const createProductSchema = z.object({
     unitPrice: z.number().min(0, 'Preço deve ser positivo').optional().nullable(),
     quantity: z.number().int().min(0, 'Quantidade deve ser ≥ 0').default(0),
     minQuantity: z.number().int().min(0, 'Estoque mínimo deve ser ≥ 0').default(0),
+    purchaseUnit: z.string().optional().nullable(),
+    packQuantity: z.preprocess((val) => Number(val), z.number().min(0).optional().default(1)),
 });
 
 const updateProductSchema = createProductSchema.partial();

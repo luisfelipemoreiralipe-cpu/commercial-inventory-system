@@ -1,8 +1,12 @@
 const { Router } = require('express');
 const controller = require('../controllers/stockAuditController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const requireRole = require('../middlewares/requireRole');
+const Roles = require('../constants/roles.js');
 
 const router = Router();
+console.log("ROLES IMPORT:", Roles);
+
 
 router.get(
     '/',
@@ -13,6 +17,7 @@ router.get(
 router.post(
     '/',
     authMiddleware,
+    requireRole(['ADMIN', 'MANAGER', 'STOCK_COUNTER']),
     controller.create
 );
 

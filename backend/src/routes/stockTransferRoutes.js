@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-
+const requireRole = require('../middlewares/requireRole');
 const authMiddleware = require('../middlewares/authMiddleware');
 const controller = require('../controllers/stockTransferController');
 
@@ -18,16 +18,23 @@ router.get(
     controller.getReceivedTransfers
 );
 
+// router.patch(
+//     '/stock-transfers/:id/complete',
+//     authMiddleware,
+//     controller.completeTransfer
+// );
+
 router.patch(
     '/stock-transfers/:id/approve',
     authMiddleware,
+    requireRole(['ADMIN']),
     controller.approveTransfer
 );
 
 router.patch(
     '/stock-transfers/:id/reject',
     authMiddleware,
+    requireRole(['ADMIN']),
     controller.rejectTransfer
 );
-
 module.exports = router;

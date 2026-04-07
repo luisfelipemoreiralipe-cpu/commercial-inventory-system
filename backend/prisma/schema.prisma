@@ -35,6 +35,7 @@ model Supplier {
   productSuppliers ProductSupplier[]
 
   priceHistory SupplierPriceHistory[]
+  stockMovements StockMovement[]
 }
 
 ////////////////////////////////////////////////////////////
@@ -46,8 +47,12 @@ model Category {
   name      String
   createdAt DateTime @default(now())
 
+  establishmentId String        @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+
   products Product[]
 
+  @@unique([name, establishmentId])
   @@map("categories")
 }
 
@@ -68,7 +73,7 @@ model Product {
 
   // 🔹 NOVOS CAMPOS
   purchaseUnit     String?
-  conversionFactor Decimal? @db.Decimal(10, 2)
+  packQuantity     Float?   @default(1)
 
   // 🔹 NOVO CAMPO DE CUSTO
   currentCost Decimal? @db.Decimal(12,2)
@@ -93,6 +98,7 @@ model Product {
   recipeItems          RecipeItem[]
   Recipe               Recipe?
   transfers            StockTransfer[]
+  consumptionEventItems ConsumptionEventItem[]
   @@map("products")
 }
 
@@ -108,6 +114,10 @@ model PurchaseOrder {
 
   user_id String @db.Uuid
   users   users  @relation(fields: [user_id], references: [id])
+
+  // 🔥 MULTI-TENANT (ESSENCIAL)
+  establishmentId String        @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
 
   items PurchaseOrderItem[]
 
@@ -155,6 +165,10 @@ model StockMovement {
   createdAt DateTime @default(now())
   establishmentId String @db.Uuid
   establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  unitCost  Decimal? @db.Decimal(12,2)
+  totalCost Decimal? @db.Decimal(14,2)
+  supplierId String? @db.Uuid
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
 
   @@map("stock_movements")
 }
@@ -197,6 +211,7 @@ model Establishment {
 
   products       Product[]
   suppliers      Supplier[]
+  categories     Category[]
   auditLogs      AuditLog[]
   recipes        Recipe[]
   stockAudits    StockAudit[]
@@ -209,7 +224,8 @@ model Establishment {
   transfersTo        StockTransfer[]     @relation("TransferTo")
   userEstablishments UserEstablishment[]
   stockMovements StockMovement[]
-
+  purchaseOrders PurchaseOrder[]
+  consumptionEvents ConsumptionEvent[]
 }
 
 ////////////////////////////////////////////////////////////
@@ -401,6 +417,34 @@ model StockAuditItem {
   difference Decimal @default(0) @db.Decimal(12, 3)
 
   @@map("stock_audit_items")
+}
+
+model ConsumptionEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  status          String    @default("OPEN") // OPEN, CLOSED
+  establishmentId String    @db.Uuid
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+  items           ConsumptionEventItem[]
+
+  @@map("consumption_events")
+}
+
+model ConsumptionEventItem {
+  id              String    @id @default(uuid()) @db.Uuid
+  eventId         String    @db.Uuid
+  event           ConsumptionEvent @relation(fields: [eventId], references: [id])
+  productId       String    @db.Uuid
+  product         Product   @relation(fields: [productId], references: [id])
+  withdrawnQty    Decimal   @db.Decimal(12, 3) // em unidades base (ml/g)
+  returnedQty     Decimal   @default(0) @db.Decimal(12, 3) // em unidades base (ml/g)
+  unitCost        Decimal   @db.Decimal(12, 2) // custo unitário no momento da retirada
+
+  createdAt       DateTime  @default(now())
+
+  @@map("consumption_event_items")
 }
 
 

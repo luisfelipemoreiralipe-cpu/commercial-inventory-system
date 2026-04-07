@@ -86,6 +86,8 @@ const createProduct = async (data, establishmentId) => {
     const product = await productRepo.create({
         name: data.name,
         unit: data.unit,
+        purchaseUnit: data.purchaseUnit || '',
+        packQuantity: Number(data.packQuantity || 1),
         categoryId: data.categoryId,
         type: data.type, // 🔥 ESSENCIAL
         unitPrice: data.unitPrice || 0,

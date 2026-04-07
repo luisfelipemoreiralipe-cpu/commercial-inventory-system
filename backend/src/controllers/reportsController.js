@@ -1,5 +1,7 @@
 const productService = require('../services/productService');
+const reportsService = require('../services/reportsService'); 
 const asyncHandler = require('../utils/asyncHandler');
+const prisma = require('../utils/prisma');
 
 // ─── PURCHASE SAVINGS REPORT ───────────────────────────────────────────
 
@@ -57,9 +59,10 @@ const getLossByProduct = asyncHandler(async (req, res) => {
             }
         });
 
-        const cost = Number(supplierPrice?.price || 0);
+        const packQty = Number(item.product?.packQuantity || 1);
+        const dilutedCost = Number(supplierPrice?.price || 0) / packQty;
         const diff = Number(item.difference || 0);
-        const loss = diff * cost;
+        const loss = diff * dilutedCost;
 
         const productName = item.product?.name || "Sem nome";
 
@@ -84,8 +87,6 @@ const getLossByProduct = asyncHandler(async (req, res) => {
     });
 
 });
-
-const prisma = require('../utils/prisma');
 
 const getLoss = asyncHandler(async (req, res) => {
 
@@ -121,14 +122,15 @@ const getLoss = asyncHandler(async (req, res) => {
             }
         });
 
-        const cost = Number(supplierPrice?.price || 0);
+        const packQty = Number(item.product?.packQuantity || 1);
+        const dilutedCost = Number(supplierPrice?.price || 0) / packQty;
         const diff = Number(item.difference || 0);
-        const loss = diff * cost;
+        const loss = diff * dilutedCost;
 
         console.log({
             product: item.product?.name,
             difference: diff,
-            cost,
+            dilutedCost,
             loss
         });
 
@@ -142,9 +144,25 @@ const getLoss = asyncHandler(async (req, res) => {
 
 });
 
+const getMonthlyBonusTrend = asyncHandler(async (req, res) => {
+    const { dateFrom, dateTo } = req.query;
+    const establishmentId = req.user.establishmentId;
+
+    const data = await reportsService.getMonthlyBonusTrend(
+        establishmentId,
+        dateFrom,
+        dateTo
+    );
+
+    res.json({
+        success: true,
+        data
+    });
+});
+
 module.exports = {
     getPurchaseSavings,
     getLoss,
-    getLossByProduct
-
+    getLossByProduct,
+    getMonthlyBonusTrend
 };

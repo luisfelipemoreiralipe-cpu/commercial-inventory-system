@@ -81,25 +81,26 @@ const calculateRecipeCost = async (recipeId) => {
     const ingredients = [];
 
     for (const item of items) {
-
+        const product = item.product;
+        const packQuantity = Number(product.packQuantity || 1);
         const price = await productRepo.getLastPurchasePrice(item.productId);
 
         const quantity = Number(item.quantity);
 
-        const cost = price * quantity;
+        // Custo do item = quantidade usada * (preço do pacote / quantidade no pacote)
+        const cost = quantity * (price / packQuantity);
 
         totalCost += cost;
 
         ingredients.push({
             id: item.id,
             productId: item.productId,
-            name: item.product.name,
+            name: product.name,
             quantity,
-            unit: item.product.unit,
+            unit: product.unit,
             unitPrice: price,
             cost
         });
-
     }
 
     return {

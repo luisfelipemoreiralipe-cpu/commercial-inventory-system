@@ -1,36 +1,47 @@
 const convertToBaseUnit = (quantity, unit) => {
-
+    console.log(`[CONVERSOR] Convertendo: ${quantity} | Unidade: ${unit}`);
     if (!quantity) return 0;
 
-    switch (unit?.toLowerCase()) {
+    const unitLower = unit?.toLowerCase();
 
-        // 🔵 VOLUME
+    let result = 0;
+    switch (unitLower) {
+        // 🔵 VOLUME (Base é ml)
         case 'l':
         case 'litro':
-            return quantity * 1000;
+        case 'litros':
+            result = Number(quantity) * 1000; // 1 Litro = 1.000 no banco (ml)
+            break;
 
         case 'ml':
-            return quantity;
+            result = Number(quantity); // 25ml = 25 no banco
+            break;
 
-        // 🟡 PESO
+        // 🟡 PESO (Base é g)
         case 'kg':
         case 'quilo':
-            return quantity * 1000;
+        case 'quilograma':
+            result = Number(quantity) * 1000; // 1 KG = 1.000 no banco (g)
+            break;
 
         case 'g':
         case 'grama':
-            return quantity;
+        case 'gramas':
+            result = Number(quantity); // 500g = 500 no banco
+            break;
 
         // ⚪ UNIDADE
         case 'un':
         case 'unidade':
-            return quantity;
+        case 'unidades':
+            result = Number(quantity);
+            break;
 
         default:
-            throw new Error(`Unidade não suportada: ${unit}`);
+            result = Number(quantity);
     }
+    console.log(`Convertendo ${quantity} ${unit} -> ${result}`);
+    return result;
 };
 
-module.exports = {
-    convertToBaseUnit
-};
+module.exports = { convertToBaseUnit };

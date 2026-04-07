@@ -12,6 +12,8 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
     const [ingredientId, setIngredientId] = useState("");
     const [quantity, setQuantity] = useState("");
     const [cost, setCost] = useState(0);
+    const [useFractional, setUseFractional] = useState('base');
+    const [selectedIngUnit, setSelectedIngUnit] = useState('');
 
     useEffect(() => {
 
@@ -70,95 +72,68 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
     };
 
     const handleAddIngredient = async () => {
-
         if (!ingredientId || !quantity) return;
 
         try {
+            // ✅ Agora a quantidade é salva sempre no valor real (ml/g/un)
+            const finalQty = Number(quantity);
 
             let currentRecipe = recipe;
-
             if (!currentRecipe) {
-
                 const newRecipe = await api.post("/recipes", {
                     productId: product.id
                 });
-
                 currentRecipe = newRecipe;
                 setRecipe(newRecipe);
-
             } else {
-                // 🔥 GARANTE QUE ESTÁ ATUALIZADO
                 const freshRecipe = await api.get(`/recipes/product/${product.id}`);
                 currentRecipe = freshRecipe;
                 setRecipe(freshRecipe);
             }
 
-            // cria recipe apenas quando adicionar primeiro ingrediente
-            if (!currentRecipe) {
-
-                const newRecipe = await api.post("/recipes", {
-                    productId: product.id
-                });
-
-                currentRecipe = newRecipe;
-                setRecipe(newRecipe);
-            }
-
-            // verifica se ingrediente já existe
             const existingIngredient = ingredients.find(
                 (i) => i.productId === ingredientId
             );
 
             if (existingIngredient) {
-
-                const newQuantity =
-                    Number(existingIngredient.quantity) + Number(quantity);
+                const newQuantity = Number(existingIngredient.quantity) + finalQty;
 
                 await api.put(`/recipes/items/${existingIngredient.id}`, {
                     quantity: newQuantity
                 });
-
             } else {
-
                 await api.post("/recipes/items", {
                     recipeId: currentRecipe.id,
                     productId: ingredientId,
-                    quantity: Number(quantity)
+                    quantity: finalQty
                 });
-
             }
 
             setIngredientId("");
             setQuantity("");
-
             await loadCost(currentRecipe.id);
-
         } catch (err) {
-
             console.error(err);
             alert(err.message || "Erro ao adicionar ingrediente.");
-
         }
-
     }
 
     const handleRemove = async (id) => {
-
         if (!recipe) return;
-
         try {
-
             await api.delete(`/recipes/items/${id}`);
-
             await loadRecipe(product.id);
-
         } catch (err) {
-
             console.error(err);
             alert(err.message || "Erro ao remover ingrediente.");
-
         }
+    };
 
+    const getBaseUnit = (unit) => {
+        const u = unit?.toLowerCase() || "";
+        if (u === 'litro') return 'ml';
+        if (u === 'kg') return 'g';
+        return unit;
     };
 
     return (
@@ -175,11 +150,13 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                 <Select
                     label="Ingrediente"
                     value={ingredientId}
-                    onChange={(e) => setIngredientId(e.target.value)}
+                    onChange={(val) => {
+                        setIngredientId(val);
+                        const found = products.find(p => p.id === val);
+                        setSelectedIngUnit(found?.unit || "");
+                    }}
                 >
-
                     <option value="">Selecionar produto</option>
-
                     {products
                         .filter(p => p.id !== product?.id)
                         .map((p) => (
@@ -187,20 +164,38 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                                 {p.name}
                             </option>
                         ))}
-
                 </Select>
 
-                <Input
-                    label="Quantidade"
-                    type="number"
-                    min="0"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                />
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 15 }}>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ position: 'relative' }}>
+                            <Input
+                                label="Quantidade"
+                                type="number"
+                                min="0"
+                                value={quantity}
+                                onChange={(e) => setQuantity(e.target.value)}
+                            />
+                            {ingredientId && (
+                                <span style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    bottom: 12,
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: '#6b7280'
+                                }}>
+                                    {getBaseUnit(selectedIngUnit)}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
 
                 <Button
                     style={{ marginTop: 10 }}
                     onClick={handleAddIngredient}
+                    disabled={!ingredientId || !quantity}
                 >
                     Adicionar Ingrediente
                 </Button>
@@ -221,27 +216,20 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                 <tbody>
 
                     {ingredients.map((i) => (
-
                         <tr key={i.id}>
-
                             <td>{i.name}</td>
                             <td>{i.quantity}</td>
-                            <td>{i.unit}</td>
+                            <td>{getBaseUnit(i.unit)}</td>
                             <td>{formatCurrency(i.cost)}</td>
-
                             <td>
-
                                 <Button
                                     variant="danger"
                                     onClick={() => handleRemove(i.id)}
                                 >
                                     Remover
                                 </Button>
-
                             </td>
-
                         </tr>
-
                     ))}
 
                 </tbody>

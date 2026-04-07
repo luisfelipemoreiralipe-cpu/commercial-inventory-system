@@ -2,8 +2,11 @@ const prisma = require('../utils/prisma');
 
 // ─── FIND ALL ─────────────────────────────────────────
 
-const findAll = () =>
+const findAll = (establishmentId) =>
     prisma.purchaseOrder.findMany({
+        where: {
+            establishmentId
+        },
         include: {
             items: {
                 include: {
@@ -92,6 +95,10 @@ const create = async (data) => {
         data: {
             status: 'pending',
 
+            establishment: {
+                connect: { id: data.establishmentId }
+            },
+
             users: {
                 connect: { id: data.user_id }
             },
@@ -151,13 +158,14 @@ const remove = (id) =>
         where: { id }
     });
 
-const productHasOpenPendingOrder = async (productId) => {
+const productHasOpenPendingOrder = async (productId, establishmentId) => {
 
     const item = await prisma.purchaseOrderItem.findFirst({
         where: {
             productId,
             purchaseOrder: {
-                status: 'pending'
+                status: 'pending',
+                establishmentId
             }
         }
     });

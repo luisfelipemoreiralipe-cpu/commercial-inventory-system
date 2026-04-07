@@ -5,16 +5,25 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import api from "../services/api";
 import toast from "react-hot-toast";
+import { Input, Select } from "../components/FormFields";
+import { MdAddCircle, MdRemoveCircle, MdUploadFile } from "react-icons/md";
 
+/* -------------------------------------------------------------------------- */
+/* Styled UI                                   */
+/* -------------------------------------------------------------------------- */
 
 const PageHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 `;
-
-const TitleBlock = styled.div``;
 
 const PageTitle = styled.h1`
   font-size: ${({ theme }) => theme.fontSizes["3xl"]};
@@ -27,54 +36,46 @@ const PageSubtitle = styled.p`
   margin-top: 4px;
 `;
 
-const FormBox = styled(Card)`
-  padding: 20px;
-  max-width: 500px;
-`;
-
-const Field = styled.div`
-  margin-bottom: 16px;
-`;
-
-const Label = styled.label`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  display: block;
-  margin-bottom: 6px;
-`;
-
-const Input = styled.input`
+const FormContainer = styled.div`
+  max-width: 600px; // Aumentado levemente para melhor leitura
   width: 100%;
-  padding: 10px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
 `;
 
-const Select = styled.select`
-  width: 100%;
-  padding: 10px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
+const ButtonGroup = styled.div`
+  display: flex; 
+  gap: 10px; 
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+
+  @media (max-width: 480px) {
+    button { width: 100%; }
+  }
 `;
+
+const ResultBox = styled.div`
+  margin-top: 16px;
+  padding: 12px;
+  background: ${({ theme }) => theme.colors.bgHover};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 14px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+`;
+
+/* -------------------------------------------------------------------------- */
+/* Component                                   */
+/* -------------------------------------------------------------------------- */
 
 export default function StockMovement() {
-    const { state } = useApp();
+    const { state, fetchAllData } = useApp();
 
     const [mode, setMode] = useState("BONUS");
     const [productId, setProductId] = useState("");
     const [quantity, setQuantity] = useState("");
     const [loading, setLoading] = useState(false);
-    const { fetchAllData } = useApp();
     const [file, setFile] = useState(null);
     const [loadingImport, setLoadingImport] = useState(false);
 
-
-
-
-    const selectedProduct = state.products.find(
-        (p) => p.id === productId
-    );
-
+    const selectedProduct = state.products.find((p) => p.id === productId);
     const parsedQuantity = Number(quantity || 0);
 
     const resultingStock = selectedProduct
@@ -89,218 +90,211 @@ export default function StockMovement() {
             return;
         }
 
-
         if (!quantity || Number(quantity) <= 0) {
             toast.error("Informe uma quantidade válida");
             return;
         }
 
-        if (mode === "INTERNAL_USE") {
-            if (selectedProduct.type === "INVENTORY") {
-                if (Number(quantity) > Number(selectedProduct.quantity)) {
-                    toast.error("Estoque insuficiente");
-                    return;
-                }
+        if (mode === "INTERNAL_USE" && selectedProduct?.type === "INVENTORY") {
+            if (Number(quantity) > Number(selectedProduct.quantity)) {
+                toast.error("Estoque insuficiente no sistema");
+                return;
             }
         }
 
-        setLoading(true); // 🔥 COMEÇA LOADING
-
+        setLoading(true);
         try {
+            const pack = Number(selectedProduct?.packQuantity || 1);
+            const moveQty = Number(quantity) * pack;
+
             if (mode === "BONUS") {
                 await api.post("/stock-movements/bonus", {
-                    productId,
-                    quantity: Number(quantity),
+                    productId: String(productId),
+                    quantity: moveQty,
                     reason: "BONUS",
                 });
-                await fetchAllData();
-
-            } else {
+            } else if (mode === "INTERNAL_USE") {
                 await api.post("/stock-movements/internal-use", {
-                    productId,
-                    quantity: Number(quantity),
+                    productId: String(productId),
+                    quantity: moveQty,
                 });
             }
 
             toast.success("Movimentação realizada com sucesso");
-
-            // 🔥 RESET INTELIGENTE
             setQuantity("");
+            await fetchAllData();
 
         } catch (error) {
             console.error(error);
-            toast.error("Erro ao movimentar estoque");
+            toast.error(error.response?.data?.message || "Erro ao movimentar estoque");
         } finally {
-            setLoading(false); // 🔥 SEMPRE EXECUTA
+            setLoading(false);
         }
     };
 
     const handleImportCSV = async () => {
         if (!file) {
-            toast.error("Selecione um arquivo");
+            toast.error("Selecione um arquivo .csv");
             return;
         }
 
         const formData = new FormData();
         formData.append("file", file);
 
+        setLoadingImport(true);
         try {
-            setLoadingImport(true);
-
             await api.post("/sales/import", formData, {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
+                headers: { "Content-Type": "multipart/form-data" },
             });
-
             toast.success("CSV importado com sucesso");
-
             setFile(null);
-
+            await new Promise((resolve) => setTimeout(resolve, 500));
             await fetchAllData();
-
         } catch (error) {
             console.error(error);
-
-            if (error.response?.data?.errors) {
-                toast.error("Erro em alguns produtos do CSV");
-            } else {
-                toast.error("Erro ao importar CSV");
-            }
+            toast.error("Erro ao importar CSV");
         } finally {
             setLoadingImport(false);
         }
     };
 
     return (
-        <>
+        <FormContainer>
             <PageHeader>
-                <TitleBlock>
-                    <PageTitle>Movimentação de Estoque</PageTitle>
-
+                <div>
+                    <PageTitle>Movimentação</PageTitle>
                     <PageSubtitle>
-                        {mode === "BONUS"
-                            ? "Adicionar produtos ao estoque (bonificação)"
-                            : "Remover produtos do estoque (consumo interno)"}
+                        {mode === "BONUS" ? "Entrada de bonificação" :
+                            mode === "INTERNAL_USE" ? "Saída para uso interno" : "Importação de vendas"}
                     </PageSubtitle>
-                </TitleBlock>
+                </div>
             </PageHeader>
 
-            {/* BOTÕES */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+            <ButtonGroup>
                 <Button
                     variant={mode === "BONUS" ? "primary" : "secondary"}
-                    onClick={() => setMode("BONUS")}
+                    onClick={() => { setMode("BONUS"); setProductId(""); }}
                 >
-                    Bonificação
+                    <MdAddCircle /> Bonificação
                 </Button>
 
                 <Button
                     variant={mode === "INTERNAL_USE" ? "primary" : "secondary"}
-                    onClick={() => setMode("INTERNAL_USE")}
+                    onClick={() => { setMode("INTERNAL_USE"); setProductId(""); }}
                 >
-                    Consumo Interno
+                    <MdRemoveCircle /> Consumo Interno
                 </Button>
+
                 <Button
                     variant={mode === "CSV_IMPORT" ? "primary" : "secondary"}
                     onClick={() => setMode("CSV_IMPORT")}
                 >
-                    Importar CSV
+                    <MdUploadFile /> Importar CSV
                 </Button>
-            </div>
-            {mode !== "CSV_IMPORT" && (
-                <FormBox>
-                    {/* PRODUTO */}
+            </ButtonGroup>
 
-                    <Field>
-                        <Label>Produto</Label>
-
+            {mode !== "CSV_IMPORT" ? (
+                <Card>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <Select
+                            label="Produto para Movimentar"
                             value={productId}
-                            onChange={(e) => setProductId(e.target.value)}
-                        >
-                            <option value="">Selecione um produto</option>
-
-                            {state.products
-                                .filter((p) =>
-                                    mode === "BONUS"
-                                        ? p.type === "INVENTORY"
-                                        : true
-                                )
-                                .map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} (Estoque: {p.quantity})
-                                    </option>
-                                ))}
-                        </Select>
-                    </Field>
-
-                    {/* QUANTIDADE */}
-                    <Field>
-                        <Label>Quantidade</Label>
-
-                        <Input
-                            type="number"
-                            min="0"
-                            placeholder="Digite a quantidade"
-                            value={quantity}
-                            onChange={(e) => setQuantity(e.target.value)}
+                            onChange={setProductId}
+                            options={(state.products || [])
+                                .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
+                                .map((p) => {
+                                    const pack = Number(p.packQuantity || 1);
+                                    const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
+                                    return {
+                                        value: p.id,
+                                        label: `${p.name} (Atual: ${inUnits} ${p.purchaseUnit || 'un'})`,
+                                    };
+                                })
+                            }
+                            placeholder="Selecione um produto..."
                         />
-                    </Field>
 
-                    {/* RESULTADO */}
-                    {selectedProduct && quantity !== "" && (
-                        <div style={{ marginTop: 10, fontSize: 14 }}>
-                            <p>Estoque atual: {selectedProduct.quantity}</p>
-
-                            <p>
-                                Após movimentação:{" "}
-                                <strong
-                                    style={{
-                                        color:
-                                            mode === "INTERNAL_USE" && resultingStock < 0
-                                                ? "#DC2626"
-                                                : "#059669",
-                                    }}
-                                >
-                                    {resultingStock}
-                                </strong>
-                            </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <Input
+                                label="Quantidade"
+                                type="number"
+                                inputMode="decimal"
+                                placeholder="0"
+                                value={quantity ?? ""}
+                                onChange={(e) => setQuantity(e.target.value)}
+                            />
+                            {selectedProduct && quantity !== "" && (
+                                <span style={{ fontSize: '12px', color: '#64748B', marginLeft: '4px' }}>
+                                    Total a sugerir: <strong>{(Number(quantity) * (selectedProduct.packQuantity || 1)).toFixed(0)} {selectedProduct.unit || 'ml'}</strong>
+                                </span>
+                            )}
                         </div>
-                    )}
-                    <div style={{ marginTop: 20 }}>
-                        <Button onClick={handleSubmit} disabled={loading}>
-                            {loading ? "Processando..." : "Confirmar movimentação"}
+
+                        {selectedProduct && quantity !== "" && (() => {
+                            const pack = Number(selectedProduct.packQuantity || 1);
+                            const moveAmount = Number(quantity) * pack;
+                            const prevQty = Number(selectedProduct.quantity || 0);
+                            const newQty = mode === "BONUS" ? prevQty + moveAmount : prevQty - moveAmount;
+
+                            const inUnits = (newQty / pack).toFixed(2);
+
+                            return (
+                                <ResultBox>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span>Estoque atual:</span>
+                                        <strong>{(prevQty / pack).toFixed(2)} {selectedProduct.purchaseUnit}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Após movimentação:</span>
+                                        <strong style={{
+                                            color: newQty < 0 ? "#DC2626" : "#059669",
+                                            fontSize: '16px'
+                                        }}>
+                                            {inUnits} {selectedProduct.purchaseUnit}
+                                        </strong>
+                                    </div>
+                                </ResultBox>
+                            );
+                        })()}
+
+                        <Button
+                            fullWidth
+                            onClick={handleSubmit}
+                            disabled={loading || !productId}
+                            size="lg"
+                        >
+                            {loading ? "Processando..." : "Confirmar Movimentação"}
                         </Button>
                     </div>
-                </FormBox>
-            )}
-            {mode === "CSV_IMPORT" && (
-                <FormBox>
-                    <Field>
-                        <Label>Arquivo CSV</Label>
-
+                </Card>
+            ) : (
+                <Card title="Importação de Vendas">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <Input
+                            label="Arquivo CSV"
                             type="file"
                             accept=".csv"
                             onChange={(e) => setFile(e.target.files[0])}
                         />
-                    </Field>
 
-                    {file && (
-                        <p style={{ fontSize: 12, marginTop: 8 }}>
-                            Arquivo selecionado: {file.name}
-                        </p>
-                    )}
+                        {file && (
+                            <p style={{ fontSize: '13px', color: '#64748B' }}>
+                                📄 Selecionado: <strong>{file.name}</strong>
+                            </p>
+                        )}
 
-                    {/* ✅ BOTÃO CORRETO AQUI */}
-                    <div style={{ marginTop: 20 }}>
-                        <Button onClick={handleImportCSV} disabled={loadingImport}>
-                            {loadingImport ? "Importando..." : "Importar CSV"}
+                        <Button
+                            fullWidth
+                            variant="primary"
+                            onClick={handleImportCSV}
+                            disabled={loadingImport || !file}
+                            size="lg"
+                        >
+                            {loadingImport ? "Importando..." : "Iniciar Importação"}
                         </Button>
                     </div>
-                </FormBox>
+                </Card>
             )}
-        </>
+        </FormContainer>
     );
 }

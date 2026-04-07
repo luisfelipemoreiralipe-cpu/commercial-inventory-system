@@ -196,14 +196,21 @@ exports.updateItems = async (req, res) => {
 
             for (const item of items) {
 
-                const difference =
-                    Number(item.countedQuantity) - Number(item.systemQuantity);
+                const dbItem = await tx.stockAuditItem.findUnique({
+                    where: { id: item.id },
+                    include: { product: true }
+                });
+
+                if (!dbItem) continue;
+
+                const rawCounted = Number(item.countedQuantity || 0);
+                const difference = rawCounted - Number(item.systemQuantity);
 
                 await tx.stockAuditItem.update({
                     where: { id: item.id },
                     data: {
-                        countedQuantity: Number(item.countedQuantity),
-                        difference
+                        countedQuantity: rawCounted,
+                        difference: Number(difference.toFixed(4))
                     }
                 });
 
@@ -267,7 +274,7 @@ exports.finish = async (req, res) => {
                         productId: item.productId,
                         quantity: item.difference,
                         establishmentId: req.user.establishmentId,
-                        reason: "AUDIT",
+                        reason: "GAIN",
                         reference: "STOCK_AUDIT"
                     }, tx);
                 }

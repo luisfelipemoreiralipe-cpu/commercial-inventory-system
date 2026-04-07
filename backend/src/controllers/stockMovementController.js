@@ -4,12 +4,15 @@ const asyncHandler = require('../utils/asyncHandler');
 // 🔍 LISTAR MOVIMENTAÇÕES
 const getAll = asyncHandler(async (req, res) => {
 
-    const { productId, dateFrom, dateTo } = req.query;
+    const { productId, dateFrom, dateTo, type, reason, supplierId } = req.query;
 
     const data = await stockMovementService.getMovements({
         productId,
         dateFrom,
-        dateTo
+        dateTo,
+        type,
+        reason,
+        supplierId
     });
 
     res.json({
@@ -57,11 +60,12 @@ const addBonus = async (req, res) => {
 
     try {
 
-        const { productId, quantity } = req.body;
+        const { productId, quantity, supplierId } = req.body;
 
         await stockMovementService.addBonus({
             productId,
             quantity,
+            supplierId,
             establishmentId: req.user.establishmentId
         });
 

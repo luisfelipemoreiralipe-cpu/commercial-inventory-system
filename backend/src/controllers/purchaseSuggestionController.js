@@ -3,8 +3,11 @@ const asyncHandler = require('../utils/asyncHandler');
 
 const getSuggestions = asyncHandler(async (req, res) => {
 
+    const days = Number(req.query.days) || 7;
+
     const data = await purchaseSuggestionService.getPurchaseSuggestions(
-        req.user.establishmentId
+        req.user.establishmentId,
+        days
     );
 
     res.json({
