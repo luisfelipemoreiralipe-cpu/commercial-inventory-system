@@ -297,7 +297,7 @@ export default function MarketingEvents() {
     // Cabeçalho
     doc.setFontSize(18);
     doc.setTextColor(30, 41, 59); // Slate-800
-    doc.text('Ordem de Separação - Evento Interno', 14, 22);
+    doc.text('Ordem de Separação - Controle de Compras BDS', 14, 22);
 
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139); // Slate-500

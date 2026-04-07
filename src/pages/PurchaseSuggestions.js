@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { MdRefresh, MdWarning } from "react-icons/md";
+import { MdRefresh, MdWarning, MdPrint } from "react-icons/md";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import { Input, Select } from "../components/FormFields";
@@ -7,6 +7,8 @@ import { useApp, ACTIONS } from "../context/AppContext";
 import api from "../services/api";
 import styled, { useTheme } from "styled-components";
 import toast from "react-hot-toast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 
 
@@ -403,6 +405,87 @@ const PurchaseSuggestions = () => {
 
     }, 0);
 
+    const handleExportPDF = () => {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Cabeçalho
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59); // Slate-800
+        doc.text('Ordem de Compra - Controle de Compras BDS', 14, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139); // Slate-500
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 26);
+        doc.text(`Estabelecimento: ${state.establishment?.nome_fantasia || 'N/A'}`, 14, 31);
+
+        // Preparar os dados para a tabela
+        const tableData = newSuggestions.map(s => {
+            const p = productsMap[s.productId];
+            const selectedSupplierId = selectedSuppliers[s.productId] ?? s.bestSupplierId ?? p?.supplierId;
+            const supplierData = s.suppliers?.find(sup => sup.supplierId === selectedSupplierId);
+            const supplierName = getSupplierById(selectedSupplierId)?.name || 'Sem Fornecedor';
+            
+            const qty = Number(getAdjusted(s));
+            const price = Number(supplierData?.price || p?.currentCost || p?.unitPrice || 0);
+            const total = qty * price;
+
+            return [
+                s.productName,
+                supplierName,
+                qty.toFixed(2),
+                p?.purchaseUnit || 'un',
+                `R$ ${price.toFixed(2)}`,
+                `R$ ${total.toFixed(2)}`
+            ];
+        });
+
+        // Tabela
+        autoTable(doc, {
+            startY: 40,
+            head: [['Produto', 'Fornecedor', 'Qtd. Comprar', 'Unidade', 'Custo Unit.', 'Total Est.']],
+            body: tableData,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59] },
+            styles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 40 },
+                1: { cellWidth: 35 },
+                2: { halign: 'center' },
+                3: { halign: 'center' },
+                4: { halign: 'right' },
+                5: { halign: 'right' }
+            }
+        });
+
+        // Rodapé (Resumo Financeiro)
+        const finalY = (doc).lastAutoTable.finalY + 15;
+
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('Resumo Financeiro', 14, finalY);
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Total da Compra: R$ ${totalEstimatedCost.toFixed(2)}`, 14, finalY + 8);
+
+        // Destaque da Economia
+        doc.setTextColor(22, 163, 74); // Verde (green-600)
+        doc.setFont(undefined, 'bold');
+        doc.text(`Economia Estimada: R$ ${totalEstimatedSaving.toFixed(2)}`, 14, finalY + 14);
+
+        doc.setTextColor(30, 41, 59);
+        doc.setFont(undefined, 'normal');
+
+        // Assinaturas
+        const signY = finalY + 35;
+        doc.text('_________________________________', 14, signY);
+        doc.text('Aprovado por (Assinatura)', 14, signY + 7);
+
+        doc.save(`ordem-compra-sugestao-${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const handleGenerate = async () => {
 
         try {
@@ -610,13 +693,22 @@ const PurchaseSuggestions = () => {
                     Lista de Compras
                 </h3>
 
-                <Button
-                    variant="primary"
-                    onClick={handleGenerate}
-                    disabled={!newSuggestions.length}
-                >
-                    Gerar Ordens de Compra
-                </Button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <Button
+                        variant="secondary"
+                        onClick={handleExportPDF}
+                        disabled={!newSuggestions.length}
+                    >
+                        <MdPrint /> Exportar Ordem (PDF)
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={handleGenerate}
+                        disabled={!newSuggestions.length}
+                    >
+                        Gerar Ordens de Compra
+                    </Button>
+                </div>
 
             </div>
 

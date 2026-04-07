@@ -509,7 +509,7 @@ const SidebarLayout = ({ children }) => {
             </LogoBlock>
           )}
 
-          {collapsed && <LogoCircle>C</LogoCircle>}
+          {collapsed && <LogoCircle>B</LogoCircle>}
 
           {!collapsed && (
             <CollapseBtn onClick={() => setCollapsed(true)} title="Recolher">
@@ -589,7 +589,7 @@ const SidebarLayout = ({ children }) => {
             >
               {themeMode === 'light' ? <MdNightlightRound fontSize={18} /> : <MdWbSunny fontSize={18} />}
             </button>
-            {!collapsed && <FooterBrand>Commercial · v1.0</FooterBrand>}
+            {!collapsed && <FooterBrand>Controle de Compras BDS · v1.0</FooterBrand>}
           </div>
         </SidebarFooter>
       </Sidebar>
