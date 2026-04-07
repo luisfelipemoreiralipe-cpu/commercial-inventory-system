@@ -1,5 +1,5 @@
-const prisma = require('../config/prisma');
-const bcrypt = require('bcrypt');
+const prisma = require('../utils/prisma');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 /*
@@ -205,16 +205,6 @@ async function switchEstablishment({ userId, establishmentId }) {
     );
 
     return { token };
-}
-
-/*
-|--------------------------------------------------------------------------
-| EXPORTS
-|--------------------------------------------------------------------------
-*/
-module.exports = {
-    register,
-    login,
-    switchEstablishment,
-    getContext
 };
+
+module.exports = { register, login, getContext, switchEstablishment };
