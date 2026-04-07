@@ -26,12 +26,16 @@ const getById = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-
-    console.log("🔥 BODY CONTROLLER:", req.body);
-    console.log("🔥 KEYS:", Object.keys(req.body));
+    const {
+        name, categoryId, unit, purchaseUnit, packQuantity,
+        type, unitPrice, quantity, minQuantity
+    } = req.body;
 
     const data = await productService.createProduct(
-        req.body,
+        {
+            name, categoryId, unit, purchaseUnit, packQuantity,
+            type, unitPrice, quantity, minQuantity
+        },
         req.user.establishmentId
     );
 
@@ -39,11 +43,20 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const update = asyncHandler(async (req, res) => {
+    const {
+        name, categoryId, unit, purchaseUnit, packQuantity,
+        type, unitPrice, quantity, minQuantity
+    } = req.body;
+
     const data = await productService.updateProduct(
         req.params.id,
-        req.body,
+        {
+            name, categoryId, unit, purchaseUnit, packQuantity,
+            type, unitPrice, quantity, minQuantity
+        },
         req.user.establishmentId
     );
+
     res.json({ success: true, data });
 });
 

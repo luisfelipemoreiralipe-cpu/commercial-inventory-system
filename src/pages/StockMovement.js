@@ -104,16 +104,19 @@ export default function StockMovement() {
 
         setLoading(true);
         try {
+            const pack = Number(selectedProduct?.packQuantity || 1);
+            const moveQty = Number(quantity) * pack;
+
             if (mode === "BONUS") {
                 await api.post("/stock-movements/bonus", {
                     productId: String(productId),
-                    quantity: Number(quantity),
+                    quantity: moveQty,
                     reason: "BONUS",
                 });
             } else if (mode === "INTERNAL_USE") {
                 await api.post("/stock-movements/internal-use", {
                     productId: String(productId),
-                    quantity: Number(quantity),
+                    quantity: moveQty,
                 });
             }
 
@@ -196,43 +199,63 @@ export default function StockMovement() {
                         <Select
                             label="Produto para Movimentar"
                             value={productId}
-                            onChange={setProductId} // O seu componente Select já trata o value interno
-                            options={state.products
+                            onChange={setProductId}
+                            options={(state.products || [])
                                 .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
-                                .map((p) => ({
-                                    value: p.id,
-                                    label: `${p.name} (Atual: ${p.quantity})`,
-                                }))
+                                .map((p) => {
+                                    const pack = Number(p.packQuantity || 1);
+                                    const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
+                                    return {
+                                        value: p.id,
+                                        label: `${p.name} (Atual: ${inUnits} ${p.purchaseUnit || 'un'})`,
+                                    };
+                                })
                             }
                             placeholder="Selecione um produto..."
                         />
 
-                        <Input
-                            label="Quantidade"
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="0"
-                            value={quantity ?? ""}
-                            onChange={(e) => setQuantity(e.target.value)}
-                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <Input
+                                label="Quantidade"
+                                type="number"
+                                inputMode="decimal"
+                                placeholder="0"
+                                value={quantity ?? ""}
+                                onChange={(e) => setQuantity(e.target.value)}
+                            />
+                            {selectedProduct && quantity !== "" && (
+                                <span style={{ fontSize: '12px', color: '#64748B', marginLeft: '4px' }}>
+                                    Total a sugerir: <strong>{(Number(quantity) * (selectedProduct.packQuantity || 1)).toFixed(0)} {selectedProduct.unit || 'ml'}</strong>
+                                </span>
+                            )}
+                        </div>
 
-                        {selectedProduct && quantity !== "" && (
-                            <ResultBox>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span>Estoque atual:</span>
-                                    <strong>{selectedProduct.quantity}</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <span>Após movimentação:</span>
-                                    <strong style={{
-                                        color: resultingStock < 0 ? "#DC2626" : "#059669",
-                                        fontSize: '16px'
-                                    }}>
-                                        {resultingStock}
-                                    </strong>
-                                </div>
-                            </ResultBox>
-                        )}
+                        {selectedProduct && quantity !== "" && (() => {
+                            const pack = Number(selectedProduct.packQuantity || 1);
+                            const moveAmount = Number(quantity) * pack;
+                            const prevQty = Number(selectedProduct.quantity || 0);
+                            const newQty = mode === "BONUS" ? prevQty + moveAmount : prevQty - moveAmount;
+
+                            const inUnits = (newQty / pack).toFixed(2);
+
+                            return (
+                                <ResultBox>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span>Estoque atual:</span>
+                                        <strong>{(prevQty / pack).toFixed(2)} {selectedProduct.purchaseUnit}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>Após movimentação:</span>
+                                        <strong style={{
+                                            color: newQty < 0 ? "#DC2626" : "#059669",
+                                            fontSize: '16px'
+                                        }}>
+                                            {inUnits} {selectedProduct.purchaseUnit}
+                                        </strong>
+                                    </div>
+                                </ResultBox>
+                            );
+                        })()}
 
                         <Button
                             fullWidth

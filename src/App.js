@@ -17,6 +17,7 @@ import StockTransfers from "./pages/StockTransfers";
 import StockAudits from "./pages/StockAudits";
 import StockAuditDetail from "./pages/StockAuditDetail";
 import Reports from "./pages/Reports";
+import MarketingEvents from "./pages/MarketingEvents";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -81,6 +82,7 @@ function App() {
               <Route path="/stock-audits/:id" element={<StockAuditDetail />} />
 
               <Route path="/stock-transfers" element={<StockTransfers />} />
+              <Route path="/marketing-events" element={<MarketingEvents />} />
 
               <Route
                 path="/purchase-suggestions"

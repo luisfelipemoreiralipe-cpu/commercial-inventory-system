@@ -11,7 +11,12 @@ const getProductCost = async (productId, tx) => {
     });
 
     if (lastPurchase?.unitPrice) {
-        return Number(lastPurchase.unitPrice);
+        const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { packQuantity: true }
+        });
+        const packQuantity = product?.packQuantity || 1;
+        return Number(lastPurchase.unitPrice) / packQuantity;
     }
 
     // 🥈 Menor preço fornecedor
@@ -21,7 +26,12 @@ const getProductCost = async (productId, tx) => {
     });
 
     if (supplier?.price) {
-        return Number(supplier.price);
+        const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { packQuantity: true }
+        });
+        const packQuantity = product?.packQuantity || 1;
+        return Number(supplier.price) / packQuantity;
     }
 
     // 🥉 fallback
@@ -184,7 +194,8 @@ const addStock = async ({
     establishmentId,
     reason,
     reference,
-    supplierId
+    supplierId,
+    unitCost: manualUnitCost
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -197,7 +208,7 @@ const addStock = async ({
     const previousQuantity = Number(product.quantity);
     const newQuantity = previousQuantity + Number(quantity);
 
-    const unitCost = await getProductCost(product.id, tx);
+    const unitCost = manualUnitCost !== undefined ? manualUnitCost : await getProductCost(product.id, tx);
     const totalCost = unitCost * Number(quantity);
 
     await tx.product.update({

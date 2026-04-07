@@ -68,6 +68,11 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
             const quantity = Number(incoming.adjustedQuantity !== undefined ? incoming.adjustedQuantity : dbItem.adjustedQuantity);
             const unitPrice = Number(incoming.unitPrice !== undefined ? incoming.unitPrice : dbItem.unitPrice);
 
+            // 🔥 CÁLCULO DO FATOR DE CONVERSÃO (PRODUTO COMPRA X CONSUMO)
+            const packQuantity = product.packQuantity || 1;
+            const finalQuantity = quantity * packQuantity;
+            const finalUnitCost = unitPrice / packQuantity;
+
             // 🔹 ATUALIZA O ITEM NA ORDEM DE COMPRA
             await tx.purchaseOrderItem.update({
                 where: { id: dbItem.id },
@@ -77,20 +82,21 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
                 }
             });
 
-            // 🔥 ENTRADA PADRONIZADA NO ESTOQUE
+            // 🔥 ENTRADA PADRONIZADA NO ESTOQUE (COM MULTIPLICAÇÃO)
             await stockMovementService.addStock({
                 productId: dbItem.productId,
-                quantity,
+                quantity: finalQuantity,
                 establishmentId,
                 reason: "PURCHASE",
-                reference: ref
+                reference: ref,
+                unitCost: finalUnitCost
             }, tx);
 
-            // 🔹 ATUALIZA CUSTO DO PRODUTO
+            // 🔹 ATUALIZA CUSTO DO PRODUTO (CUSTO POR UNIDADE BASE)
             await tx.product.update({
                 where: { id: dbItem.productId },
                 data: {
-                    currentCost: unitPrice
+                    currentCost: finalUnitCost
                 }
             });
 

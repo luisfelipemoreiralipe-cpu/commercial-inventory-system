@@ -61,19 +61,19 @@ const Tab = styled.button`
   font-size: ${({ theme }) => theme.fontSizes.sm};
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
 
-  background: ${({ active, theme }) =>
-        active ? theme.colors.primary : theme.colors.bgCard};
+  background: ${({ $active, theme }) =>
+        $active ? theme.colors.primary : theme.colors.bgCard};
 
-  color: ${({ active, theme }) =>
-        active ? "#fff" : theme.colors.textPrimary};
+  color: ${({ $active, theme }) =>
+        $active ? "#fff" : theme.colors.textPrimary};
 
   border: 1px solid ${({ theme }) => theme.colors.border};
 
   transition: ${({ theme }) => theme.transition};
 
   &:hover {
-    background: ${({ active, theme }) =>
-        active ? theme.colors.primaryHover : theme.colors.bgHover};
+    background: ${({ $active, theme }) =>
+        $active ? theme.colors.primaryHover : theme.colors.bgHover};
   }
 `;
 
@@ -275,6 +275,12 @@ export default function StockTransfers() {
             return;
         }
 
+        const selectedProduct = products.find(p => p.id === productId);
+        if (selectedProduct && Number(quantity) > Number(selectedProduct.quantity)) {
+            toast.error(`Estoque insuficiente no estabelecimento de origem. Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}`);
+            return;
+        }
+
         try {
 
             setLoading(true);
@@ -371,14 +377,14 @@ export default function StockTransfers() {
             <Tabs>
 
                 <Tab
-                    active={tab === "create"}
+                    $active={tab === "create"}
                     onClick={() => setTab("create")}
                 >
                     Nova Transferência
                 </Tab>
 
                 <Tab
-                    active={tab === "sent"}
+                    $active={tab === "sent"}
                     onClick={() => {
                         setTab("sent");
                         loadSentTransfers();
@@ -388,7 +394,7 @@ export default function StockTransfers() {
                 </Tab>
 
                 <Tab
-                    active={tab === "received"}
+                    $active={tab === "received"}
                     onClick={() => {
                         setTab("received");
                         loadReceivedTransfers();
@@ -435,19 +441,20 @@ export default function StockTransfers() {
                                 label="Produto"
                                 value={productId}
                                 onChange={setProductId}
-                                options={products.map((product) => ({
-                                    value: product.id,
-                                    label: `${product.name} (Estoque: ${product.quantity || 0})`,
-                                }))}
+                                options={[
+                                    { value: "", label: "-- Selecione um produto --" },
+                                    ...products.map((product) => ({
+                                        value: product.id,
+                                        label: `${product.name} (Estoque: ${product.quantity || 0} ${product.unit || 'ml'})`,
+                                    }))
+                                ]}
                             />
 
                         </Field>
 
 
                         <Field>
-
-                            <Label>Quantidade</Label>
-
+                            <Label>Quantidade ({products.find(p => p.id === productId)?.unit || 'ml'})</Label>
                             <Input
                                 type="number"
                                 min="1"
@@ -455,7 +462,20 @@ export default function StockTransfers() {
                                 value={quantity}
                                 onChange={(e) => setQuantity(e.target.value)}
                             />
-
+                            {(() => {
+                                const selectedProduct = products.find(p => p.id === productId);
+                                const q = Number(quantity);
+                                if (!selectedProduct || q <= 0) return null;
+                                
+                                const units = (q / (selectedProduct.packQuantity || 1)).toFixed(2);
+                                const isExceeded = q > Number(selectedProduct.quantity);
+                                
+                                return (
+                                    <div style={{ fontSize: '0.8rem', color: isExceeded ? '#ef4444' : '#64748b', marginTop: '4px', fontWeight: isExceeded ? 600 : 400 }}>
+                                        {isExceeded ? `⚠️ Estoque insuficiente! Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}` : `Equivale a ${units} ${selectedProduct.purchaseUnit || 'un'}(s)`}
+                                    </div>
+                                );
+                            })()}
                         </Field>
 
                         <Field>
@@ -464,20 +484,33 @@ export default function StockTransfers() {
                                 label="Destino"
                                 value={destinationId}
                                 onChange={setDestinationId}
-                                options={establishments.map((est) => ({
-                                    value: est.id,
-                                    label: est.nome_fantasia,
-                                }))}
+                                options={[
+                                    { value: "", label: "-- Selecione um destino --" },
+                                    ...establishments.map((est) => ({
+                                        value: est.id,
+                                        label: est.nome_fantasia,
+                                    }))
+                                ]}
                             />
 
                         </Field>
 
-                        <Button
-                            onClick={handleTransfer}
-                            disabled={loading}
-                        >
-                            {loading ? "Transferindo..." : "Transferir"}
-                        </Button>
+                        {(() => {
+                            const selectedProduct = products.find(p => p.id === productId);
+                            const q = Number(quantity);
+                            const isExceeded = selectedProduct && q > Number(selectedProduct.quantity);
+                            
+                            return (
+                                <Button
+                                    onClick={handleTransfer}
+                                    disabled={loading || isExceeded}
+                                    variant={isExceeded ? "secondary" : "primary"}
+                                    style={{ opacity: isExceeded ? 0.6 : 1 }}
+                                >
+                                    {loading ? "Transferindo..." : isExceeded ? "Estoque Insuficiente" : "Transferir"}
+                                </Button>
+                            );
+                        })()}
 
                     </Form>
                 )}

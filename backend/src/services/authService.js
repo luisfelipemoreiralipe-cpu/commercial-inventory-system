@@ -47,16 +47,18 @@ async function register({ nome, email, password }) {
             }
         });
 
-        // 4️⃣ Criar categorias padrão
+        // 4️⃣ Criar categorias padrão (SaaS Padrão)
+        const defaultCategories = [
+            'Cervejas', 'Destilados', 'Refrigerantes', 
+            'Sucos & Águas', 'Insumos', 'Limpeza', 
+            'Carnes', 'Hortifruti', 'Embalagens'
+        ];
+
         await tx.category.createMany({
-            data: [
-                { name: 'Bebidas' },
-                { name: 'Carnes' },
-                { name: 'Hortifruti' },
-                { name: 'Laticínios' },
-                { name: 'Limpeza' },
-                { name: 'Secos' }
-            ],
+            data: defaultCategories.map(name => ({
+                name,
+                establishmentId: establishment.id
+            })),
             skipDuplicates: true
         });
 

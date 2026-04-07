@@ -185,13 +185,35 @@ const SupplierHeader = styled.td`
 const PurchaseSuggestions = () => {
     const [generatedSuggestions, setGeneratedSuggestions] = useState({});
     const { state, dispatch, getSupplierById } = useApp();
-    const [selectedSuppliers, setSelectedSuppliers] = useState({});
+    
+    // 🛡️ Definição de Cache Key Multi-Tenant
+    const CACHE_KEY = `draft_po_qtys_${state.user?.establishmentId || 'global'}`;
+    const SUPPLIER_CACHE_KEY = `draft_po_suppliers_${state.user?.establishmentId || 'global'}`;
+
+    const [selectedSuppliers, setSelectedSuppliers] = useState(() => {
+        const saved = sessionStorage.getItem(SUPPLIER_CACHE_KEY);
+        return saved ? JSON.parse(saved) : {};
+    });
+
     const [suggestions, setSuggestions] = useState([]);
-    const [adjustedQtys, setAdjustedQtys] = useState({});
+
+    const [adjustedQtys, setAdjustedQtys] = useState(() => {
+        const saved = sessionStorage.getItem(CACHE_KEY);
+        return saved ? JSON.parse(saved) : {};
+    });
+
     const [targetDays, setTargetDays] = useState(7);
     const [ignoredProducts, setIgnoredProducts] = useState({});
     const [viewMode, setViewMode] = useState("active"); // active | ignored
     const theme = useTheme();
+
+    const productsMap = useMemo(() => {
+        const map = {};
+        state.products.forEach((p) => {
+            map[p.id] = p;
+        });
+        return map;
+    }, [state.products]);
 
     const getAdjusted = (s) => {
         return adjustedQtys[s.productId] ?? s.suggestedQuantity;
@@ -200,24 +222,13 @@ const PurchaseSuggestions = () => {
 
     useEffect(() => {
 
-        const savedSuppliers = localStorage.getItem("purchase_selected_suppliers");
-
-        if (savedSuppliers && savedSuppliers !== "{}") {
-            setSelectedSuppliers(JSON.parse(savedSuppliers));
-        }
-
-        const saved = localStorage.getItem("purchase_adjusted_qtys");
-
-        if (saved && saved !== "{}") {
-            setAdjustedQtys(JSON.parse(saved));
-        }
-
         const fetchSuggestions = async () => {
             try {
                 const res = await api.get(
                     `/api/purchase-suggestions?days=${targetDays}`
                 );
                 setSuggestions(res.items || []);
+                // Não limpamos mais o adjustedQtys aqui para permitir persistência entre re-fetches de dias
             } catch (err) {
                 console.error(err);
             }
@@ -226,6 +237,20 @@ const PurchaseSuggestions = () => {
         fetchSuggestions();
 
     }, [targetDays]);
+
+    // 💾 Auto-Save Quantidades
+    useEffect(() => {
+        if (Object.keys(adjustedQtys).length > 0) {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(adjustedQtys));
+        }
+    }, [adjustedQtys, CACHE_KEY]);
+
+    // 💾 Auto-Save Fornecedores
+    useEffect(() => {
+        if (Object.keys(selectedSuppliers).length > 0) {
+            sessionStorage.setItem(SUPPLIER_CACHE_KEY, JSON.stringify(selectedSuppliers));
+        }
+    }, [selectedSuppliers, SUPPLIER_CACHE_KEY]);
 
     const lowStockProducts = useMemo(() => {
         return state.products.filter(
@@ -254,12 +279,16 @@ const PurchaseSuggestions = () => {
 
         newSuggestions.forEach(s => {
 
+            const product = productsMap[s.productId];
+            const pack = Number(product?.packQuantity || 1);
             const consumption = Number(s.consumptionLast7Days || 0);
-            const qty = Number(getAdjusted(s) ?? s.suggestedQuantity ?? 0);
+
+            // Qtd ajustada (em GARRAFAS) convertida para ML para comparar com consumo em ML
+            const qtyMl = Number(getAdjusted(s) ?? s.suggestedQuantity ?? 0) * pack;
 
             if (consumption <= 0) return;
 
-            const coverage = qty / consumption;
+            const coverage = qtyMl / consumption;
 
             if (coverage < 1) {
                 critical++;
@@ -277,28 +306,8 @@ const PurchaseSuggestions = () => {
             ok
         };
 
-    }, [suggestions, adjustedQtys]);
+    }, [newSuggestions, adjustedQtys, productsMap]);
     console.log("STATS:", coverageStats);
-
-    const productsMap = useMemo(() => {
-
-
-        const map = {};
-
-        state.products.forEach((p) => {
-            map[p.id] = p;
-        });
-
-
-        return map;
-
-
-
-    }, [state.products]);
-
-
-
-
 
     const openOrderSuggestions = useMemo(() => {
         return suggestions.filter(s => s.hasOpenOrder);
@@ -452,9 +461,9 @@ const PurchaseSuggestions = () => {
 
             }
 
-            // 🔥 3. LIMPAR STORAGE
-            localStorage.removeItem("purchase_adjusted_qtys");
-            localStorage.removeItem("purchase_selected_suppliers");
+            // 🔥 3. LIMPAR STORAGE (DRAFT)
+            sessionStorage.removeItem(CACHE_KEY);
+            sessionStorage.removeItem(SUPPLIER_CACHE_KEY);
 
             // 🔥 4. LIMPAR STATE
             setAdjustedQtys({});
@@ -718,8 +727,9 @@ const PurchaseSuggestions = () => {
                                     </SupplierRow>
 
                                     {items.map(s => {
-
                                         const product = productsMap[s.productId];
+                                        if (!product) return null;
+
                                         const selectedSupplierId =
                                             selectedSuppliers[s.productId] ?? s.bestSupplierId ?? product?.supplierId;
 
@@ -767,45 +777,53 @@ const PurchaseSuggestions = () => {
                                                 <Td data-label="Produto">
                                                     <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                                                         <span style={{ fontWeight: 600 }}>{s.productName}</span>
-                                                        {coverage && (
+                                                        {consumption > 0 && (
                                                             <span style={{ fontSize: 11, color: coverageColor }}>
                                                                 {coverage < 1 ? "🔴" : coverage < 1.3 ? "🟡" : "🟢"}{" "}
-                                                                cobre ~{coverage.toFixed(1)} eventos
+                                                                cobre ~{coverage.toFixed(1)} períodos
                                                             </span>
                                                         )}
                                                     </div>
                                                 </Td>
 
                                                 <Td data-label="Estoque" style={{ textAlign: "center" }}>
-                                                    {product?.quantity}
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: 500 }}>{(Number(product?.quantity || 0) / Number(product?.packQuantity || 1)).toFixed(2)} {product?.purchaseUnit}</span>
+                                                        <span style={{ fontSize: '11px', color: '#64748B' }}>({product?.quantity} {product?.unit})</span>
+                                                    </div>
                                                 </Td>
 
                                                 <Td data-label="Mínimo" style={{ textAlign: "center" }}>
-                                                    {product?.minQuantity}
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: 500 }}>{(Number(product?.minQuantity || 0) / Number(product?.packQuantity || 1)).toFixed(2)} {product?.purchaseUnit}</span>
+                                                        <span style={{ fontSize: '11px', color: '#64748B' }}>({product?.minQuantity} {product?.unit})</span>
+                                                    </div>
                                                 </Td>
 
                                                 <Td data-label="Ajustar" style={{ textAlign: "center" }}>
-                                                    <Input
-                                                        type="number"
-                                                        inputMode="decimal"
-                                                        size="sm"
-                                                        min="0"
-                                                        value={getAdjusted(s)}
-                                                        onChange={(e) => {
-                                                            const updated = {
-                                                                ...adjustedQtys,
-                                                                [s.productId]: Number(e.target.value)
-                                                            };
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                                        <div style={{ width: '80px' }}>
+                                                            <Input
+                                                                type="number"
+                                                                inputMode="decimal"
+                                                                size="sm"
+                                                                min="0"
+                                                                value={getAdjusted(s)}
+                                                                onChange={(e) => {
+                                                                    const updated = {
+                                                                        ...adjustedQtys,
+                                                                        [s.productId]: Number(e.target.value)
+                                                                    };
 
-                                                            setAdjustedQtys(updated);
-
-                                                            localStorage.setItem(
-                                                                "purchase_adjusted_qtys",
-                                                                JSON.stringify(updated)
-                                                            );
-                                                        }}
-                                                        style={{ width: "80px", textAlign: "center", margin: "0 auto" }}
-                                                    />
+                                                                    setAdjustedQtys(updated);
+                                                                    sessionStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                                                            {product?.purchaseUnit || 'un'}
+                                                        </span>
+                                                    </div>
                                                 </Td>
 
                                                 <Td data-label="Preço" style={{ textAlign: "center" }}>

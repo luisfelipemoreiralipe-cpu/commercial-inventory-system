@@ -22,6 +22,7 @@ const establishmentRoutes = require('./routes/establishmentRoutes');
 const stockTransferRoutes = require('./routes/stockTransferRoutes');
 const stockAuditRoutes = require('./routes/stockAuditRoutes');
 const userRoutes = require('./routes/userRoutes');
+const consumptionEventRoutes = require('./routes/consumptionEventRoutes');
 
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/api', purchaseSuggestionRoutes);
 app.use('/establishments', establishmentRoutes);
 app.use('/stock-audits', stockAuditRoutes);
 app.use('/users', userRoutes);
+app.use('/consumption-events', consumptionEventRoutes);
 
 
 

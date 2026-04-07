@@ -138,6 +138,33 @@ const ActionFooter = styled.div`
   }
 `;
 
+const InputGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const InputLabel = styled.label`
+  font-size: 10px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textMuted};
+  text-transform: uppercase;
+  margin-left: 2px;
+`;
+
+const DoubleInputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const TotalPreview = styled.div`
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 4px;
+  font-weight: 500;
+`;
+
 /* -------------------------------------------------------------------------- */
 /* Component                                   */
 /* -------------------------------------------------------------------------- */
@@ -150,13 +177,20 @@ export default function StockAuditDetail() {
     const [audit, setAudit] = useState(null);
     const [items, setItems] = useState([]);
     const [saving, setSaving] = useState(false);
-    const isCounter = state.user?.role === "STOCK_COUNTER";
 
     async function loadAudit() {
         try {
             const data = await api.get(`/stock-audits/${id}`);
             setAudit(data);
-            setItems(data.items);
+            setItems(data.items.map(item => {
+                const counted = Number(item.countedQuantity || 0);
+                const system = Number(item.systemQuantity || 0);
+                return {
+                    ...item,
+                    countedQuantity: counted,
+                    difference: counted - system
+                };
+            }));
         } catch (error) {
             console.error(error);
         }
@@ -166,17 +200,29 @@ export default function StockAuditDetail() {
         loadAudit();
     }, [id]);
 
-    function handleChange(itemId, value) {
-        // Se o valor for vazio, mantemos null para o placeholder aparecer
-        const counted = value === "" ? null : Number(value);
+    function handleDoubleChange(itemId, type, value, packQty) {
+        const numValue = value === "" ? 0 : Number(value);
 
         const updated = items.map(item => {
             if (item.id === itemId) {
-                // Diferença calculada: $Diferença = Contado - Sistema$
-                const difference = counted !== null ? counted - item.systemQuantity : 0;
+                const currentTotal = Number(item.countedQuantity || 0);
+                const whole = Math.floor(currentTotal / packQty);
+                const loose = currentTotal % packQty;
+
+                let newTotal = 0;
+                if (type === 'whole') {
+                    newTotal = (numValue * packQty) + loose;
+                } else if (type === 'loose') {
+                    newTotal = (whole * packQty) + numValue;
+                } else {
+                    newTotal = numValue;
+                }
+
+                const difference = newTotal - Number(item.systemQuantity);
+
                 return {
                     ...item,
-                    countedQuantity: counted,
+                    countedQuantity: newTotal,
                     difference
                 };
             }
@@ -250,43 +296,90 @@ export default function StockAuditDetail() {
                             </tr>
                         </thead>
                         <tbody>
-                            {items.map(item => (
-                                <Tr key={item.id}>
-                                    <Td data-label="Produto">
-                                        <div style={{ fontWeight: 600 }}>{item.product.name}</div>
-                                    </Td>
+                            {items.map(item => {
+                                const packQty = Number(item.product?.packQuantity || 1);
+                                const hasConversion = packQty > 1 && item.product?.purchaseUnit;
+                                
+                                const currentTotal = Number(item.countedQuantity || 0);
+                                const wholePart = Math.floor(currentTotal / packQty);
+                                const loosePart = currentTotal % packQty;
 
-                                    <Td data-label="Sistema">
-                                        <span style={{ color: "#64748B" }}>{item.systemQuantity}</span>
-                                    </Td>
+                                return (
+                                    <Tr key={item.id}>
+                                        <Td data-label="Produto">
+                                            <div style={{ fontWeight: 600 }}>{item.product.name}</div>
+                                            <div style={{ fontSize: '11px', color: '#64748B' }}>
+                                                {hasConversion ? `1 ${item.product.purchaseUnit} = ${packQty} ${item.product.unit}` : item.product.unit}
+                                            </div>
+                                        </Td>
 
-                                    <Td data-label="Contado">
-                                        <Input
-                                            type="number"
-                                            inputMode="decimal"
-                                            // 🛡️ Se for null ou undefined, vira "" para o placeholder "0" aparecer
-                                            value={item.countedQuantity ?? ""}
-                                            placeholder="0"
-                                            disabled={!isOpen}
-                                            onChange={(e) => handleChange(item.id, e.target.value)}
-                                        />
-                                    </Td>
+                                        <Td data-label="Sistema">
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontWeight: 600 }}>{item.systemQuantity}</span>
+                                                <span style={{ fontSize: '11px', color: '#64748B' }}>{item.product?.unit}</span>
+                                            </div>
+                                        </Td>
 
-                                    <Td data-label="Diferença">
-                                        <div style={{
-                                            fontWeight: "800",
-                                            color: item.difference === 0 ? "#16a34a" : "#dc2626",
-                                            background: item.difference === 0 ? "#f0fdf4" : "#fef2f2",
-                                            padding: "4px 8px",
-                                            borderRadius: "4px",
-                                            minWidth: "40px",
-                                            textAlign: "center"
-                                        }}>
-                                            {item.difference > 0 ? `+${item.difference}` : item.difference || 0}
-                                        </div>
-                                    </Td>
-                                </Tr>
-                            ))}
+                                        <Td data-label="Contado">
+                                            {hasConversion ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <DoubleInputContainer>
+                                                        <InputGroup>
+                                                            <InputLabel>{item.product.purchaseUnit}</InputLabel>
+                                                            <Input
+                                                                type="number"
+                                                                value={wholePart || ""}
+                                                                placeholder="0"
+                                                                disabled={!isOpen}
+                                                                onChange={(e) => handleDoubleChange(item.id, 'whole', e.target.value, packQty)}
+                                                            />
+                                                        </InputGroup>
+                                                        <span style={{ marginTop: 16, fontWeight: 700, color: '#94A3B8' }}>+</span>
+                                                        <InputGroup>
+                                                            <InputLabel>{item.product.unit}</InputLabel>
+                                                            <Input
+                                                                type="number"
+                                                                value={loosePart || ""}
+                                                                placeholder="0"
+                                                                disabled={!isOpen}
+                                                                onChange={(e) => handleDoubleChange(item.id, 'loose', e.target.value, packQty)}
+                                                            />
+                                                        </InputGroup>
+                                                    </DoubleInputContainer>
+                                                    <TotalPreview>= {currentTotal} {item.product.unit}</TotalPreview>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Input
+                                                        type="number"
+                                                        value={item.countedQuantity || ""}
+                                                        placeholder="0"
+                                                        disabled={!isOpen}
+                                                        onChange={(e) => handleDoubleChange(item.id, 'total', e.target.value, 1)}
+                                                    />
+                                                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748B' }}>
+                                                        {item.product?.unit}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </Td>
+
+                                        <Td data-label="Diferença">
+                                            <div style={{
+                                                fontWeight: "800",
+                                                color: item.difference < 0 ? "#dc2626" : "#16a34a",
+                                                background: item.difference < 0 ? "#fef2f2" : "#f0fdf4",
+                                                padding: "4px 8px",
+                                                borderRadius: "4px",
+                                                minWidth: "40px",
+                                                textAlign: "center"
+                                            }}>
+                                                {item.difference > 0 ? `+${item.difference}` : item.difference || 0}
+                                            </div>
+                                        </Td>
+                                    </Tr>
+                                );
+                            })}
                         </tbody>
                     </Table>
                 </TableWrapper>

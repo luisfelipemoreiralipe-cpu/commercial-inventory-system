@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styled from 'styled-components';
-import { MdCalendarToday, } from 'react-icons/md';
+import { MdCalendarToday } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
@@ -11,6 +11,8 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
+  CartesianGrid,
   LineChart,
   Line,
   ResponsiveContainer
@@ -192,7 +194,7 @@ const Dashboard = () => {
   const [dateTo, setDateTo] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchSuggestions = async () => {
       try {
         const { default: api } = await import('../services/api');
@@ -324,6 +326,7 @@ const Dashboard = () => {
       .forEach(m => {
         if (!map[m.productId]) {
           map[m.productId] = {
+            id: m.productId,
             name: m.productName,
             quantity: 0
           };
@@ -381,6 +384,7 @@ const Dashboard = () => {
       .forEach(m => {
         if (!map[m.productId]) {
           map[m.productId] = {
+            id: m.productId,
             name: m.productName,
             quantity: 0
           };
@@ -439,6 +443,21 @@ const Dashboard = () => {
 
     return result;
 
+  }, [filteredMovements]);
+
+
+  const marketingInvestmentValue = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+
+    const withdrawals = filteredMovements
+      .filter(m => m.reason === "MARKETING_EVENT_OUT")
+      .reduce((acc, m) => acc + (Math.abs(Number(m.quantity)) * Number(m.unitCost || 0)), 0);
+
+    const returns = filteredMovements
+      .filter(m => m.reason === "MARKETING_EVENT_IN")
+      .reduce((acc, m) => acc + (Math.abs(Number(m.quantity)) * Number(m.unitCost || 0)), 0);
+
+    return withdrawals - returns;
   }, [filteredMovements]);
 
   const internalUseTrend = useMemo(() => {
@@ -519,7 +538,15 @@ const Dashboard = () => {
                 </StatValue>
 
                 <StatSub>
-                  {mostInternalUse.quantity} unidades utilizadas
+                  {(() => {
+                    const product = state.products?.find(p => p.id === mostInternalUse.id);
+                    const pack = Number(product?.packQuantity || 1);
+                    const unit = product?.purchaseUnit || 'un';
+                    const bUnit = product?.unit || 'ml';
+                    const qty = Number(mostInternalUse.quantity);
+                    const inUnits = (qty / pack).toFixed(2);
+                    return `${inUnits} ${unit} (${qty} ${bUnit})`;
+                  })()} consumidos internamente
                 </StatSub>
               </>
             ) : (
@@ -560,16 +587,25 @@ const Dashboard = () => {
         </StatCard>
 
         <StatCard accent="#10b981">
-
           <StatInfo>
             <StatLabel>Bonificação Recebida</StatLabel>
-
             <StatValue style={{ fontSize: '1.3rem', color: '#10b981' }}>
               {formatCurrency(totalBonus)}
             </StatValue>
-
             <StatSub>
               economia no período
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#ec4899">
+          <StatInfo>
+            <StatLabel>Investimento Marketing</StatLabel>
+            <StatValue style={{ fontSize: '1.3rem', color: '#ec4899' }}>
+              {formatCurrency(marketingInvestmentValue)}
+            </StatValue>
+            <StatSub>
+              custo líquido de ações
             </StatSub>
           </StatInfo>
         </StatCard>
@@ -586,7 +622,15 @@ const Dashboard = () => {
                   {mostConsumedProduct.name}
                 </StatValue>
                 <StatSub>
-                  {mostConsumedProduct.quantity} unidades consumidas
+                  {(() => {
+                    const product = state.products?.find(p => p.id === mostConsumedProduct.id);
+                    const pack = Number(product?.packQuantity || 1);
+                    const unit = product?.purchaseUnit || 'un';
+                    const bUnit = product?.unit || 'ml';
+                    const qty = Number(mostConsumedProduct.quantity);
+                    const inUnits = (qty / pack).toFixed(2);
+                    return `${inUnits} ${unit} (${qty} ${bUnit})`;
+                  })()} consumidos no total
                 </StatSub>
               </>
             ) : (
@@ -740,44 +784,153 @@ const Dashboard = () => {
           </LowStockTable>
         )}
       </Card>
-      <SectionTitle>Top Produtos Consumidos </SectionTitle>
+      <SectionTitle>Top Produtos Consumidos</SectionTitle>
 
       <Card>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
-            <BarChart data={topConsumedProducts}>
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="quantity" />
+            <BarChart data={topConsumedProducts} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fontSize: 11, fill: '#64748B' }} 
+                axisLine={false} 
+                tickLine={false} 
+                interval={0}
+              />
+              <YAxis 
+                tick={{ fontSize: 11, fill: '#64748B' }} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <Tooltip 
+                cursor={{ fill: 'rgba(226, 232, 240, 0.4)' }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    const product = state.products?.find(p => p.name === data.name);
+                    const pack = Number(product?.packQuantity || 1);
+                    const unit = product?.purchaseUnit || 'un';
+                    const baseUnit = product?.unit || 'ml';
+                    const qty = Number(payload[0].value);
+                    const inUnits = (qty / pack).toFixed(2);
+
+                    return (
+                      <div style={{ 
+                        background: '#fff', 
+                        padding: '12px', 
+                        border: 'none', 
+                        borderRadius: '12px', 
+                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' 
+                      }}>
+                        <p style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', color: '#1E293B' }}>{data.name}</p>
+                        <p style={{ color: '#F97316', fontWeight: 500, fontSize: '14px' }}>
+                          {inUnits} {unit}
+                          <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '6px' }}>
+                            ({qty} {baseUnit})
+                          </span>
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="quantity" name="Consumo" fill="#F97316" radius={[6, 6, 0, 0]} barSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </Card>
+
       <SectionTitle>Consumo Interno por Produto</SectionTitle>
 
       <Card>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
-            <BarChart data={topInternalUseProducts}>
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="quantity" />
+            <BarChart data={topInternalUseProducts} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fontSize: 11, fill: '#64748B' }} 
+                axisLine={false} 
+                tickLine={false} 
+                interval={0}
+              />
+              <YAxis 
+                tick={{ fontSize: 11, fill: '#64748B' }} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <Tooltip 
+                cursor={{ fill: 'rgba(226, 232, 240, 0.4)' }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    const product = state.products?.find(p => p.name === data.name);
+                    const pack = Number(product?.packQuantity || 1);
+                    const unit = product?.purchaseUnit || 'un';
+                    const baseUnit = product?.unit || 'ml';
+                    const qty = Number(payload[0].value);
+                    const inUnits = (qty / pack).toFixed(2);
+
+                    return (
+                      <div style={{ 
+                        background: '#fff', 
+                        padding: '12px', 
+                        border: 'none', 
+                        borderRadius: '12px', 
+                        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' 
+                      }}>
+                        <p style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', color: '#1E293B' }}>{data.name}</p>
+                        <p style={{ color: '#F97316', fontWeight: 500, fontSize: '14px' }}>
+                          {inUnits} {unit}
+                          <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '6px' }}>
+                            ({qty} {baseUnit})
+                          </span>
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="quantity" name="Consumo Interno" fill="#F97316" radius={[6, 6, 0, 0]} barSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </Card>
-      <SectionTitle>Evolução do Consumo Interno</SectionTitle>
+
+      <SectionTitle>Evolução do Consumo Interno (R$)</SectionTitle>
 
       <Card>
         <div style={{ width: "100%", height: 300 }}>
           <ResponsiveContainer>
-            <LineChart data={internalUseTrend}>
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" />
+            <LineChart data={internalUseTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 11, fill: '#64748B' }} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <YAxis 
+                tick={{ fontSize: 11, fill: '#64748B' }} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <Tooltip 
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                formatter={(value) => [formatCurrency(value), "Valor"]}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="value" 
+                name="Valor Consumido" 
+                stroke="#3B82F6" 
+                strokeWidth={3}
+                dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4, stroke: '#fff' }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>

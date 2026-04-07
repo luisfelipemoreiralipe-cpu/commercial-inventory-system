@@ -60,30 +60,18 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             7
         );
 
-        let suggestedQuantity;
+        const safetyFactor = 1.5;
+        const eventMultiplier = targetDays / 7;
+        const projectedConsumption = Number(consumption.totalConsumed || 0) * eventMultiplier * safetyFactor;
 
-        if (consumption.totalConsumed > 0) {
+        // 🔥 GARANTIR O MÍNIMO: O alvo é o maior entre o estoque mínimo e o consumo projetado
+        const targetStockMl = Math.max(Number(product.minQuantity), projectedConsumption);
+        const suggestedMl = targetStockMl - Number(product.quantity);
 
-            const safetyFactor = 1.5;
+        const packQuantity = Number(product.packQuantity || 1);
+        const suggestedInUnits = suggestedMl > 0 ? Math.ceil(suggestedMl / packQuantity) : 0;
 
-            const eventMultiplier = targetDays / 7;
-
-            const projectedConsumption =
-                Number(consumption.totalConsumed) * eventMultiplier;
-
-            suggestedQuantity =
-                (projectedConsumption * safetyFactor) -
-                Number(product.quantity);
-
-        } else {
-
-            suggestedQuantity =
-                Number(product.minQuantity) - Number(product.quantity);
-        }
-
-        suggestedQuantity = Math.ceil(suggestedQuantity);
-
-        if (suggestedQuantity <= 0) continue;
+        if (suggestedInUnits <= 0) continue;
 
         const suppliers = [];
 
@@ -150,9 +138,11 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             productId: product.id,
             productName: product.name,
             unit: product.unit,
+            purchaseUnit: product.purchaseUnit, // 🔥 NOVO
+            packQuantity: product.packQuantity, // 🔥 NOVO
             currentStock: product.quantity,
             minimumStock: product.minQuantity,
-            suggestedQuantity,
+            suggestedQuantity: suggestedInUnits, // 🔥 AGORA EM UNIDADES DE COMPRA
             suppliers,
 
             bestSupplierId,

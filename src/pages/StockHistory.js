@@ -149,7 +149,7 @@ const TypeIcon = styled.span`
 
 const QtyDelta = styled.span`
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
-  color: ${({ positive, theme }) => positive ? theme.colors.success : theme.colors.danger};
+  color: ${({ $positive, theme }) => $positive ? theme.colors.success : theme.colors.danger};
 `;
 
 // ─── Type config ──────────────────────────────────────────────────────────────
@@ -350,11 +350,20 @@ const StockHistory = () => {
                             </thead>
                             <tbody>
                                 {filtered.map((m) => {
-                                    console.log("TYPE RAW:", m.type);
-                                    console.log("TYPE UPPER:", m.type?.toUpperCase());
                                     const movementType = getMovementType(m);
                                     const cfg = TYPE_CONFIG[movementType];
-                                    const isPositive = m.newQuantity > m.previousQuantity;
+                                    const isPositive = Number(m.newQuantity) > Number(m.previousQuantity);
+
+                                    const product = state.products?.find(p => p.id === m.productId);
+                                    const pack = Number(product?.packQuantity || 1);
+                                    const pUnit = product?.purchaseUnit || 'un';
+                                    const bUnit = product?.unit || 'ml';
+
+                                    const deltaRaw = Number(m.newQuantity) - Number(m.previousQuantity);
+                                    const deltaConv = deltaRaw / pack;
+                                    const prevConv = Number(m.previousQuantity) / pack;
+                                    const newConv = Number(m.newQuantity) / pack;
+
                                     return (
                                         <Tr key={m.id}>
                                             <Td style={{ whiteSpace: 'nowrap', color: '#6B7280', fontSize: '0.8rem' }}>
@@ -369,12 +378,29 @@ const StockHistory = () => {
                                                 </Badge>
                                             </Td>
                                             <Td>
-                                                <QtyDelta positive={isPositive}>
-                                                    {isPositive ? '+' : ''}{m.newQuantity - m.previousQuantity}
+                                                <QtyDelta $positive={isPositive}>
+                                                    {isPositive ? '+' : ''}{deltaConv.toFixed(2)} {pUnit}
                                                 </QtyDelta>
+                                                <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6B7280' }}>
+                                                    ({isPositive ? '+' : ''}{deltaRaw.toFixed(0)} {bUnit})
+                                                </span>
                                             </Td>
-                                            <Td style={{ color: '#6B7280' }}>{m.previousQuantity}</Td>
-                                            <Td style={{ fontWeight: 600 }}>{m.newQuantity}</Td>
+                                            <Td>
+                                                <span style={{ color: '#4B5563', fontWeight: 500 }}>
+                                                    {prevConv.toFixed(2)} {pUnit}
+                                                </span>
+                                                <span style={{ marginLeft: '8px', fontSize: '11px', color: '#94A3B8' }}>
+                                                    ({Number(m.previousQuantity).toFixed(0)} {bUnit})
+                                                </span>
+                                            </Td>
+                                            <Td>
+                                                <span style={{ color: '#111827', fontWeight: 600 }}>
+                                                    {newConv.toFixed(2)} {pUnit}
+                                                </span>
+                                                <span style={{ marginLeft: '8px', fontSize: '11px', color: '#94A3B8' }}>
+                                                    ({Number(m.newQuantity).toFixed(0)} {bUnit})
+                                                </span>
+                                            </Td>
                                             <Td style={{ color: '#4B5563', fontSize: '0.8rem' }}>{m.reference}</Td>
                                         </Tr>
                                     );

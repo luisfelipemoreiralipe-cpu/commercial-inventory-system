@@ -1,67 +1,45 @@
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-
 const prisma = new PrismaClient();
 
+const DEFAULT_CATEGORIES = [
+  'Cervejas', 'Destilados', 'Refrigerantes', 
+  'Sucos & Águas', 'Insumos', 'Limpeza', 
+  'Carnes', 'Hortifruti', 'Embalagens'
+];
+
 async function main() {
+  console.log('🌱 Iniciando o Seed Blindado de Categorias (upsert)...');
+  
+  const establishments = await prisma.establishment.findMany();
 
-  const passwordHash = await bcrypt.hash('123456', 10);
-
-  // 1. cria establishment
-  const establishment = await prisma.establishment.create({
-    data: {
-      nome_fantasia: "Restaurante Teste",
-      cnpj: "00000000000100"
+  for (const est of establishments) {
+    console.log(`📂 Blindando Categorias para: ${est.nome_fantasia}`);
+    
+    for (const name of DEFAULT_CATEGORIES) {
+      await prisma.category.upsert({
+        where: {
+          name_establishmentId: {
+            name: name,
+            establishmentId: est.id
+          }
+        },
+        update: {}, // Não faz nada se já existir
+        create: {
+          name: name,
+          establishmentId: est.id
+        }
+      });
+      console.log(`   ✅ [${name}] pronto.`);
     }
-  });
-
-  // 2. cria usuário
-  const user = await prisma.users.upsert({
-    where: { email: "admin@teste.com" },
-    update: {},
-    create: {
-      nome: "Administrador",
-      email: "admin@teste.com",
-      senha_hash: passwordHash,
-
-      establishment: {
-        connect: { id: establishment.id }
-      }
-    }
-  });
-
-  // 3. cria vínculo 🔥 (ESSENCIAL)
-  await prisma.userEstablishment.create({
-    data: {
-      userId: user.id,
-      establishmentId: establishment.id,
-      role: "ADMIN"
-    }
-  });
-
-  // 4. categorias
-  const categories = [
-    'Alimentos',
-    'Bebidas',
-    'Limpeza',
-    'Embalagens',
-    'Hortifruti',
-    'Carnes'
-  ];
-
-  for (const name of categories) {
-    await prisma.category.create({
-      data: {
-        name
-      }
-    });
   }
-
-  console.log('🌱 Seed executado com sucesso');
+  console.log('✅ Sistema de categorias 100% blindado com Unique Constraint!');
 }
 
 main()
-  .catch(console.error)
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(async () => {
     await prisma.$disconnect();
   });

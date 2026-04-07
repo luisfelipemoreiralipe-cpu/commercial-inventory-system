@@ -261,6 +261,7 @@ const Reports = () => {
             .forEach((m) => {
                 if (!map[m.productId]) {
                     map[m.productId] = {
+                        productId: m.productId,
                         name: m.productName,
                         quantity: 0,
                         totalCost: 0,
@@ -300,6 +301,7 @@ const Reports = () => {
         return movements
             .map((m) => ({
                 id: m.id,
+                productId: m.productId,
                 date: m.createdAt,
                 product: m.productName,
                 type: m.type,
@@ -430,7 +432,13 @@ const Reports = () => {
             .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
             .forEach((m) => {
                 if (!map[m.productId]) {
-                    map[m.productId] = { name: m.productName, consumed: 0, purchased: 0, bonus: 0 };
+                    map[m.productId] = { 
+                        productId: m.productId,
+                        name: m.productName, 
+                        consumed: 0, 
+                        purchased: 0, 
+                        bonus: 0 
+                    };
                 }
                 map[m.productId].consumed += Math.abs(Number(m.quantity));
             });
@@ -439,7 +447,13 @@ const Reports = () => {
         orders.forEach((order) => {
             order.items?.forEach(item => {
                 if (!map[item.productId]) {
-                    map[item.productId] = { name: item.productName, consumed: 0, purchased: 0, bonus: 0 };
+                    map[item.productId] = { 
+                        productId: item.productId,
+                        name: item.productName, 
+                        consumed: 0, 
+                        purchased: 0, 
+                        bonus: 0 
+                    };
                 }
                 map[item.productId].purchased += Number(item.adjustedQuantity || 0);
             });
@@ -450,7 +464,13 @@ const Reports = () => {
             .filter((m) => m.type === 'IN' && m.reason === 'BONUS')
             .forEach((m) => {
                 if (!map[m.productId]) {
-                    map[m.productId] = { name: m.productName, consumed: 0, purchased: 0, bonus: 0 };
+                    map[m.productId] = { 
+                        productId: m.productId,
+                        name: m.productName, 
+                        consumed: 0, 
+                        purchased: 0, 
+                        bonus: 0 
+                    };
                 }
                 map[m.productId].bonus += Number(m.quantity || 0);
                 map[m.productId].purchased += Number(m.quantity || 0); // soma no total de recebidos
@@ -458,19 +478,30 @@ const Reports = () => {
 
         return Object.values(map)
             .map((item) => {
-                const diff = item.purchased - item.consumed;
+                const product = state.products?.find(p => p.id === item.productId);
+                const pack = Number(product?.packQuantity || 1);
+                const unit = product?.purchaseUnit || 'un';
+                const baseUnit = product?.unit || 'ml';
+
+                const rawConsumed = item.consumed;
+                const convertedConsumed = rawConsumed / pack;
+                const diff = item.purchased - convertedConsumed;
 
                 let status = 'ok';
 
-                if (diff > item.consumed * 0.3) {
+                if (diff > convertedConsumed * 0.3) {
                     status = 'excesso';
-                } else if (diff < 0) {
+                } else if (diff < -0.1) { // margem pequena para flutuação
                     status = 'falta';
                 }
 
                 return {
                     ...item,
+                    consumed: convertedConsumed,
+                    rawConsumed,
                     difference: diff,
+                    purchaseUnit: unit,
+                    baseUnit: baseUnit,
                     status
                 };
             })
@@ -686,16 +717,29 @@ const Reports = () => {
                             </thead>
 
                             <tbody>
-                                {consumptionData.map((item, index) => (
-                                    <Tr key={index}>
-                                        <Td style={{ fontWeight: 600 }}>{item.name}</Td>
-                                        <Td>{item.quantity}</Td>
-                                        <Td>R$ {item.totalCost.toFixed(2)}</Td>
-                                        <Td>
-                                            {new Date(item.lastDate).toLocaleDateString('pt-BR')}
-                                        </Td>
-                                    </Tr>
-                                ))}
+                                    {consumptionData.map((item, index) => {
+                                        const product = state.products?.find(p => p.id === item.productId);
+                                        const pack = Number(product?.packQuantity || 1);
+                                        const pUnit = product?.purchaseUnit || 'un';
+                                        const bUnit = product?.unit || 'ml';
+                                        const convQty = item.quantity / pack;
+
+                                        return (
+                                            <Tr key={index}>
+                                                <Td style={{ fontWeight: 600 }}>{item.name}</Td>
+                                                <Td>
+                                                    {convQty.toFixed(2)} {pUnit}
+                                                    <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#64748B' }}>
+                                                        ({item.quantity} {bUnit})
+                                                    </span>
+                                                </Td>
+                                                <Td>R$ {item.totalCost.toFixed(2)}</Td>
+                                                <Td>
+                                                    {new Date(item.lastDate).toLocaleDateString('pt-BR')}
+                                                </Td>
+                                            </Tr>
+                                        );
+                                    })}
                             </tbody>
                         </Table>
                     </Card>
@@ -717,8 +761,8 @@ const Reports = () => {
                                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                                          />
                                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                        <Bar dataKey="purchased" name="Compras (Ordens + Bônus)" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="consumed" name="Consumo (Saídas)" fill="#DC2626" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="purchased" name="Compras (O.C. + Bônus)" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="consumed" name="Consumo (Convertido)" fill="#DC2626" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -734,8 +778,8 @@ const Reports = () => {
                             <thead>
                                 <tr>
                                     <Th>Produto</Th>
-                                    <Th>Comprado (Ordens + Bônus)</Th>
-                                    <Th>Consumido</Th>
+                                    <Th>Comprado (un. compra)</Th>
+                                    <Th>Consumido (un. compra)</Th>
                                     <Th>Diferença</Th>
                                     <Th>Status</Th>
                                 </tr>
@@ -746,9 +790,14 @@ const Reports = () => {
                                     <Tr key={index}>
                                         <Td style={{ fontWeight: 600 }}>{item.name}</Td>
 
-                                        <Td>{item.purchased}</Td>
+                                        <Td>{item.purchased} {item.purchaseUnit}</Td>
 
-                                        <Td>{item.consumed}</Td>
+                                        <Td>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span>{item.consumed.toFixed(2)} {item.purchaseUnit}</span>
+                                                <span style={{ fontSize: '11px', color: '#64748B' }}>({item.rawConsumed} {item.baseUnit})</span>
+                                            </div>
+                                        </Td>
 
                                         <Td
                                             style={{
@@ -761,7 +810,7 @@ const Reports = () => {
                                                 fontWeight: 600
                                             }}
                                         >
-                                            {item.difference > 0 ? `+${item.difference}` : item.difference}
+                                            {item.difference > 0 ? `+${item.difference.toFixed(2)}` : item.difference.toFixed(2)} {item.purchaseUnit}
                                         </Td>
 
                                         <Td>
@@ -820,7 +869,24 @@ const Reports = () => {
                                                 fontWeight: 600
                                             }}
                                         >
-                                            {item.quantity}
+                                            {(() => {
+                                                const product = state.products?.find(p => p.id === item.productId);
+                                                const pack = Number(product?.packQuantity || 1);
+                                                const pUnit = product?.purchaseUnit || 'un';
+                                                const bUnit = product?.unit || 'ml';
+                                                const rawQty = Math.abs(Number(item.quantity));
+                                                const convQty = rawQty / pack;
+                                                const prefix = item.type === 'OUT' ? '-' : '+';
+                                                
+                                                return (
+                                                    <>
+                                                        {prefix}{convQty.toFixed(2)} {pUnit}
+                                                        <span style={{ marginLeft: '8px', fontSize: '0.75rem', fontWeight: 400, color: '#64748B' }}>
+                                                            ({prefix}{rawQty} {bUnit})
+                                                        </span>
+                                                    </>
+                                                );
+                                            })()}
                                         </Td>
 
                                         <Td>

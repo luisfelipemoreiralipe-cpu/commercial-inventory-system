@@ -81,7 +81,7 @@ const LogoutButton = styled.button`
 `;
 
 const Sidebar = styled.aside`
-  width: ${({ collapsed }) => (collapsed ? '68px' : '252px')};
+  width: ${({ $collapsed }) => ($collapsed ? '68px' : '252px')};
   height: 100vh;
   background: ${({ theme }) => theme.colors.bgSidebar};
   border-right: 1px solid ${({ theme }) => theme.colors.border};
@@ -95,7 +95,7 @@ const Sidebar = styled.aside`
 
   @media (max-width: 768px) {
     width: 260px;
-    transform: ${({ isOpen }) => (isOpen ? 'translateX(0)' : 'translateX(-100%)')};
+    transform: ${({ $isOpen }) => ($isOpen ? 'translateX(0)' : 'translateX(-100%)')};
     transition: ${({ theme }) => theme.transition};
     z-index: 1000;
   }
@@ -119,8 +119,8 @@ const Sidebar = styled.aside`
 const SidebarHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: ${({ collapsed }) => (collapsed ? 'center' : 'space-between')};
-  padding: ${({ collapsed }) => (collapsed ? '18px 0' : '18px 16px')};
+  justify-content: ${({ $collapsed }) => ($collapsed ? 'center' : 'space-between')};
+  padding: ${({ $collapsed }) => ($collapsed ? '18px 0' : '18px 16px')};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   min-height: 68px;
   gap: 10px;
@@ -244,7 +244,7 @@ const Nav = styled.nav`
 `;
 
 const NavSection = styled.div`
-  padding: ${({ collapsed }) => (collapsed === 'true' ? '8px 0 2px' : '8px 16px 2px')};
+  padding: ${({ $collapsed }) => ($collapsed ? '8px 0 2px' : '8px 16px 2px')};
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -258,8 +258,8 @@ const StyledNavLink = styled(NavLink)`
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: ${({ collapsed }) => (collapsed === 'true' ? '9px 0' : '9px 12px')};
-  justify-content: ${({ collapsed }) => (collapsed === 'true' ? 'center' : 'flex-start')};
+  padding: ${({ $collapsed }) => ($collapsed ? '9px 0' : '9px 12px')};
+  justify-content: ${({ $collapsed }) => ($collapsed ? 'center' : 'flex-start')};
   margin: 0 6px;
   border-radius: ${({ theme }) => theme.radii.md};
   color: ${({ theme }) => theme.colors.textSecondary};
@@ -332,7 +332,7 @@ const FooterBrand = styled.span`
 
 const Main = styled.main`
   flex: 1;
-  margin-left: ${({ collapsed }) => (collapsed ? '68px' : '252px')};
+  margin-left: ${({ $collapsed }) => ($collapsed ? '68px' : '252px')};
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg};
   transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -359,6 +359,7 @@ const NAV_GROUPS = [
       { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
       { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
       { to: '/stock-transfers', label: 'Transferencia de estoque', icon: <MdCompareArrows /> },
+      { to: '/marketing-events', label: 'Eventos de Marketing', icon: <MdEventNote /> },
       { to: '/stock-movement/', label: 'movimentação de estoque', icon: <MdCompareArrows /> },
       { to: '/stock-audits/history', label: 'historico de auditorias', icon: <MdChecklist /> },
       { to: '/reports', label: 'relatorios', icon: <MdChecklist /> },
@@ -417,9 +418,9 @@ const SidebarLayout = ({ children }) => {
       <HamburgerBtn onClick={() => setIsMenuOpen(true)} title="Abrir menu">
         <MdMenu size={24} />
       </HamburgerBtn>
-      <Sidebar collapsed={collapsed} isOpen={isMenuOpen}>
+      <Sidebar $collapsed={collapsed} $isOpen={isMenuOpen}>
         {/* Header */}
-        <SidebarHeader collapsed={collapsed}>
+        <SidebarHeader $collapsed={collapsed}>
           {!collapsed && (
             <LogoBlock style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '200%', gap: '10px', marginTop: '0px', marginBottom: '5px' }}>
               <img src={logo} alt="BDS Logo" style={{ height: '4.4rem', flexShrink: 0 }} />
@@ -531,7 +532,7 @@ const SidebarLayout = ({ children }) => {
           {NAV_GROUPS.map((group) => (
             <div key={group.label}>
               {!collapsed && (
-                <NavSection collapsed={collapsed.toString()}>
+                <NavSection $collapsed={collapsed}>
                   {group.label}
                 </NavSection>
               )}
@@ -540,7 +541,7 @@ const SidebarLayout = ({ children }) => {
                   key={to}
                   to={to}
                   end={to === '/'}
-                  collapsed={collapsed.toString()}
+                  $collapsed={collapsed}
                   title={collapsed ? label : undefined}
                   onClick={() => {
                     setIsMenuOpen(false);
@@ -594,9 +595,9 @@ const SidebarLayout = ({ children }) => {
       </Sidebar>
 
       {/* Mobile overlay */}
-      <Overlay isOpen={isMenuOpen} onClick={() => setIsMenuOpen(false)} />
+      <Overlay $isOpen={isMenuOpen} onClick={() => setIsMenuOpen(false)} />
 
-      <Main collapsed={collapsed}>
+      <Main $collapsed={collapsed}>
         <PageWrapper>
           <Outlet />
         </PageWrapper>
@@ -607,7 +608,7 @@ const SidebarLayout = ({ children }) => {
 
 
 const Overlay = styled.div`
-  display: ${({ isOpen }) => (isOpen ? 'block' : 'none')};
+  display: ${({ $isOpen }) => ($isOpen ? 'block' : 'none')};
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);

@@ -27,20 +27,44 @@ const importCSV = asyncHandler(async (req, res) => {
         });
     }
 
-    // 📄 3. Ler e Parsear CSV
+    // 📄 3. Ler e Parsear CSV (VERSÃO ROBUSTA TECH LEAD)
     const fileContent = req.file.buffer.toString('utf-8');
-    const lines = fileContent.split('\n');
+    const lines = fileContent.split(/\r?\n/).filter(l => l.trim());
+    
+    if (lines.length < 2) return res.status(400).json({ success: false, message: 'Arquivo vazio ou sem dados' });
+
+    // Detectar o delimitador mestre pelo cabeçalho (quem aparece mais: , ou ;)
+    const header = lines[0];
+    const commaCount = (header.match(/,/g) || []).length;
+    const semiCount = (header.match(/;/g) || []).length;
+    const delimiter = semiCount > commaCount ? ';' : ',';
+
     const dataLines = lines.slice(1);
     const parsed = [];
 
     for (let line of dataLines) {
-        if (!line.trim()) continue;
-        const [product, quantity] = line.split(',');
-        parsed.push({
-            product: product.trim().toUpperCase(), // Remove espaços do CSV
-            quantity: Number(quantity)
-        });
+        // Divide a linha pelo delimitador detectado
+        const parts = line.split(delimiter);
+        
+        // Ignora linhas que não têm pelo menos 2 colunas reais
+        if (parts.length < 2) continue;
+
+        const productName = parts[0].trim().toUpperCase();
+        
+        // Limpeza da quantidade: remove espaços e garante ponto decimal
+        const rawQty = parts[1].trim().replace(',', '.');
+        const quantity = parseFloat(rawQty);
+
+        // Só adiciona se o nome for válido e a quantidade for um número real maior que zero
+        // Isso ignora automaticamente as linhas "fantasmas" do Excel (;;;)
+        if (productName && !isNaN(quantity) && quantity > 0 && productName.replace(/[,;]/g, '') !== '') {
+            parsed.push({
+                product: productName,
+                quantity: quantity
+            });
+        }
     }
+    console.log("📊 PARSED FINAL (CONFERIR):", parsed);
 
     console.log("🛠️ PASSO 2: CSV lido. Total de linhas:", parsed.length);
     console.log("PARSED:", parsed);
@@ -116,7 +140,8 @@ const importCSV = asyncHandler(async (req, res) => {
                 if (!totalDemand[product.id]) {
                     totalDemand[product.id] = { id: product.id, name: product.name, qty: 0 };
                 }
-                totalDemand[product.id].qty += saleQty;
+                const packQty = Number(product.packQuantity || 1);
+                totalDemand[product.id].qty += saleQty * packQty;
             } else if (product.type === 'PRODUCTION') {
                 if (!product.Recipe) {
                     console.log(`❌ ERRO: ${product.name} não tem receita.`);
