@@ -10,18 +10,24 @@ const getAll = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
     console.log("BODY RECEBIDO:", req.body);
+    console.log("DADOS DO TOKEN DO USUARIO:", req.user); // 👈 Isso vai nos mostrar os dados no log do Render!
 
-    const userId = req.user?.id;
+    // 👈 A MÁGICA: Procuramos o ID em todas as variáveis comuns de JWT
+    const userId = req.user?.id || req.user?.userId || req.user?.sub || req.userId;
     const establishmentId = req.user?.establishmentId;
+
+    if (!userId) {
+        throw new Error("ID do usuário não encontrado no token. Verifique o console.log do Render.");
+    }
 
     const data = await purchaseOrderService.createOrder({
         ...req.body,
-        user_id: userId,
+        userId: userId,     // Mandamos em camelCase
+        user_id: userId,    // E também em snake_case (para não ter briga com o Repository)
         establishmentId
     });
 
     res.status(201).json({ success: true, data });
-
 });
 
 const complete = asyncHandler(async (req, res) => {
