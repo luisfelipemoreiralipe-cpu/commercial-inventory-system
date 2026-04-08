@@ -28,7 +28,7 @@ const app = express();
 // 🛡️ Configuração de CORS (Segurança)
 const allowedOrigins = [
     'http://localhost:3000', // Ambiente de desenvolvimento (React padrão)
-    'https://seu-sistema.vercel.app' // ⚠️ IMPORTANTE: Atualize este link quando tiver a URL final da Vercel
+    'https://commercial-inventory-system.vercel.app' // ⚠️ IMPORTANTE: Atualize este link quando tiver a URL final da Vercel
 ];
 
 app.use(cors({
