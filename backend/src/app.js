@@ -58,6 +58,7 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/stock-movements', stockMovementRoutes);
 app.use('/audit-logs', auditLogRoutes);
 app.use('/categories', categoryRoutes);
+// app.use('/auth', authRoutes); // Redundante, já existe na linha 54
 app.use('/dashboard', dashboardRoutes);
 app.use('/api', stockTransferRoutes);
 app.use('/reports', reportsRoutes);

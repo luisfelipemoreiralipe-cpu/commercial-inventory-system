@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const prisma = require('../config/prisma');
+const prisma = require('../utils/prisma');
 
 const create = async ({ nome, email, senha, role, establishmentIds }) => {
 

@@ -1,4 +1,4 @@
-const prisma = require('../config/prisma');
+const prisma = require('../utils/prisma');
 
 const findAllByEstablishment = (establishmentId) => {
     return prisma.product.findMany({
