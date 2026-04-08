@@ -289,7 +289,7 @@ const PurchaseOrders = () => {
 
 
             const response = await fetch(
-                `http://localhost:3333/api/purchase-orders/${selectedOrder.id}/pdf`,
+                `${process.env.REACT_APP_API_URL}/api/purchase-orders/${selectedOrder.id}/pdf`,
                 {
                     method: "GET",
                     headers: {
