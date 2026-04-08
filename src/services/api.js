@@ -1,5 +1,6 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { getLoadingRef } from "../context/loadingRef";
 
 const api = axios.create({
     baseURL: process.env.REACT_APP_API_URL || "http://localhost:3333",
@@ -9,8 +10,17 @@ const api = axios.create({
     }
 });
 
+// Helper para disparar o loading se o ref estiver pronto
+const toggleLoading = (show) => {
+    const loading = getLoadingRef();
+    if (loading) {
+        show ? loading.showLoading() : loading.hideLoading();
+    }
+};
+
 // 🔐 Adiciona token automaticamente
 api.interceptors.request.use((config) => {
+    toggleLoading(true); // Ativa o overlay
 
     const token = localStorage.getItem("token");
 
@@ -20,12 +30,17 @@ api.interceptors.request.use((config) => {
 
     return config;
 
+}, (error) => {
+    toggleLoading(false);
+    return Promise.reject(error);
 });
 
 // 📡 Interceptador de respostas
 api.interceptors.response.use(
 
     (response) => {
+        toggleLoading(false); // Desativa o overlay no sucesso
+
         // Smart Unwrap
         if (response.data && response.data.data !== undefined) {
             return response.data.data;
@@ -34,6 +49,7 @@ api.interceptors.response.use(
     },
 
     (error) => {
+        toggleLoading(false); // Desativa o overlay no erro
 
         const status = error.response?.status;
 

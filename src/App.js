@@ -25,6 +25,7 @@ import Users from "./pages/Users";
 
 import { AppProvider } from "./context/AppContext";
 import { ThemeModeProvider } from "./context/ThemeModeProvider";
+import { LoadingProvider } from "./context/LoadingContext";
 
 import GlobalStyles from "./styles/GlobalStyles";
 
@@ -33,10 +34,11 @@ import { Toaster } from "react-hot-toast";
 function App() {
   return (
     <ThemeModeProvider>
-      <GlobalStyles />
-      <AppProvider>
-        <BrowserRouter>
-          <Toaster position="top-right" />
+      <LoadingProvider>
+        <GlobalStyles />
+        <AppProvider>
+          <BrowserRouter>
+            <Toaster position="top-right" />
 
           <Routes>
 
@@ -94,8 +96,9 @@ function App() {
           </Routes>
         </BrowserRouter>
       </AppProvider>
-    </ThemeModeProvider>
-  );
+    </LoadingProvider>
+  </ThemeModeProvider>
+);
 }
 
 export default App;
