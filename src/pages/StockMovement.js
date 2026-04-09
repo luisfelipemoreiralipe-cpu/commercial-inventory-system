@@ -199,19 +199,22 @@ export default function StockMovement() {
                         <Select
                             label="Produto para Movimentar"
                             value={productId}
-                            onChange={setProductId}
-                            options={(state.products || [])
-                                .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
-                                .map((p) => {
-                                    const pack = Number(p.packQuantity || 1);
-                                    const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
-                                    return {
-                                        value: p.id,
-                                        label: `${p.name} (Atual: ${inUnits} ${p.purchaseUnit || 'un'})`,
-                                    };
-                                })
-                            }
-                            placeholder="Selecione um produto..."
+                            // 👈 CORREÇÃO 1: Garante que o React pegue o ID do evento correto
+                            onChange={(e) => setProductId(e?.target ? e.target.value : e)}
+                            options={[
+                                // 👈 CORREÇÃO 2: Força uma linha vazia para o React não se enganar com o primeiro item
+                                { value: "", label: "Selecione um produto..." },
+                                ...(state.products || [])
+                                    .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
+                                    .map((p) => {
+                                        const pack = Number(p.packQuantity || 1);
+                                        const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
+                                        return {
+                                            value: p.id,
+                                            label: `${p.name} (Atual: ${inUnits} ${p.purchaseUnit || 'un'})`,
+                                        };
+                                    })
+                            ]}
                         />
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
