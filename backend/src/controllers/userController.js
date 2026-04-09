@@ -4,12 +4,22 @@ const create = async (req, res) => {
     try {
         const { nome, email, senha, role, establishmentIds } = req.body;
 
+        // 🛡️ VACINA: Captura o ID do estabelecimento de forma robusta
+        const currentEstablishmentId = establishmentIds?.[0] || req.user?.establishmentId;
+
+        // Validação de segurança
+        if (!currentEstablishmentId) {
+            return res.status(400).json({
+                error: "Não foi possível identificar o estabelecimento para este usuário."
+            });
+        }
+
         const user = await userService.create({
             nome,
             email,
             senha,
             role,
-            establishmentIds
+            establishmentId: currentEstablishmentId // 👈 Passando o ID garantido
         });
 
         return res.json(user);

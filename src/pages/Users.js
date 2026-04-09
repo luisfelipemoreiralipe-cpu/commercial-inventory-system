@@ -284,6 +284,7 @@ function CreateUserForm({ onClose, onCreated }) {
     };
 
     const handleSubmit = async () => {
+        // 1. Validação de campos do formulário
         if (!form.nome || !form.email || !form.senha) {
             alert("Preencha todos os campos obrigatórios.");
             return;
@@ -291,21 +292,48 @@ function CreateUserForm({ onClose, onCreated }) {
 
         setSaving(true);
         try {
-            await api.post('/users', {
-                ...form,
-                establishmentIds: [localStorage.getItem('establishmentId')]
-            });
+            // 2. Lógica baseada EXATAMENTE na sua imagem do LocalStorage
+            const raw = localStorage.getItem('establishments'); // Nome da chave na sua imagem
+            const establishmentsList = raw ? JSON.parse(raw) : [];
+
+            // Pegamos o ID do primeiro estabelecimento da lista (que é o "LIGHTS" na imagem)
+            const activeId = establishmentsList.length > 0 ? establishmentsList[0].id : null;
+
+            // DEBUG: Isso vai aparecer no seu console (F12) para termos certeza
+            console.log("ID capturado do LocalStorage:", activeId);
+
+            if (!activeId) {
+                alert("Erro: Não encontramos o ID do estabelecimento no seu navegador. Tente fazer login novamente.");
+                setSaving(false);
+                return;
+            }
+
+            // 3. Montagem do objeto de envio
+            // Enviamos 'establishmentId' (singular) pois o erro do Prisma indica que o back espera um valor único
+            const payload = {
+                nome: form.nome,
+                email: form.email,
+                senha: form.senha,
+                role: form.role,
+                establishmentId: activeId, // Tente enviar no singular
+                establishmentIds: [activeId] // Mantemos o plural por segurança, caso o back use este
+            };
+
+            console.log("Enviando para o Backend:", payload);
+
+            await api.post('/users', payload);
 
             onCreated();
             onClose();
+            alert("Usuário criado com sucesso!");
+
         } catch (err) {
-            console.error(err);
-            alert(err.response?.data?.error || 'Erro ao criar usuário');
+            console.error("Erro detalhado:", err);
+            alert(err.response?.data?.error || 'Erro ao criar usuário. Verifique o console.');
         } finally {
             setSaving(false);
         }
     };
-
     return (
         <>
             <FormContainer>
