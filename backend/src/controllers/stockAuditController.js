@@ -37,8 +37,18 @@ CRIAR AUDITORIA
 */
 exports.create = async (req, res) => {
     try {
+        console.log("DADOS DO TOKEN (AUDITORIA):", req.user); // 👈 Log para segurança
+
         const establishmentId = req.user?.establishmentId;
-        const userId = req.user?.id;
+        // 👈 A MÁGICA: Procuramos o ID em todas as chaves possíveis
+        const userId = req.user?.id || req.user?.userId || req.user?.sub || req.userId;
+
+        // 👈 TRAVA DE SEGURANÇA: Se não achar o usuário, avisa o front em vez de quebrar o banco
+        if (!userId) {
+            return res.status(400).json({
+                error: "ID do usuário não encontrado na sessão. Faça login novamente."
+            });
+        }
 
         const existingAudit = await prisma.stockAudit.findFirst({
             where: {
@@ -87,11 +97,10 @@ exports.create = async (req, res) => {
         res.json(audit);
 
     } catch (error) {
-        console.error(error);
+        console.error("ERRO AO CRIAR AUDITORIA:", error);
         res.status(500).json({ error: "Erro ao criar auditoria" });
     }
 };
-
 /*
 ====================================================
 BUSCAR AUDITORIA
