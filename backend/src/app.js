@@ -51,25 +51,24 @@ app.use((req, res, next) => {
 });
 
 // Route Registration
-app.use('/auth', authRoutes);
-app.use('/products', productRoutes);
-app.use('/suppliers', supplierRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
-app.use('/stock-movements', stockMovementRoutes);
-app.use('/audit-logs', auditLogRoutes);
-app.use('/categories', categoryRoutes);
-// app.use('/auth', authRoutes); // Redundante, já existe na linha 54
-app.use('/dashboard', dashboardRoutes);
-app.use('/api', stockTransferRoutes);
-app.use('/reports', reportsRoutes);
-app.use('/recipes', recipeRoutes);
-app.use('/stock-sectors', stockSectorRoutes);
-app.use('/sales', salesRoutes);
-app.use('/api', purchaseSuggestionRoutes);
-app.use('/establishments', establishmentRoutes);
-app.use('/stock-audits', stockAuditRoutes);
-app.use('/users', userRoutes);
-app.use('/consumption-events', consumptionEventRoutes);
+app.use('/api/stock-movements', stockMovementRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/stock-transfers', stockTransferRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/recipes', recipeRoutes);
+app.use('/api/stock-sectors', stockSectorRoutes);
+app.use('/api/sales', salesRoutes);
+app.use('/api/purchase-suggestions', purchaseSuggestionRoutes);
+app.use('/api/establishments', establishmentRoutes);
+app.use('/api/stock-audits', stockAuditRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/consumption-events', consumptionEventRoutes);
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);

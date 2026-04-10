@@ -15,7 +15,8 @@ import {
   MdCompareArrows,
   MdWbSunny,
   MdNightlightRound,
-  MdLogout
+  MdLogout,
+  MdStore
 } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeModeProvider';
@@ -363,10 +364,13 @@ const NAV_GROUPS = [
       { to: '/stock-movement/', label: 'movimentação de estoque', icon: <MdCompareArrows /> },
       { to: '/stock-audits/history', label: 'historico de auditorias', icon: <MdChecklist /> },
       { to: '/reports', label: 'relatorios', icon: <MdChecklist /> },
-
-      { to: '/users/', label: 'usuarios', icon: <MdPeople /> },
-
-
+    ],
+  },
+  {
+    label: 'Gestão',
+    items: [
+      { to: '/select-establishment', label: 'Minhas Unidades', icon: <MdStore /> },
+      { to: '/users/', label: 'Usuários', icon: <MdPeople /> },
     ],
   },
   {
@@ -408,7 +412,7 @@ const SidebarLayout = ({ children }) => {
   const { establishments = [], establishment } = state;
   const options = (establishments || []).map(est => ({
     value: est.id,
-    label: est.nome_fantasia || est.name || "Sem nome"
+    label: est.name || "Sem nome"
   }));
 
   const currentOption = options.find(opt => opt.value === establishment?.id) || null;

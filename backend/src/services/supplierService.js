@@ -22,7 +22,7 @@ const getSupplierById = async (id, establishmentId) => {
     const supplier = await supplierRepo.findById(id, establishmentId);
 
     if (!supplier) {
-        throw new AppError('Fornecedor não encontrado.', 404);
+        throw new AppError('Fornecedor não encontrado ou acesso negado.', 404);
     }
 
     return supplier;
@@ -60,25 +60,25 @@ const createSupplier = async (data, establishmentId) => {
 // ATUALIZAR
 const updateSupplier = async (id, data, establishmentId) => {
 
-    await getSupplierById(id, establishmentId);
+    const existing = await getSupplierById(id, establishmentId);
 
-    const updated = await supplierRepo.update(id, {
+    await supplierRepo.update(id, {
         name: data.name,
         cnpj: data.cnpj,
         phone: data.phone,
         email: data.email
-    });
+    }, establishmentId); // 👈 ADICIONADO FILTRO
 
     await auditLogRepo.create(
         mkLog(
             'UPDATE',
             id,
-            `Fornecedor "${updated.name}" editado.`,
+            `Fornecedor "${data.name || existing.name}" editado.`,
             establishmentId
         )
     );
 
-    return updated;
+    return { ...existing, ...data };
 };
 
 

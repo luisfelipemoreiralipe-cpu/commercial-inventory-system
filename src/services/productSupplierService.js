@@ -1,46 +1,19 @@
-const API = process.env.REACT_APP_API_URL || "http://localhost:3333";
+import api from "./api";
 
-const getToken = () => localStorage.getItem("token");
+// 🔐 USANDO O INSTANCE PADRONIZADO (AXIOS)
+// Já inclui o token e o prefixo /api automaticamente.
 
 export const getProductSuppliers = async (productId) => {
-
-    const res = await fetch(`${API}/products/${productId}/suppliers`, {
-        headers: {
-            Authorization: `Bearer ${getToken()}`
-        }
-    });
-
-    return res.json();
+    return api.get(`/products/${productId}/suppliers`);
 };
 
 export const addProductSupplier = async (productId, supplierId, price) => {
-
-    const res = await fetch(`${API}/products/${productId}/suppliers`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getToken()}`
-        },
-        body: JSON.stringify({
-            supplierId,
-            price
-        })
+    return api.post(`/products/${productId}/suppliers`, {
+        supplierId,
+        price
     });
-
-    return res.json();
 };
 
 export const removeProductSupplier = async (productId, supplierId) => {
-
-    const res = await fetch(
-        `${API}/products/${productId}/suppliers/${supplierId}`,
-        {
-            method: "DELETE",
-            headers: {
-                Authorization: `Bearer ${getToken()}`
-            }
-        }
-    );
-
-    return res;
+    return api.delete(`/products/${productId}/suppliers/${supplierId}`);
 };

@@ -193,7 +193,7 @@ export default function Users() {
                                 users.map(user => (
                                     <Tr key={user.id}>
                                         <Td data-label="Nome">
-                                            <strong>{user.nome}</strong>
+                                            <strong>{user.name}</strong>
                                         </Td>
 
                                         <Td data-label="Email">
@@ -269,9 +269,9 @@ export default function Users() {
 
 function CreateUserForm({ onClose, onCreated }) {
     const [form, setForm] = useState({
-        nome: '',
+        name: '',
         email: '',
-        senha: '',
+        password: '',
         role: 'STOCK_COUNTER'
     });
     const [saving, setSaving] = useState(false);
@@ -285,7 +285,7 @@ function CreateUserForm({ onClose, onCreated }) {
 
     const handleSubmit = async () => {
         // 1. Validação de campos do formulário
-        if (!form.nome || !form.email || !form.senha) {
+        if (!form.name || !form.email || !form.password) {
             alert("Preencha todos os campos obrigatórios.");
             return;
         }
@@ -311,12 +311,10 @@ function CreateUserForm({ onClose, onCreated }) {
             // 3. Montagem do objeto de envio
             // Enviamos 'establishmentId' (singular) pois o erro do Prisma indica que o back espera um valor único
             const payload = {
-                nome: form.nome,
+                name: form.name,
                 email: form.email,
-                senha: form.senha,
-                role: form.role,
-                establishmentId: activeId, // Tente enviar no singular
-                establishmentIds: [activeId] // Mantemos o plural por segurança, caso o back use este
+                password: form.password,
+                role: form.role
             };
 
             console.log("Enviando para o Backend:", payload);
@@ -339,9 +337,9 @@ function CreateUserForm({ onClose, onCreated }) {
             <FormContainer>
                 <Input
                     label="Nome Completo"
-                    name="nome"
+                    name="name"
                     placeholder="Ex: João da Silva"
-                    value={form.nome}
+                    value={form.name}
                     onChange={handleChange}
                 />
 
@@ -356,10 +354,10 @@ function CreateUserForm({ onClose, onCreated }) {
 
                 <Input
                     label="Senha"
-                    name="senha"
+                    name="password"
                     type="password"
                     placeholder="Mínimo 6 caracteres"
-                    value={form.senha}
+                    value={form.password}
                     onChange={handleChange}
                 />
 
@@ -393,7 +391,7 @@ function CreateUserForm({ onClose, onCreated }) {
 
 function EditUserForm({ user, onClose, onUpdated }) {
     const [form, setForm] = useState({
-        nome: user.nome || '',
+        name: user.name || '',
         email: user.email || '',
         role: user.role || 'STOCK_COUNTER'
     });
@@ -426,8 +424,8 @@ function EditUserForm({ user, onClose, onUpdated }) {
             <FormContainer>
                 <Input
                     label="Nome Completo"
-                    name="nome"
-                    value={form.nome}
+                    name="name"
+                    value={form.name}
                     onChange={handleChange}
                 />
 

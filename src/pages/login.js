@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { useApp } from "../context/AppContext";
 import logo from "../assets/logobds.png"
 
 const Wrapper = styled.div`
@@ -76,6 +77,7 @@ const Footer = styled.p`
 export default function Login() {
 
   const navigate = useNavigate();
+  const { switchEstablishment } = useApp();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -99,13 +101,8 @@ export default function Login() {
       localStorage.setItem("token", token);
 
       if (establishments.length === 1) {
-
-        await api.post("/auth/switch-establishment", {
-          establishmentId: establishments[0].id
-        });
-
+        await switchEstablishment(establishments[0].id);
         navigate("/");
-
       } else {
 
         localStorage.setItem(

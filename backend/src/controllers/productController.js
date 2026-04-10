@@ -100,13 +100,11 @@ const getBestSupplier = asyncHandler(async (req, res) => {
 });
 
 const getCMV = asyncHandler(async (req, res) => {
-
     const data = await productService.getProductCMV(
-        req.params.id
+        req.params.id,
+        req.user.establishmentId
     );
-
     res.json({ success: true, data });
-
 });
 
 

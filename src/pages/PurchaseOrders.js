@@ -152,7 +152,7 @@ const PurchaseOrders = () => {
 
             try {
 
-                const res = await api.get("/api/purchase-suggestions");
+                const res = await api.get("/purchase-suggestions");
 
                 console.log("SUGGESTIONS RAW:", res);
                 console.log("SUGGESTIONS PARSED:", res.items);
@@ -175,7 +175,7 @@ const PurchaseOrders = () => {
 
         try {
 
-            const res = await api.get("/api/purchase-orders");
+            const res = await api.get("/purchase-orders");
 
             const orders = res || [];
 
@@ -262,7 +262,7 @@ const PurchaseOrders = () => {
             console.log("🚀 Enviando para finalização com valores atualizados:", items);
 
             // Chamada à API para completar a ordem e atualizar o custo e estoque do produto
-            await api.put(`/api/purchase-orders/${selectedOrder.id}/complete`, {
+            await api.put(`/purchase-orders/${selectedOrder.id}/complete`, {
                 items
             });
 
@@ -284,21 +284,11 @@ const PurchaseOrders = () => {
 
     const handleDownloadPdf = async () => {
         try {
-            const token = localStorage.getItem("token");
+            const response = await api.get(`/purchase-orders/${selectedOrder.id}/pdf`, {
+                responseType: 'blob'
+            });
 
-
-
-            const response = await fetch(
-                `${process.env.REACT_APP_API_URL}/api/purchase-orders/${selectedOrder.id}/pdf`,
-                {
-                    method: "GET",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            const blob = await response.blob();
+            const blob = response; // Já é o blob se o unwrap for inteligente ou o Axios retornar o data
 
             const url = window.URL.createObjectURL(blob);
 

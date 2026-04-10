@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { useApp } from "../context/AppContext";
 
 const Wrapper = styled.div`
   display: flex;
@@ -71,6 +72,7 @@ const Footer = styled.p`
 export default function Register() {
 
     const navigate = useNavigate();
+    const { switchEstablishment } = useApp();
 
     const [nome, setNome] = useState("");
     const [email, setEmail] = useState("");
@@ -85,17 +87,24 @@ export default function Register() {
             setLoading(true);
 
             await api.post("/auth/register", {
-                nome,
+                name: nome,
                 email,
                 password
             });
 
-            const login = await api.post("/auth/login", {
+            const loginResult = await api.post("/auth/login", {
                 email,
                 password
             });
 
-            localStorage.setItem("token", login.token);
+            // O interceptor já deu unwrap para loginResult ser o conteúdo de 'data'
+            const { token, establishments } = loginResult;
+
+            localStorage.setItem("token", token);
+
+            if (establishments && establishments.length > 0) {
+              await switchEstablishment(establishments[0].id);
+            }
 
             navigate("/");
 

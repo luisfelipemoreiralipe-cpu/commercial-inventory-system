@@ -204,7 +204,7 @@ export default function StockTransfers() {
     async function loadSentTransfers() {
         try {
 
-            const res = await api.get("/api/stock-transfers/sent");
+            const res = await api.get("/stock-transfers/sent");
 
             setSentTransfers(res);
 
@@ -219,7 +219,7 @@ export default function StockTransfers() {
 
         try {
 
-            const res = await api.get("/api/stock-transfers/received");
+            const res = await api.get("/stock-transfers/received");
 
             const pendingTransfers = res.filter(
                 (t) => t.status === "PENDING"
@@ -242,7 +242,7 @@ export default function StockTransfers() {
 
         try {
 
-            await api.patch(`/api/stock-transfers/${id}/approve`);
+            await api.patch(`/stock-transfers/${id}/approve`);
             toast.success("Transferência aprovada com sucesso");
 
             loadReceivedTransfers();
@@ -257,7 +257,7 @@ export default function StockTransfers() {
 
         try {
 
-            await api.patch(`/api/stock-transfers/${id}/reject`);
+            await api.patch(`/stock-transfers/${id}/reject`);
 
             loadReceivedTransfers();
             loadSentTransfers();
@@ -285,7 +285,7 @@ export default function StockTransfers() {
 
             setLoading(true);
 
-            await api.post("/api/stock-transfers", {
+            await api.post("/stock-transfers", {
                 productId,
                 quantity: Number(quantity),
                 toEstablishmentId: destinationId
@@ -488,7 +488,7 @@ export default function StockTransfers() {
                                     { value: "", label: "-- Selecione um destino --" },
                                     ...establishments.map((est) => ({
                                         value: est.id,
-                                        label: est.nome_fantasia,
+                                        label: est.name,
                                     }))
                                 ]}
                             />
@@ -547,7 +547,7 @@ export default function StockTransfers() {
 
                                     <Td>{transfer.quantity}</Td>
 
-                                    <Td>{transfer.toEstablishment?.nome_fantasia}</Td>
+                                    <Td>{transfer.toEstablishment?.name}</Td>
 
                                     <Td>
 
@@ -605,7 +605,7 @@ export default function StockTransfers() {
 
                                         <Td>{transfer.quantity}</Td>
 
-                                        <Td>{transfer.fromEstablishment?.nome_fantasia}</Td>
+                                        <Td>{transfer.fromEstablishment?.name}</Td>
 
                                         <Td>
 

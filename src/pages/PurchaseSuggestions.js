@@ -227,7 +227,7 @@ const PurchaseSuggestions = () => {
         const fetchSuggestions = async () => {
             try {
                 const res = await api.get(
-                    `/api/purchase-suggestions?days=${targetDays}`
+                    `/purchase-suggestions?days=${targetDays}`
                 );
                 setSuggestions(res.items || []);
                 // Não limpamos mais o adjustedQtys aqui para permitir persistência entre re-fetches de dias
@@ -417,7 +417,7 @@ const PurchaseSuggestions = () => {
         doc.setFontSize(10);
         doc.setTextColor(100, 116, 139); // Slate-500
         doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 26);
-        doc.text(`Estabelecimento: ${state.establishment?.nome_fantasia || 'N/A'}`, 14, 31);
+        doc.text(`Estabelecimento: ${state.establishment?.name || 'N/A'}`, 14, 31);
 
         // Preparar os dados para a tabela
         const tableData = newSuggestions.map(s => {
@@ -538,7 +538,7 @@ const PurchaseSuggestions = () => {
             // 🔥 2. CRIAR ORDENS
             for (const items of Object.values(groupedBySupplier)) {
 
-                await api.post("/api/purchase-orders", {
+                await api.post("/purchase-orders", {
                     items
                 });
 
@@ -554,7 +554,7 @@ const PurchaseSuggestions = () => {
             setSuggestions([]);
 
             // 🔥 5. BUSCAR NOVAS SUGESTÕES
-            const res = await api.get(`/api/purchase-suggestions?days=${targetDays}`);
+            const res = await api.get(`/purchase-suggestions?days=${targetDays}`);
             const freshSuggestions = res.items || [];
 
             setSuggestions(freshSuggestions);

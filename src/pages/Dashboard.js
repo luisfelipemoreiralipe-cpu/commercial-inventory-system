@@ -198,7 +198,7 @@ const Dashboard = () => {
     const fetchSuggestions = async () => {
       try {
         const { default: api } = await import('../services/api');
-        const res = await api.get('/api/purchase-suggestions?days=7');
+        const res = await api.get('/purchase-suggestions?days=7');
         setSuggestions(res.items || []);
       } catch (err) {
         console.error("Erro ao buscar suggestions no dashboard:", err);

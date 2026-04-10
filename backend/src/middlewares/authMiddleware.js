@@ -24,16 +24,20 @@ async function authMiddleware(req, res, next) {
             return res.status(401).json({ error: 'Token inválido: Usuário não identificado' });
         }
 
-        // 🔥 Pega establishment do header OU token
-        const establishmentIdFromHeader = req.headers['x-establishment-id'];
-        const establishmentId = establishmentIdFromHeader || decoded.establishmentId;
+        // 🔥 O backend usa SOMENTE o valor do JWT (req.user.establishmentId)
+        // Ignora qualquer establishmentId vindo do header ou body do frontend para evitar sequestro de tenant
+        const establishmentId = decoded.establishmentId;
+        const roleFromToken = decoded.role;
 
-        // 🔎 valida acesso ao estabelecimento
+        // 🔎 valida acesso ao estabelecimento e pega a role específica
+        let role = null;
         if (establishmentId) {
-            const relation = await prisma.userEstablishment.findFirst({
+            const relation = await prisma.userEstablishment.findUnique({
                 where: {
-                    userId: userId,
-                    establishmentId: establishmentId
+                    userId_establishmentId: {
+                        userId: userId,
+                        establishmentId: establishmentId
+                    }
                 }
             });
 
@@ -42,23 +46,14 @@ async function authMiddleware(req, res, next) {
                     error: 'Usuário não tem acesso a este estabelecimento'
                 });
             }
+            role = relation.role;
         }
 
-        // 🔎 busca user no banco para pegar a role atualizada
-        const user = await prisma.users.findUnique({
-            where: { id: userId },
-            select: { role: true }
-        });
-
-        if (!user) {
-            return res.status(401).json({ error: 'Usuário não encontrado' });
-        }
-
-        // 🔥 Define req.user para uso nos controllers
+        // 🔥 Define req.user para uso nos controllers - NUNCA confie no frontend
         req.user = {
             userId: userId,
             establishmentId: establishmentId,
-            role: user.role
+            role: role || roleFromToken // Fallback para role do token se a query falhar ou for desnecessária
         };
 
         next();

@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { MdAdd, MdSearch, MdChevronRight } from "react-icons/md";
+import { MdAdd, MdSearch, MdChevronRight, MdPictureAsPdf } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { useApp } from "../context/AppContext";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import Card from "../components/Card";
 import Button from "../components/Button";
@@ -133,8 +136,70 @@ const StatusBadge = styled.span`
 
 export default function StockAudits() {
     const navigate = useNavigate();
+    const { state } = useApp();
+    const { products, categories, establishment } = state;
+    
     const [audits, setAudits] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
+
+    const generateBlankPDF = () => {
+        const doc = new jsPDF();
+        const date = new Date().toLocaleDateString("pt-BR");
+        
+        // Cabeçalho
+        doc.setFontSize(18);
+        doc.text("Ficha de Contagem de Estoque", 14, 20);
+        
+        doc.setFontSize(11);
+        doc.setTextColor(100);
+        doc.text(`Estabelecimento: ${establishment?.name || "Geral"}`, 14, 30);
+        doc.text(`Data da Emissão: ${date}`, 14, 37);
+        
+        // Preparar dados da tabela
+        // Ordenar produtos por categoria
+        const sortedProducts = [...products].sort((a, b) => {
+            const catA = categories.find(c => c.id === a.categoryId)?.name || "";
+            const catB = categories.find(c => c.id === b.categoryId)?.name || "";
+            return catA.localeCompare(catB) || a.name.localeCompare(b.name);
+        });
+
+        const tableRows = sortedProducts.map(p => {
+            const q = Number(p.quantity || 0);
+            const pq = Number(p.packQuantity || 1);
+            
+            // Texto do estoque (ex: 3750ml)
+            let stockDetail = `${q} ${p.unit || 'ml'}`;
+            
+            // Adiciona conversão se houver (ex: 5 garrafas)
+            if (pq > 1) {
+                const units = (q / pq).toFixed(1);
+                stockDetail += ` (${units} ${p.purchaseUnit || 'un'})`;
+            }
+
+            return [
+                categories.find(c => c.id === p.categoryId)?.name || "Sem Categoria",
+                p.name,
+                p.unit || "un",
+                stockDetail,
+                "________________"
+            ];
+        });
+
+        autoTable(doc, {
+            startY: 45,
+            head: [["Categoria", "Produto", "Und", "Estoque (Sist.)", "Contagem Física"]],
+            body: tableRows,
+            theme: "grid",
+            headStyles: { fillColor: [51, 65, 85] }, // Cor slate-700
+            styles: { fontSize: 9 },
+            columnStyles: {
+                3: { halign: 'center', cellWidth: 30 },
+                4: { cellWidth: 40 }
+            }
+        });
+
+        doc.save(`Ficha_Contagem_${establishment?.name || "Estoque"}_${date}.pdf`);
+    };
 
     async function loadAudits() {
         try {
@@ -174,13 +239,24 @@ export default function StockAudits() {
                     </p>
                 </div>
 
-                <Button
-                    onClick={() => setModalOpen(true)}
-                    style={{ width: window.innerWidth < 768 ? "100%" : "auto" }}
-                >
-                    <MdAdd size={20} />
-                    Nova Auditoria
-                </Button>
+                <div style={{ display: "flex", gap: "10px" }}>
+                    <Button
+                        variant="secondary"
+                        onClick={generateBlankPDF}
+                        disabled={products.length === 0}
+                    >
+                        <MdPictureAsPdf size={20} />
+                        Ficha de Contagem
+                    </Button>
+
+                    <Button
+                        onClick={() => setModalOpen(true)}
+                        style={{ width: window.innerWidth < 768 ? "100%" : "auto" }}
+                    >
+                        <MdAdd size={20} />
+                        Nova Auditoria
+                    </Button>
+                </div>
             </PageHeader>
 
             <Card padding="0">

@@ -10,10 +10,10 @@ const DEFAULT_CATEGORIES = [
 async function main() {
   console.log('🌱 Iniciando o Seed Blindado de Categorias (upsert)...');
   
-  const establishments = await prisma.establishment.findMany();
+  const establishments = await prisma.establishments.findMany();
 
   for (const est of establishments) {
-    console.log(`📂 Blindando Categorias para: ${est.nome_fantasia}`);
+    console.log(`📂 Blindando Categorias para: ${est.name}`);
     
     for (const name of DEFAULT_CATEGORIES) {
       await prisma.category.upsert({

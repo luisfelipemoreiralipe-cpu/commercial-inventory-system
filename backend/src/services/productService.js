@@ -48,11 +48,9 @@ const getProductById = async (id, establishmentId) => {
 const recipeRepo = require('../repositories/recipeRepository');
 const recipeService = require('./recipeService');
 
-const getProductCMV = async (productId) => {
-
-    const recipe = await recipeRepo.findByProductWithItems(productId);
-
-    // se não tiver ficha técnica
+const getProductCMV = async (productId, establishmentId) => {
+    const recipe = await recipeRepo.findByProductWithItems(productId, establishmentId);
+    
     if (!recipe) {
         return {
             productId,
@@ -60,13 +58,12 @@ const getProductCMV = async (productId) => {
         };
     }
 
-    const costData = await recipeService.calculateRecipeCost(recipe.id);
+    const costData = await recipeService.calculateRecipeCost(recipe.id, establishmentId);
 
     return {
         productId,
         cost: costData.totalCost
     };
-
 };
 
 const createProduct = async (data, establishmentId) => {
@@ -232,7 +229,7 @@ const getPriceHistory = async (productId, establishmentId) => {
 
     await getProductById(productId, establishmentId);
 
-    const history = await productRepo.getPriceHistory(productId);
+    const history = await productRepo.getPriceHistory(productId, establishmentId);
 
     return history.map(item => ({
         ...item,

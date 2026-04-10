@@ -239,7 +239,7 @@ export const AppProvider = ({ children }) => {
                 api.get('/categories'),
                 api.get('/products'),
                 api.get('/suppliers'),
-                api.get('/api/purchase-orders'),
+                api.get('/purchase-orders'),
                 api.get('/stock-movements'),
                 api.get('/audit-logs'),
             ]);
