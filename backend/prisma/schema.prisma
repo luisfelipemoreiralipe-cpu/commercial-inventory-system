@@ -27,38 +27,30 @@ model Supplier {
   phone String?
   email String?
 
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   createdAt        DateTime            @default(now())
   orderItems       PurchaseOrderItem[]
   productSuppliers ProductSupplier[]
 
-  priceHistory SupplierPriceHistory[]
+  priceHistory   SupplierPriceHistory[]
   stockMovements StockMovement[]
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// CATEGORIES /////////////////////////////
-////////////////////////////////////////////////////////////
 
 model Category {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
   createdAt DateTime @default(now())
 
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   products Product[]
 
   @@unique([name, establishmentId])
   @@map("categories")
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// PRODUCTS ///////////////////////////////
-////////////////////////////////////////////////////////////
 
 model Product {
   id        String   @id @default(uuid()) @db.Uuid
@@ -71,40 +63,33 @@ model Product {
 
   type ProductType @default(INVENTORY)
 
-  // 🔹 NOVOS CAMPOS
-  purchaseUnit     String?
-  packQuantity     Float?   @default(1)
+  purchaseUnit String?
+  packQuantity Float?   @default(1)
 
-  // 🔹 NOVO CAMPO DE CUSTO
-  currentCost Decimal? @db.Decimal(12,2)
+  currentCost Decimal? @db.Decimal(12, 2)
 
-  // Soft delete
   isActive Boolean @default(true)
 
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   categoryId String   @db.Uuid
   category   Category @relation(fields: [categoryId], references: [id])
 
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  auditItems       StockAuditItem[]
-  orderItems       PurchaseOrderItem[]
-  stockMovements   StockMovement[]
-  productSuppliers ProductSupplier[]
-
-  supplierPriceHistory SupplierPriceHistory[]
-  recipeItems          RecipeItem[]
-  Recipe               Recipe?
-  transfers            StockTransfer[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  auditItems            StockAuditItem[]
+  orderItems            PurchaseOrderItem[]
+  stockMovements        StockMovement[]
+  productSuppliers      ProductSupplier[]
+  supplierPriceHistory  SupplierPriceHistory[]
+  recipeItems           RecipeItem[]
+  Recipe                Recipe?
+  transfers             StockTransfer[]
   consumptionEventItems ConsumptionEventItem[]
+
   @@map("products")
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// PURCHASE ORDERS ////////////////////////
-////////////////////////////////////////////////////////////
 
 model PurchaseOrder {
   id          String    @id @default(uuid()) @db.Uuid
@@ -115,9 +100,8 @@ model PurchaseOrder {
   user_id String @db.Uuid
   users   users  @relation(fields: [user_id], references: [id])
 
-  // 🔥 MULTI-TENANT (ESSENCIAL)
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   items PurchaseOrderItem[]
 
@@ -143,10 +127,6 @@ model PurchaseOrderItem {
   @@map("purchase_order_items")
 }
 
-////////////////////////////////////////////////////////////
-//////////////////// STOCK MOVEMENTS ////////////////////////
-////////////////////////////////////////////////////////////
-
 model StockMovement {
   id String @id @default(uuid()) @db.Uuid
 
@@ -161,21 +141,17 @@ model StockMovement {
   newQuantity      Decimal @db.Decimal(12, 3)
 
   reference String
-  reason String?
-  createdAt DateTime @default(now())
-  establishmentId String @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
-  unitCost  Decimal? @db.Decimal(12,2)
-  totalCost Decimal? @db.Decimal(14,2)
+  reason    String?
+  createdAt DateTime       @default(now())
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
+  unitCost  Decimal? @db.Decimal(12, 2)
+  totalCost Decimal? @db.Decimal(14, 2)
   supplierId String? @db.Uuid
   supplier   Supplier? @relation(fields: [supplierId], references: [id])
 
   @@map("stock_movements")
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// AUDIT LOG //////////////////////////////
-////////////////////////////////////////////////////////////
 
 model AuditLog {
   id String @id @default(uuid()) @db.Uuid
@@ -185,72 +161,54 @@ model AuditLog {
   entityId    String
   description String
 
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
 }
 
-////////////////////////////////////////////////////////////
-//////////////////// ESTABLISHMENT //////////////////////////
-////////////////////////////////////////////////////////////
-
-model Establishment {
-  id String @id @default(uuid()) @db.Uuid
-
-  nome_fantasia String
+model establishments {
+  id            String  @id @default(uuid()) @db.Uuid
+  name          String
   cnpj          String?
   telefone      String?
   endereco      String?
   cidade        String?
   estado        String?
 
-  users users[]
-
-  products       Product[]
-  suppliers      Supplier[]
-  categories     Category[]
-  auditLogs      AuditLog[]
-  recipes        Recipe[]
-  stockAudits    StockAudit[]
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  users              UserEstablishment[]
+  products           Product[]
+  suppliers          Supplier[]
+  categories         Category[]
+  auditLogs          AuditLog[]
+  recipes            Recipe[]
+  stockAudits        StockAudit[]
+  organizationId     String?
+  organization       Organization?       @relation(fields: [organizationId], references: [id])
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @default(now()) @updatedAt
   transfersFrom      StockTransfer[]     @relation("TransferFrom")
   transfersTo        StockTransfer[]     @relation("TransferTo")
-  userEstablishments UserEstablishment[]
-  stockMovements StockMovement[]
-  purchaseOrders PurchaseOrder[]
-  consumptionEvents ConsumptionEvent[]
+  stockMovements     StockMovement[]
+  purchaseOrders     PurchaseOrder[]
+  consumptionEvents  ConsumptionEvent[]
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// USERS //////////////////////////////////
-////////////////////////////////////////////////////////////
 
 model users {
-  id         String @id @default(uuid()) @db.Uuid
-  nome       String
-  email      String @unique
-  senha_hash String
-  role       String @default("OPERATOR")
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  establishmentId    String              @db.Uuid
-  establishment      Establishment       @relation(fields: [establishmentId], references: [id])
-  userEstablishments UserEstablishment[]
-  stockAudits        StockAudit[]
-  created_at         DateTime            @default(now())
-  updated_at         DateTime            @updatedAt
-  purchase_orders    PurchaseOrder[]
+  establishments  UserEstablishment[]
+  stockAudits     StockAudit[]
+  purchase_orders PurchaseOrder[]
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// PRODUCT SUPPLIERS //////////////////////
-////////////////////////////////////////////////////////////
 
 model ProductSupplier {
   id String @id @default(uuid()) @db.Uuid
@@ -268,10 +226,6 @@ model ProductSupplier {
   @@unique([productId, supplierId])
   @@map("product_suppliers")
 }
-
-////////////////////////////////////////////////////////////
-//////////////////// PRICE HISTORY //////////////////////////
-////////////////////////////////////////////////////////////
 
 model SupplierPriceHistory {
   id String @id @default(uuid()) @db.Uuid
@@ -293,18 +247,14 @@ model SupplierPriceHistory {
   @@map("supplier_price_history")
 }
 
-////////////////////////////////////////////////////////////
-//////////////////// RECIPES ////////////////////////////////
-////////////////////////////////////////////////////////////
-
 model Recipe {
   id String @id @default(uuid()) @db.Uuid
 
   productId String  @unique @db.Uuid
   product   Product @relation(fields: [productId], references: [id])
 
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   items RecipeItem[]
 
@@ -335,7 +285,7 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  establishments Establishment[]
+  establishments establishments[]
 }
 
 model StockTransfer {
@@ -357,22 +307,21 @@ model StockTransfer {
 
   product Product @relation(fields: [productId], references: [id])
 
-  fromEstablishment Establishment @relation("TransferFrom", fields: [fromEstablishmentId], references: [id])
-  toEstablishment   Establishment @relation("TransferTo", fields: [toEstablishmentId], references: [id])
+  fromEstablishment establishments @relation("TransferFrom", fields: [fromEstablishmentId], references: [id])
+  toEstablishment   establishments @relation("TransferTo", fields: [toEstablishmentId], references: [id])
 }
 
 model UserEstablishment {
-  id String @id @default(uuid()) @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  establishmentId String   @db.Uuid
 
-  userId          String @db.Uuid
-  establishmentId String @db.Uuid
+  role            String   // ex: ADMIN, MANAGER, STAFF
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
-  role String?
-
-  user          users         @relation(fields: [userId], references: [id])
-  establishment Establishment @relation(fields: [establishmentId], references: [id])
-
-  createdAt DateTime @default(now())
+  user           users          @relation(fields: [userId], references: [id])
+  establishment  establishments @relation(fields: [establishmentId], references: [id])
 
   @@unique([userId, establishmentId])
 }
@@ -386,8 +335,8 @@ enum TransferStatus {
 model StockAudit {
   id String @id @default(uuid()) @db.Uuid
 
-  establishmentId String        @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
 
   createdBy String @db.Uuid
   user      users  @relation(fields: [createdBy], references: [id])
@@ -420,12 +369,12 @@ model StockAuditItem {
 }
 
 model ConsumptionEvent {
-  id              String    @id @default(uuid()) @db.Uuid
+  id              String         @id @default(uuid()) @db.Uuid
   name            String
-  status          String    @default("OPEN") // OPEN, CLOSED
-  establishmentId String    @db.Uuid
-  establishment   Establishment @relation(fields: [establishmentId], references: [id])
-  createdAt       DateTime  @default(now())
+  status          String         @default("OPEN") // OPEN, CLOSED
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
+  createdAt       DateTime       @default(now())
   completedAt     DateTime?
   items           ConsumptionEventItem[]
 
@@ -446,5 +395,6 @@ model ConsumptionEventItem {
 
   @@map("consumption_event_items")
 }
+
 
 

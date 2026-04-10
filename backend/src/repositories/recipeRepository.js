@@ -1,8 +1,11 @@
 const prisma = require('../config/prisma');
 
-const findByProductId = (productId) => {
-    return prisma.recipe.findUnique({
-        where: { productId }
+const findByProductId = (productId, establishmentId) => {
+    return prisma.recipe.findFirst({
+        where: { 
+            productId,
+            establishmentId
+        }
     });
 };
 
@@ -18,44 +21,70 @@ const addItem = (data) => {
     });
 };
 
-const removeItem = (id) => {
-    return prisma.recipeItem.delete({
-        where: { id }
+const removeItem = (id, establishmentId) => {
+    return prisma.recipeItem.deleteMany({
+        where: { 
+            id,
+            recipe: {
+                establishmentId
+            }
+        }
     });
 };
 
-const updateItemQuantity = (id, quantity) => {
-    return prisma.recipeItem.update({
-        where: { id },
+const updateItemQuantity = (id, quantity, establishmentId) => {
+    return prisma.recipeItem.updateMany({
+        where: { 
+            id,
+            recipe: {
+                establishmentId
+            }
+        },
         data: { quantity }
     });
 };
 
-const findItemsWithProductPrice = (recipeId) => {
+const findItemsWithProductPrice = (recipeId, establishmentId) => {
     return prisma.recipeItem.findMany({
-        where: { recipeId },
+        where: { 
+            recipeId,
+            recipe: {
+                establishmentId
+            }
+        },
         include: {
             product: true
         }
     });
 };
 
-const countItemsByRecipe = (recipeId) => {
+const countItemsByRecipe = (recipeId, establishmentId) => {
     return prisma.recipeItem.count({
-        where: { recipeId }
+        where: { 
+            recipeId,
+            recipe: {
+                establishmentId
+            }
+        }
     });
 };
 
-const deleteRecipe = (recipeId) => {
-    return prisma.recipe.delete({
-        where: { id: recipeId }
+const deleteRecipe = (recipeId, establishmentId) => {
+    return prisma.recipe.deleteMany({
+        where: { 
+            id: recipeId,
+            establishmentId
+        }
     });
 };
 
 
-const findByProductWithItems = (productId) => {
-    return prisma.recipe.findUnique({
-        where: { productId },
+const findByProductWithItems = (productId, establishmentId) => {
+    return prisma.recipe.findFirst({
+        where: { 
+            productId,
+            establishmentId
+        },
         include: {
             items: {
                 include: {

@@ -5,7 +5,7 @@ const purchaseSuggestionController = require('../controllers/purchaseSuggestionC
 const authMiddleware = require('../middlewares/authMiddleware');
 
 router.get(
-    '/purchase-suggestions',
+    '/',
     authMiddleware,
     purchaseSuggestionController.getSuggestions
 );

@@ -34,7 +34,8 @@ const checkin = asyncHandler(async (req, res) => {
 
 const getReport = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const report = await consumptionEventService.getEventReport(id);
+    const establishmentId = req.user.establishmentId;
+    const report = await consumptionEventService.getEventReport(id, establishmentId);
     res.json({ success: true, report });
 });
 

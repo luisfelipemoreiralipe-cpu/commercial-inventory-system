@@ -1,6 +1,11 @@
 const recipeRepo = require('../repositories/recipeRepository');
 const AppError = require('../utils/AppError');
 const productRepo = require('../repositories/productRepository');
+const prisma = require('../config/prisma');
+
+/**
+ * 🔐 CRIAR FICHA TÉCNICA
+ */
 const createRecipe = async (productId, establishmentId) => {
 
     const existing = await recipeRepo.findByProductId(productId, establishmentId);
@@ -9,19 +14,36 @@ const createRecipe = async (productId, establishmentId) => {
         throw new AppError('Este produto já possui ficha técnica.', 400);
     }
 
+    // Valida que o produto pertence ao tenant
+    const product = await productRepo.findByIdAndEstablishment(productId, establishmentId);
+    if (!product) {
+        throw new AppError('Produto não encontrado ou acesso negado.', 404);
+    }
+
     const recipe = await recipeRepo.create({
         productId,
         establishmentId
     });
 
     return recipe;
-
 };
 
-const addRecipeItem = async (recipeId, productId, quantity) => {
+/**
+ * 🔐 ADICIONAR ITEM À FICHA
+ */
+const addRecipeItem = async (recipeId, productId, quantity, establishmentId) => {
 
     if (!quantity || quantity <= 0) {
         throw new AppError('Quantidade inválida.', 400);
+    }
+
+    // 🛡️ Valida que a receita pertence ao tenant
+    const recipeCheck = await prisma.recipe.findFirst({
+        where: { id: recipeId, establishmentId }
+    });
+
+    if (!recipeCheck) {
+        throw new AppError('Ficha técnica não encontrada ou acesso negado.', 404);
     }
 
     const item = await recipeRepo.addItem({
@@ -31,59 +53,65 @@ const addRecipeItem = async (recipeId, productId, quantity) => {
     });
 
     return item;
-
 };
 
-const removeRecipeItem = async (id) => {
+/**
+ * 🔐 REMOVER ITEM DA FICHA
+ */
+const removeRecipeItem = async (id, establishmentId) => {
 
-    const removed = await recipeRepo.removeItem(id);
+    // O repositório já deve filtrar por tenant nas relações
+    const removed = await recipeRepo.removeItem(id, establishmentId);
 
-    if (!removed) {
-        throw new AppError('Ingrediente não encontrado.', 404);
+    if (removed.count === 0) {
+        throw new AppError('Ingrediente não encontrado ou acesso negado.', 404);
     }
 
-    const recipeId = removed.recipeId;
-
-    const remaining = await recipeRepo.countItemsByRecipe(recipeId);
-
-    if (remaining === 0) {
-        await recipeRepo.deleteRecipe(recipeId);
-    }
-
-    return removed;
+    return { success: true };
 };
 
-const updateRecipeItemQuantity = async (id, quantity) => {
+/**
+ * 🔐 ATUALIZAR QUANTIDADE DO INGREDIENTE
+ */
+const updateRecipeItemQuantity = async (id, quantity, establishmentId) => {
 
     if (!quantity || quantity <= 0) {
         throw new AppError('Quantidade inválida.', 400);
     }
 
-    const updated = await recipeRepo.updateItemQuantity(id, quantity);
+    const updated = await recipeRepo.updateItemQuantity(id, quantity, establishmentId);
 
-    return updated;
+    if (updated.count === 0) {
+        throw new AppError('Ingrediente não encontrado ou acesso negado.', 404);
+    }
+
+    return { success: true };
 };
 
-const getRecipeByProduct = async (productId) => {
-
-    const recipe = await recipeRepo.findByProductWithItems(productId);
-
+/**
+ * 🔐 BUSCAR POR PRODUTO
+ */
+const getRecipeByProduct = async (productId, establishmentId) => {
+    const recipe = await recipeRepo.findByProductWithItems(productId, establishmentId);
     return recipe || null;
-
 };
 
-const calculateRecipeCost = async (recipeId) => {
+/**
+ * 🔐 CALCULAR CUSTO DA FICHA
+ */
+const calculateRecipeCost = async (recipeId, establishmentId) => {
 
-    const items = await recipeRepo.findItemsWithProductPrice(recipeId);
+    const items = await recipeRepo.findItemsWithProductPrice(recipeId, establishmentId);
 
     let totalCost = 0;
-
     const ingredients = [];
 
     for (const item of items) {
         const product = item.product;
         const packQuantity = Number(product.packQuantity || 1);
-        const price = await productRepo.getLastPurchasePrice(item.productId);
+        
+        // 🛡️ Força tenant no histórico de preços
+        const price = await productRepo.getLastPurchasePrice(item.productId, establishmentId);
 
         const quantity = Number(item.quantity);
 
@@ -109,7 +137,6 @@ const calculateRecipeCost = async (recipeId) => {
         totalCost
     };
 };
-
 
 module.exports = {
     createRecipe,

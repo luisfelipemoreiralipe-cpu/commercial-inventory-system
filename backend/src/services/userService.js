@@ -1,25 +1,21 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../utils/prisma');
 
-const create = async ({ nome, email, senha, role, establishmentIds }) => {
+const create = async ({ name, email, password, role, establishmentIds }) => {
 
-    const allowedRoles = ['ADMIN', 'STOCK_COUNTER'];
+    const allowedRoles = ['ADMIN', 'MANAGER', 'STAFF', 'STOCK_COUNTER'];
 
     if (!allowedRoles.includes(role)) {
         throw new Error('Role inválido');
     }
 
-    const senha_hash = await bcrypt.hash(senha, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.users.create({
         data: {
-            nome,
+            name,
             email,
-            senha_hash,
-            role,
-            establishment: {
-                connect: { id: establishmentIds[0] }
-            }
+            password: hashedPassword
         }
     });
 
@@ -37,23 +33,30 @@ const create = async ({ nome, email, senha, role, establishmentIds }) => {
 
     return user;
 };
-const update = async (id, { nome, email, role }) => {
-    const allowedRoles = ['ADMIN', 'STOCK_COUNTER'];
+const update = async (id, { name, email, role, establishmentId }) => {
+    return await prisma.$transaction(async (tx) => {
+        const user = await tx.users.update({
+            where: { id },
+            data: {
+                name,
+                email
+            }
+        });
 
-    if (role && !allowedRoles.includes(role)) {
-        throw new Error('Role inválido');
-    }
-
-    const user = await prisma.users.update({
-        where: { id },
-        data: {
-            nome,
-            email,
-            role
+        if (role && establishmentId) {
+            await tx.userEstablishment.update({
+                where: {
+                    userId_establishmentId: {
+                        userId: id,
+                        establishmentId
+                    }
+                },
+                data: { role }
+            });
         }
-    });
 
-    return user;
+        return user;
+    });
 };
 
 module.exports = { create, update };

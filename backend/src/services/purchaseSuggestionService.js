@@ -2,7 +2,9 @@ const prisma = require('../config/prisma');
 const purchaseSuggestionRepo = require('../repositories/purchaseSuggestionRepository');
 const purchaseOrderRepo = require('../repositories/purchaseOrderRepository');
 
-// 🧠 CALCULAR CONSUMO
+/**
+ * 🧠 CALCULAR CONSUMO
+ */
 const calculateAverageConsumption = async (productId, establishmentId, days = 7) => {
 
     const startDate = new Date();
@@ -34,8 +36,10 @@ const calculateAverageConsumption = async (productId, establishmentId, days = 7)
     };
 };
 
-// ─── PURCHASE SUGGESTIONS ─────────────────────────
-
+/**
+ * 🧠 GERAR SUGESTÕES DE COMPRA
+ * 🛡️ Blindado com establishmentId
+ */
 const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
 
     targetDays = Number(targetDays) || 7;
@@ -51,7 +55,6 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             establishmentId
         );
 
-        // Prevenção de Duplicidade
         if (hasOpenOrder) continue;
 
         const consumption = await calculateAverageConsumption(
@@ -64,7 +67,6 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
         const eventMultiplier = targetDays / 7;
         const projectedConsumption = Number(consumption.totalConsumed || 0) * eventMultiplier * safetyFactor;
 
-        // 🔥 GARANTIR O MÍNIMO: O alvo é o maior entre o estoque mínimo e o consumo projetado
         const targetStockMl = Math.max(Number(product.minQuantity), projectedConsumption);
         const suggestedMl = targetStockMl - Number(product.quantity);
 
@@ -78,9 +80,15 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
         for (const ps of product.productSuppliers) {
             const sid = ps.supplier.id;
 
-            // Histórico (Últimas 3 compras deste fornecedor/produto)
+            // Histórico (Últimas 3 compras deste fornecedor/produto e ESTABELECIMENTO)
             const history = await prisma.supplierPriceHistory.findMany({
-                where: { productId: product.id, supplierId: sid },
+                where: { 
+                    productId: product.id, 
+                    supplierId: sid,
+                    product: {
+                        establishmentId
+                    }
+                },
                 orderBy: { createdAt: 'desc' },
                 take: 3
             });
@@ -90,24 +98,24 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
                 nominalPrice = Math.min(...history.map(h => Number(h.price)));
             }
 
-            // Fator Bônus
+            // Fator Bônus (Validando tenant)
             const bonusCount = await prisma.stockMovement.count({
                 where: {
                     productId: product.id,
                     supplierId: sid,
+                    establishmentId,
                     type: 'IN',
                     reason: 'BONUS'
                 }
             });
 
-            // Fornecedor ganha "vantagem competitiva" de 5% de desconto no score para cada Bônus recebido, capado em 20%.
             const bonusAdvantage = Math.min(bonusCount * 0.05, 0.20);
             const score = nominalPrice * (1 - bonusAdvantage);
 
             suppliers.push({
                 supplierId: sid,
                 supplierName: ps.supplier.name,
-                price: nominalPrice, // Preço real a ser exibido e usado (ex: R$55)
+                price: nominalPrice,
                 score,
                 bonusCount
             });
@@ -122,7 +130,7 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
         let saving = null;
 
         if (suppliers.length > 0) {
-            const cheapest = suppliers[0]; // Esse agora é o vencedor pelo Score (Custo-benefício)
+            const cheapest = suppliers[0];
             const mostExpensive = [...suppliers].sort((a,b) => b.price - a.price)[0];
 
             bestSupplierId = cheapest.supplierId;
@@ -138,21 +146,18 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             productId: product.id,
             productName: product.name,
             unit: product.unit,
-            purchaseUnit: product.purchaseUnit, // 🔥 NOVO
-            packQuantity: product.packQuantity, // 🔥 NOVO
+            purchaseUnit: product.purchaseUnit,
+            packQuantity: product.packQuantity,
             currentStock: product.quantity,
             minimumStock: product.minQuantity,
-            suggestedQuantity: suggestedInUnits, // 🔥 AGORA EM UNIDADES DE COMPRA
+            suggestedQuantity: suggestedInUnits,
             suppliers,
-
             bestSupplierId,
             bestSupplierName,
             bestPrice,
             lastPrice,
             saving,
             hasOpenOrder,
-
-            // 🧠 NOVO (não quebra front)
             consumptionLast7Days: consumption.totalConsumed,
             averageDailyConsumption: consumption.averageDailyConsumption
         });

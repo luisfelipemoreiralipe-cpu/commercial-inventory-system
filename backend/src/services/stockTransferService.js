@@ -1,10 +1,10 @@
 const prisma = require('../config/prisma');
 const { consumeProduct, addStock } = require('./stockMovementService');
 
-// =============================
-// CRIAR TRANSFERÊNCIA (PENDING)
-// =============================
-
+/**
+ * 🔐 CRIAR TRANSFERÊNCIA
+ * Valida que o usuário pertence ao estabelecimento de ORIGEM.
+ */
 const createTransfer = async ({
     productId,
     quantity,
@@ -12,7 +12,6 @@ const createTransfer = async ({
     toEstablishmentId,
     userId
 }) => {
-
     const hasOpenAudit = await prisma.stockAudit.findFirst({
         where: {
             establishmentId: fromEstablishmentId,
@@ -44,7 +43,7 @@ const createTransfer = async ({
     });
 
     if (!product) {
-        throw new Error("Produto não encontrado");
+        throw new Error("Produto não encontrado ou não pertence ao seu estabelecimento.");
     }
 
     if (Number(product.quantity) < Number(quantity)) {
@@ -65,83 +64,66 @@ const createTransfer = async ({
     return transfer;
 };
 
+/**
+ * 🔐 LISTAR ENVIADAS
+ */
 const getSentTransfers = async (establishmentId) => {
-
     return prisma.stockTransfer.findMany({
         where: {
             fromEstablishmentId: establishmentId
         },
         include: {
             product: {
-                select: {
-                    id: true,
-                    name: true,
-                    unit: true
-                }
+                select: { id: true, name: true, unit: true }
             },
             toEstablishment: {
-                select: {
-                    id: true,
-                    nome_fantasia: true
-                }
+                select: { id: true, name: true }
             }
         },
-        orderBy: {
-            createdAt: "desc"
-        }
+        orderBy: { createdAt: "desc" }
     });
 };
 
+/**
+ * 🔐 LISTAR RECEBIDAS
+ */
 const getReceivedTransfers = async (establishmentId) => {
-
     return prisma.stockTransfer.findMany({
         where: {
             toEstablishmentId: establishmentId
         },
         include: {
             product: {
-                select: {
-                    id: true,
-                    name: true,
-                    unit: true
-                }
+                select: { id: true, name: true, unit: true }
             },
             fromEstablishment: {
-                select: {
-                    id: true,
-                    nome_fantasia: true
-                }
+                select: { id: true, name: true }
             }
         },
-        orderBy: {
-            createdAt: "desc"
-        }
+        orderBy: { createdAt: "desc" }
     });
 };
 
-// =============================
-// APROVAR TRANSFERÊNCIA
-// =============================
-
-const approveTransfer = async (transferId, userId) => {
-
-    if (!transferId) {
-        throw new Error("Transferência inválida");
-    }
-
+/**
+ * 🔐 APROVAR TRANSFERÊNCIA
+ * 🛡️ Valida que o destino (quem aprova) é o estabelecimento do usuário.
+ */
+const approveTransfer = async (transferId, userId, establishmentId) => {
     return prisma.$transaction(async (tx) => {
-
-        // 1️⃣ Buscar transferência
-        const transfer = await tx.stockTransfer.findUnique({
-            where: { id: transferId }
+        // 1️⃣ Buscar transferência filtrando pelo contexto de destino
+        const transfer = await tx.stockTransfer.findFirst({
+            where: { 
+                id: transferId,
+                toEstablishmentId: establishmentId // SEGURANÇA: Somente se o destino for eu
+            }
         });
 
         if (!transfer) {
-            throw new Error("Transferência não encontrada");
+            throw new Error("Transferência não encontrada ou você não tem permissão para aprová-la.");
         }
 
         if (transfer.status !== "PENDING") {
-            throw new Error("Transferência já processada");
+            throw new Error("Esta transferência já foi processada.");
         }
 
         const {
@@ -160,11 +142,11 @@ const approveTransfer = async (transferId, userId) => {
         });
 
         if (!product) {
-            throw new Error("Produto não encontrado no estabelecimento de origem");
+            throw new Error("Produto de origem não encontrado.");
         }
 
         if (Number(product.quantity) < Number(quantity)) {
-            throw new Error("Estoque insuficiente para transferência");
+            throw new Error("Estoque insuficiente na origem.");
         }
 
         // 3️⃣ Buscar ou criar produto no destino
@@ -190,7 +172,7 @@ const approveTransfer = async (transferId, userId) => {
             });
         }
 
-        // 🔴 BAIXA NO ORIGEM (USANDO MOTOR CENTRAL)
+        // BAIXA NO ORIGEM
         await consumeProduct({
             productId,
             quantity,
@@ -199,97 +181,9 @@ const approveTransfer = async (transferId, userId) => {
             reference: `Transferência para ${toEstablishmentId}`
         }, tx);
 
-        // 🟢 ENTRADA NO DESTINO (PADRONIZADO)
+        // ENTRADA NO DESTINO
         await addStock({
             productId: destinationProduct.id,
-            quantity,
-            establishmentId: toEstablishmentId,
-            reason: "TRANSFER",
-            reference: `Transferência de ${fromEstablishmentId}`
-        }, tx);
-
-        // 8️⃣ Atualizar status da transferência
-        const updatedTransfer = await tx.stockTransfer.update({
-            where: { id: transferId },
-            data: {
-                status: "APPROVED",
-                approvedBy: userId,
-                approvedAt: new Date()
-            }
-        });
-
-        return updatedTransfer;
-    });
-};
-
-// =============================
-// REJEITAR TRANSFERÊNCIA
-// =============================
-
-const rejectTransfer = async (transferId, userId) => {
-
-    if (!transferId) {
-        throw new Error("Transferência inválida");
-    }
-
-    const transfer = await prisma.stockTransfer.findUnique({
-        where: { id: transferId }
-    });
-
-    if (!transfer) {
-        throw new Error("Transferência não encontrada");
-    }
-
-    if (transfer.status !== "PENDING") {
-        throw new Error("Transferência já processada");
-    }
-
-    const updatedTransfer = await prisma.stockTransfer.update({
-        where: { id: transferId },
-        data: {
-            status: "REJECTED",
-            approvedBy: userId,
-            approvedAt: new Date()
-        }
-    });
-
-    return updatedTransfer;
-};
-const completeTransfer = async (transferId, userId) => {
-
-    return prisma.$transaction(async (tx) => {
-
-        const transfer = await tx.stockTransfer.findUnique({
-            where: { id: transferId }
-        });
-
-        if (!transfer) {
-            throw new Error("Transferência não encontrada");
-        }
-
-        if (transfer.status !== "APPROVED") {
-            throw new Error("Transferência precisa estar aprovada");
-        }
-
-        const {
-            productId,
-            quantity,
-            fromEstablishmentId,
-            toEstablishmentId
-        } = transfer;
-
-        // 🔴 BAIXA ORIGEM
-        await consumeProduct({
-            productId,
-            quantity,
-            establishmentId: fromEstablishmentId,
-            reason: "TRANSFER",
-            reference: `Transferência para ${toEstablishmentId}`
-        }, tx);
-
-        // 🟢 ENTRADA DESTINO
-        await addStock({
-            productId: destinarionProduct.id,
             quantity,
             establishmentId: toEstablishmentId,
             reason: "TRANSFER",
@@ -299,14 +193,41 @@ const completeTransfer = async (transferId, userId) => {
         return tx.stockTransfer.update({
             where: { id: transferId },
             data: {
-                status: "COMPLETED",
-                completedBy: userId,
-                completedAt: new Date()
+                status: "APPROVED",
+                approvedBy: userId,
+                approvedAt: new Date()
             }
         });
+    });
+};
 
+/**
+ * 🔐 REJEITAR TRANSFERÊNCIA
+ */
+const rejectTransfer = async (transferId, userId, establishmentId) => {
+    const transfer = await prisma.stockTransfer.findFirst({
+        where: { 
+            id: transferId,
+            toEstablishmentId: establishmentId 
+        }
     });
 
+    if (!transfer) {
+        throw new Error("Transferência não encontrada ou acesso negado.");
+    }
+
+    if (transfer.status !== "PENDING") {
+        throw new Error("Transferência já processada.");
+    }
+
+    return prisma.stockTransfer.update({
+        where: { id: transferId },
+        data: {
+            status: "REJECTED",
+            approvedBy: userId,
+            approvedAt: new Date()
+        }
+    });
 };
 
 module.exports = {
@@ -314,6 +235,5 @@ module.exports = {
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
-    getReceivedTransfers,
-    completeTransfer
+    getReceivedTransfers
 };

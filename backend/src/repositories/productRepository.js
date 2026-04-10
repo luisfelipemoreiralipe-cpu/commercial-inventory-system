@@ -33,6 +33,7 @@ const findByIdAndEstablishment = (id, establishmentId) => {
 };
 
 const create = (data) => {
+    // establishmentId deve vir em data (validado no service)
     return prisma.product.create({
         data
     });
@@ -58,7 +59,7 @@ const removeByEstablishment = async (id, establishmentId) => {
     });
 
     if (!product) {
-        throw new Error("Produto não encontrado");
+        throw new Error("Produto não encontrado ou acesso negado.");
     }
 
     return prisma.product.delete({
@@ -69,9 +70,18 @@ const removeByEstablishment = async (id, establishmentId) => {
 
 };
 
-const getPriceHistory = (productId) => {
+/**
+ * 🔐 HISTÓRICO DE PREÇOS
+ * Filtragem por establishmentId via relação Product.
+ */
+const getPriceHistory = (productId, establishmentId) => {
     return prisma.supplierPriceHistory.findMany({
-        where: { productId },
+        where: { 
+            productId,
+            product: {
+                establishmentId
+            }
+        },
         include: {
             supplier: true
         },
@@ -81,10 +91,18 @@ const getPriceHistory = (productId) => {
     });
 };
 
-const getLastPurchasePrice = async (productId) => {
+/**
+ * 🔐 ÚLTIMO PREÇO DE COMPRA
+ */
+const getLastPurchasePrice = async (productId, establishmentId) => {
 
     const history = await prisma.supplierPriceHistory.findFirst({
-        where: { productId },
+        where: { 
+            productId,
+            product: {
+                establishmentId
+            }
+        },
         orderBy: { createdAt: 'desc' }
     });
 
@@ -92,8 +110,14 @@ const getLastPurchasePrice = async (productId) => {
         return Number(history.price);
     }
 
+    // Tenta pegar o preço do fornecedor padrão se não houver histórico
     const supplier = await prisma.productSupplier.findFirst({
-        where: { productId },
+        where: { 
+            productId,
+            product: {
+                establishmentId
+            }
+        },
         orderBy: { price: 'asc' }
     });
 

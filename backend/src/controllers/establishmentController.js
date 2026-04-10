@@ -1,81 +1,76 @@
-const prisma = require('../config/prisma');
+const prisma = require('../utils/prisma');
 const asyncHandler = require('../utils/asyncHandler');
-const { update } = require('./supplierController');
 
 const getAll = asyncHandler(async (req, res) => {
 
-    const establishment = await prisma.establishment.findUnique({
+    const establishment = await prisma.establishments.findUnique({
         where: { id: req.user.establishmentId }
     });
 
     if (!establishment) {
         return res.status(404).json({
             success: false,
-            message: 'Establishment não encontrado'
+            message: 'Estabelecimento não encontrado'
         });
     }
 
-    const update = asyncHandler(async (req, res) => {
-        console.log('🔥 UPDATE ESTABLISHMENT CONTROLLER HIT');
-        const { id } = req.params;
-        const { nome_fantasia } = req.body;
-
-        // 🔍 pega o estabelecimento atual (do usuário logado)
-        const currentEstablishment = await prisma.establishment.findUnique({
-            where: { id: req.user.establishmentId }
-        });
-
-        if (!currentEstablishment) {
-            return res.status(404).json({
-                success: false,
-                message: 'Establishment não encontrado'
-            });
-        }
-
-        // 🔍 valida se o establishment que quer editar pertence à mesma organização
-        const establishmentToUpdate = await prisma.establishment.findFirst({
-            where: {
-                id,
-                organizationId: currentEstablishment.organizationId
-            }
-        });
-
-        if (!establishmentToUpdate) {
-            return res.status(403).json({
-                success: false,
-                message: 'Você não tem permissão para editar este estabelecimento'
-            });
-        }
-
-        // ✏️ atualiza
-        const updated = await prisma.establishment.update({
-            where: { id },
-            data: {
-                nome_fantasia
-            }
-        });
-
-        res.json({
-            success: true,
-            data: updated
-        });
-    });
-
-    const establishments = await prisma.establishment.findMany({
+    const organizationsEstablishments = await prisma.establishments.findMany({
         where: {
             organizationId: establishment.organizationId
         },
         select: {
             id: true,
-            nome_fantasia: true
+            name: true
         }
     });
 
     res.json({
         success: true,
-        data: establishments
+        data: organizationsEstablishments
     });
 
+});
+
+const update = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    const currentEstablishment = await prisma.establishments.findUnique({
+        where: { id: req.user.establishmentId }
+    });
+
+    if (!currentEstablishment) {
+        return res.status(404).json({
+            success: false,
+            message: 'Estabelecimento logado não encontrado'
+        });
+    }
+
+    const establishmentToUpdate = await prisma.establishments.findFirst({
+        where: {
+            id,
+            organizationId: currentEstablishment.organizationId
+        }
+    });
+
+    if (!establishmentToUpdate) {
+        return res.status(403).json({
+            success: false,
+            message: 'Você não tem permissão para editar este estabelecimento'
+        });
+    }
+
+    const updated = await prisma.establishments.update({
+        where: { id },
+        data: {
+            name
+        }
+    });
+
+    res.json({
+        success: true,
+        data: updated
+    });
 });
 
 module.exports = {

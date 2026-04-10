@@ -1,6 +1,9 @@
 const prisma = require('../utils/prisma');
 const { consumeProduct, addStock } = require('./stockMovementService');
 
+/**
+ * 🔐 INICIAR EVENTO DE CONSUMO
+ */
 const startEvent = async ({ name, establishmentId, items }) => {
     return prisma.$transaction(async (tx) => {
         const event = await tx.consumptionEvent.create({
@@ -12,18 +15,18 @@ const startEvent = async ({ name, establishmentId, items }) => {
         });
 
         for (const item of items) {
-            const product = await tx.product.findUnique({
-                where: { id: item.productId }
+            const product = await tx.product.findFirst({
+                where: { id: item.productId, establishmentId }
             });
 
-            if (!product) throw new Error(`Produto não encontrado: ${item.productId}`);
+            if (!product) throw new Error(`Produto não encontrado ou acesso negado: ${item.productId}`);
 
             const packQty = Number(product.packQuantity || 1);
             const totalBaseWithdrawn = Number(item.units) * packQty;
 
-            // Busca o custo atual para congelar no evento
+            // Busca o custo atual (contexto estabelecimento)
             let unitCost = await tx.stockMovement.findFirst({
-                where: { productId: product.id },
+                where: { productId: product.id, establishmentId },
                 orderBy: { createdAt: 'desc' },
                 select: { unitCost: true }
             }).then(m => Number(m?.unitCost || 0));
@@ -55,23 +58,28 @@ const startEvent = async ({ name, establishmentId, items }) => {
     });
 };
 
+/**
+ * 🔐 DEVOLVER SOBRAS DO EVENTO
+ */
 const checkInLeftovers = async ({ eventId, items, establishmentId }) => {
     return prisma.$transaction(async (tx) => {
-        const event = await tx.consumptionEvent.findUnique({
-            where: { id: eventId },
+        const event = await tx.consumptionEvent.findFirst({
+            where: { id: eventId, establishmentId },
             include: { items: true }
         });
 
-        if (!event) throw new Error("Evento não encontrado");
+        if (!event) throw new Error("Evento não encontrado ou acesso negado.");
         if (event.status === "CLOSED") throw new Error("Evento já encerrado");
 
         for (const item of items) {
             const eventItem = event.items.find(ei => ei.productId === item.productId);
             if (!eventItem) continue;
 
-            const product = await tx.product.findUnique({
-                where: { id: item.productId }
+            const product = await tx.product.findFirst({
+                where: { id: item.productId, establishmentId }
             });
+
+            if (!product) continue;
 
             const packQty = Number(product.packQuantity || 1);
             const totalBaseReturned = (Number(item.units) * packQty) + Number(item.looseQty || 0);
@@ -95,13 +103,11 @@ const checkInLeftovers = async ({ eventId, items, establishmentId }) => {
                     reference: `RETORNO EVENTO: ${event.name}`,
                     unitCost: Number(eventItem.unitCost)
                 }, tx);
-            } else {
-                console.log(`[EVENTO] Consumo total de ${product.name}, pulando devolução ao estoque.`);
             }
         }
 
-        await tx.consumptionEvent.update({
-            where: { id: eventId },
+        await tx.consumptionEvent.updateMany({
+            where: { id: eventId, establishmentId },
             data: { status: "CLOSED", completedAt: new Date() }
         });
 
@@ -109,9 +115,12 @@ const checkInLeftovers = async ({ eventId, items, establishmentId }) => {
     });
 };
 
-const getEventReport = async (eventId) => {
-    const event = await prisma.consumptionEvent.findUnique({
-        where: { id: eventId },
+/**
+ * 🔐 RELATÓRIO DO EVENTO
+ */
+const getEventReport = async (eventId, establishmentId) => {
+    const event = await prisma.consumptionEvent.findFirst({
+        where: { id: eventId, establishmentId },
         include: { 
             items: { 
                 include: { product: true } 
@@ -119,7 +128,7 @@ const getEventReport = async (eventId) => {
         }
     });
 
-    if (!event) throw new Error("Evento não encontrado");
+    if (!event) throw new Error("Evento não encontrado ou acesso negado.");
 
     let totalWithdrawnValue = 0;
     let totalReturnedValue = 0;
@@ -156,6 +165,9 @@ const getEventReport = async (eventId) => {
     };
 };
 
+/**
+ * 🔐 LISTAR EVENTOS
+ */
 const listEvents = async (establishmentId) => {
     return prisma.consumptionEvent.findMany({
         where: { establishmentId },
