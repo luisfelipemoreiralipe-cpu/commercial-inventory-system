@@ -73,7 +73,78 @@ const update = asyncHandler(async (req, res) => {
     });
 });
 
+const create = asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    const userId = req.user.userId;
+    const currentEstablishmentId = req.user.establishmentId;
+
+    if (!name) {
+        return res.status(400).json({ success: false, message: 'Nome é obrigatório' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+        // 1. Pega o estabelecimento atual
+        let currentEst = await tx.establishments.findUnique({
+            where: { id: currentEstablishmentId }
+        });
+
+        if (!currentEst) {
+            throw new Error('Estabelecimento atual não encontrado');
+        }
+
+        // 2. Garante que exista uma Organização vinculada (Upgrade para Rede)
+        let orgId = currentEst.organizationId;
+        if (!orgId) {
+            const newOrg = await tx.organization.create({
+                data: { name: `Rede ${currentEst.name}` }
+            });
+            orgId = newOrg.id;
+
+            // Atualiza o atual para pertencer a essa nova Org
+            await tx.establishments.update({
+                where: { id: currentEstablishmentId },
+                data: { organizationId: orgId }
+            });
+        }
+
+        // 3. Cria a nova unidade
+        const newEstablishment = await tx.establishments.create({
+            data: { 
+                name,
+                organizationId: orgId
+            }
+        });
+
+        // 4. Criar Categorias Padrão (Seed)
+        const defaultCategories = [
+            'Bebidas', 'Alimentos', 'Proteínas', 'Hortifruti', 
+            'Embalagens', 'Limpeza', 'Outros'
+        ];
+
+        await tx.category.createMany({
+            data: defaultCategories.map(cat => ({
+                name: cat,
+                establishmentId: newEstablishment.id
+            }))
+        });
+
+        // 5. Dá acesso administrativo ao usuário criador na nova unidade
+        await tx.userEstablishment.create({
+            data: {
+                userId,
+                establishmentId: newEstablishment.id,
+                role: 'ADMIN' // Quem cria é Admin por padrão
+            }
+        });
+
+        return newEstablishment;
+    });
+
+    res.status(201).json({ success: true, data: result });
+});
+
 module.exports = {
     getAll,
-    update
+    update,
+    create
 };

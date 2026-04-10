@@ -35,6 +35,20 @@ const createTransfer = async ({
         throw new Error("Não é possível transferir para o mesmo estabelecimento");
     }
 
+    const [fromEst, toEst] = await Promise.all([
+        prisma.establishments.findUnique({ where: { id: fromEstablishmentId } }),
+        prisma.establishments.findUnique({ where: { id: toEstablishmentId } })
+    ]);
+
+    if (!fromEst || !toEst) {
+        throw new Error("Estabelecimento de origem ou destino não encontrado.");
+    }
+
+    // 🛡️ SEGURANÇA: Só pode transferir se estiverem na mesma rede (organização)
+    if (fromEst.organizationId !== toEst.organizationId) {
+        throw new Error("Não é permitido transferir estoque entre organizações diferentes.");
+    }
+
     const product = await prisma.product.findFirst({
         where: {
             id: productId,

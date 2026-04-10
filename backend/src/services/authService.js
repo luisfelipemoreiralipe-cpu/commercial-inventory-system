@@ -15,6 +15,19 @@ async function register({ name, email, password }) {
             data: { name: `${name} Restaurante` }
         });
 
+        // Seed Categorias Padrão
+        const defaultCategories = [
+            'Bebidas', 'Alimentos', 'Proteínas', 'Hortifruti', 
+            'Embalagens', 'Limpeza', 'Outros'
+        ];
+
+        await tx.category.createMany({
+            data: defaultCategories.map(cat => ({
+                name: cat,
+                establishmentId: establishment.id
+            }))
+        });
+
         const user = await tx.users.create({
             data: {
                 name,
