@@ -362,7 +362,7 @@ const Products = () => {
 
             const result = await getProductSuppliers(product.id);
 
-            setProductSuppliers(result.data || []);
+            setProductSuppliers(result || []);
             setSupplierModal(product);
 
         } catch (err) {
@@ -421,7 +421,7 @@ const Products = () => {
                 supplierModal.id
             );
 
-            setProductSuppliers(updated.data);
+            setProductSuppliers(updated || []);
             await loadProducts();
 
             setSelectedSupplier("");
@@ -533,7 +533,7 @@ const Products = () => {
                 supplierModal.id
             );
 
-            setProductSuppliers(updated.data);
+            setProductSuppliers(updated || []);
             await loadProducts();
 
         } catch (err) {
