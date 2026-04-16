@@ -3,7 +3,9 @@ import styled from "styled-components";
 import {
     MdCheckCircle,
     MdDelete,
-    MdShoppingCart
+    MdShoppingCart,
+    MdAdd,
+    MdRemoveCircleOutline
 } from "react-icons/md";
 
 import Modal from '../components/Modal';
@@ -13,7 +15,7 @@ import { formatCurrency } from "../utils/formatCurrency";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import EmptyState from "../components/EmptyState";
-import { Input } from "../components/FormFields";
+import { Input, Select as NativeSelect } from "../components/FormFields";
 import toast from "react-hot-toast";
 
 import api from "../services/api";
@@ -129,6 +131,291 @@ const StatusBadge = styled.span`
 `;
 
 /* -------------------------------------------------------------------------- */
+/*                          Manual Order Styled UI                            */
+/* -------------------------------------------------------------------------- */
+
+const ManualItemCard = styled.div`
+  background: ${({ theme }) => theme.colors.bgHover};
+  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  padding: 16px;
+  margin-bottom: 12px;
+  position: relative;
+`;
+
+const ManualItemHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+`;
+
+const ManualItemNumber = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primaryGlow};
+  padding: 2px 10px;
+  border-radius: 999px;
+`;
+
+const ManualGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  @media (max-width: 540px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ManualSubtotal = styled.div`
+  text-align: right;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textMuted};
+  margin-top: 10px;
+
+  strong {
+    color: ${({ theme }) => theme.colors.textPrimary};
+    font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  }
+`;
+
+const ManualTotalBar = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 2px solid ${({ theme }) => theme.colors.border};
+  margin-top: 16px;
+  padding-top: 16px;
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes.lg};
+  color: ${({ theme }) => theme.colors.textPrimary};
+`;
+
+const EMPTY_ITEM = () => ({
+    _key: Math.random().toString(36).slice(2),
+    productId: "",
+    supplierId: "",
+    quantity: "",
+    unitPrice: ""
+});
+
+/* -------------------------------------------------------------------------- */
+/*                            ManualOrderModal                                 */
+/* -------------------------------------------------------------------------- */
+
+const ManualOrderModal = ({ isOpen, onClose, products, suppliers, onSuccess }) => {
+
+    const [items, setItems] = useState([EMPTY_ITEM()]);
+    const [loading, setLoading] = useState(false);
+
+    // Reset ao abrir
+    useEffect(() => {
+        if (isOpen) setItems([EMPTY_ITEM()]);
+    }, [isOpen]);
+
+    const updateItem = (key, field, value) => {
+        setItems(prev => prev.map(item => {
+            if (item._key !== key) return item;
+            // Ao trocar produto, reseta fornecedor e tenta preencher preço
+            if (field === "productId") {
+                const product = products.find(p => p.id === value);
+                const firstSupplier = product?.productSuppliers?.[0];
+                return {
+                    ...item,
+                    productId: value,
+                    supplierId: firstSupplier?.supplier?.id || "",
+                    unitPrice: firstSupplier?.price ? String(firstSupplier.price) : item.unitPrice
+                };
+            }
+            // Ao trocar fornecedor, tenta preencher preço
+            if (field === "supplierId") {
+                const product = products.find(p => p.id === item.productId);
+                const ps = product?.productSuppliers?.find(ps => ps.supplier?.id === value);
+                return {
+                    ...item,
+                    supplierId: value,
+                    unitPrice: ps?.price ? String(ps.price) : item.unitPrice
+                };
+            }
+            return { ...item, [field]: value };
+        }));
+    };
+
+    const addItem = () => setItems(prev => [...prev, EMPTY_ITEM()]);
+
+    const removeItem = (key) => {
+        if (items.length === 1) return;
+        setItems(prev => prev.filter(i => i._key !== key));
+    };
+
+    const grandTotal = items.reduce((acc, item) => {
+        return acc + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+    }, 0);
+
+    const handleSubmit = async () => {
+        // Validação
+        for (const item of items) {
+            if (!item.productId) {
+                toast.error("Selecione o produto em todos os itens.");
+                return;
+            }
+            if (!item.quantity || Number(item.quantity) <= 0) {
+                toast.error("Informe uma quantidade válida em todos os itens.");
+                return;
+            }
+            if (!item.unitPrice || Number(item.unitPrice) <= 0) {
+                toast.error("Informe o preço unitário em todos os itens.");
+                return;
+            }
+        }
+
+        setLoading(true);
+        try {
+            const payload = {
+                items: items.map(item => {
+                    const product = products.find(p => p.id === item.productId);
+                    return {
+                        productId: item.productId,
+                        productName: product?.name || "Produto",
+                        supplierId: item.supplierId || undefined,
+                        adjustedQuantity: Number(item.quantity),
+                        unitPrice: Number(item.unitPrice)
+                    };
+                })
+            };
+
+            await api.post("/purchase-orders", payload);
+            toast.success("Ordem de compra criada com sucesso!");
+            await onSuccess(); // 🔥 aguarda o fetchOrders atualizar o state antes de fechar
+            onClose();
+        } catch (err) {
+            console.error("Erro ao criar ordem manual:", err);
+            toast.error(err?.response?.data?.error || "Erro ao criar ordem de compra.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const productOptions = [
+        { value: "", label: "Selecione um produto..." },
+        ...products.map(p => ({ value: p.id, label: p.name }))
+    ];
+
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Nova Ordem de Compra"
+        >
+            {items.map((item, idx) => {
+                const selectedProduct = products.find(p => p.id === item.productId);
+                // 🐛 Fix: [] é truthy em JS, então || não funciona com arrays vazios.
+                // Usamos .length > 0 para garantir o fallback correto.
+                const linkedSuppliers = selectedProduct?.productSuppliers?.length > 0
+                    ? selectedProduct.productSuppliers.map(ps => ({
+                        value: ps.supplier.id,
+                        label: ps.supplier.name
+                    }))
+                    : suppliers.map(s => ({ value: s.id, label: s.name }));
+
+                const supplierOptions = [
+                    { value: "", label: "Selecione um fornecedor..." },
+                    ...linkedSuppliers
+                ];
+
+                const subtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+
+                return (
+                    <ManualItemCard key={item._key}>
+                        <ManualItemHeader>
+                            <ManualItemNumber>Item {idx + 1}</ManualItemNumber>
+                            {items.length > 1 && (
+                                <Button
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={() => removeItem(item._key)}
+                                    style={{ padding: "4px 8px" }}
+                                >
+                                    <MdRemoveCircleOutline size={16} />
+                                </Button>
+                            )}
+                        </ManualItemHeader>
+
+                        <ManualGrid>
+                            <NativeSelect
+                                label="Produto"
+                                value={item.productId}
+                                onChange={(val) => updateItem(item._key, "productId", val)}
+                                options={productOptions}
+                            />
+                            <NativeSelect
+                                label="Fornecedor"
+                                value={item.supplierId}
+                                onChange={(val) => updateItem(item._key, "supplierId", val)}
+                                options={supplierOptions}
+                            />
+                            <Input
+                                label="Quantidade"
+                                type="number"
+                                inputMode="decimal"
+                                min="0.01"
+                                step="0.01"
+                                placeholder="Ex: 5"
+                                value={item.quantity}
+                                onChange={(e) => updateItem(item._key, "quantity", e.target.value)}
+                            />
+                            <Input
+                                label="Preço Unitário (R$)"
+                                type="number"
+                                inputMode="decimal"
+                                min="0.01"
+                                step="0.01"
+                                placeholder="Ex: 45.00"
+                                value={item.unitPrice}
+                                onChange={(e) => updateItem(item._key, "unitPrice", e.target.value)}
+                            />
+                        </ManualGrid>
+
+                        {subtotal > 0 && (
+                            <ManualSubtotal>
+                                Subtotal: <strong>{formatCurrency(subtotal)}</strong>
+                            </ManualSubtotal>
+                        )}
+                    </ManualItemCard>
+                );
+            })}
+
+            <Button
+                variant="ghost"
+                onClick={addItem}
+                style={{ width: "100%", marginBottom: 8, border: "1.5px dashed", borderRadius: 10 }}
+            >
+                <MdAdd size={16} style={{ marginRight: 6 }} />
+                Adicionar outro produto
+            </Button>
+
+            {grandTotal > 0 && (
+                <ManualTotalBar>
+                    <span>Total do Pedido</span>
+                    <span>{formatCurrency(grandTotal)}</span>
+                </ManualTotalBar>
+            )}
+
+            <Button
+                variant="primary"
+                fullWidth
+                onClick={handleSubmit}
+                disabled={loading}
+                style={{ marginTop: 16, minHeight: 48 }}
+            >
+                {loading ? "Criando..." : "Criar Ordem de Compra"}
+            </Button>
+        </Modal>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
 /*                                Component                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -141,6 +428,7 @@ const PurchaseOrders = () => {
     const [receivedPrice, setReceivedPrice] = useState({});
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [tab, setTab] = useState("PENDING");
+    const [showManualModal, setShowManualModal] = useState(false);
 
     /* -------------------------------------------------------------------------- */
     /*                                   EFFECT                                   */
@@ -282,6 +570,23 @@ const PurchaseOrders = () => {
         }
     };
 
+    const handleDeleteOrder = async (order) => {
+        const confirmed = window.confirm(
+            `⚠️ Tem certeza que deseja excluir o pedido #${order.id.slice(-4)}?\n\nEsta ação não pode ser desfeita.`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await api.delete(`/purchase-orders/${order.id}`);
+            toast.success(`Pedido #${order.id.slice(-4)} excluído com sucesso.`);
+            await fetchOrders();
+        } catch (err) {
+            console.error("Erro ao excluir ordem:", err);
+            toast.error(err?.message || "Erro ao excluir pedido.");
+        }
+    };
+
     const handleDownloadPdf = async () => {
         try {
             const response = await api.get(`/purchase-orders/${selectedOrder.id}/pdf`, {
@@ -346,6 +651,14 @@ Segue o pedido em PDF.
 
     return (
         <>
+            <ManualOrderModal
+                isOpen={showManualModal}
+                onClose={() => setShowManualModal(false)}
+                products={state.products}
+                suppliers={state.suppliers}
+                onSuccess={fetchOrders}
+            />
+
             <PageHeader>
                 <div>
                     <PageTitle>Ordens de Compra</PageTitle>
@@ -354,6 +667,15 @@ Segue o pedido em PDF.
                         Gerencie e acompanhe suas ordens de reposição
                     </PageSubtitle>
                 </div>
+
+                <Button
+                    variant="primary"
+                    onClick={() => setShowManualModal(true)}
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                >
+                    <MdAdd size={18} />
+                    Nova Ordem
+                </Button>
             </PageHeader>
             <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
 
@@ -465,12 +787,7 @@ Segue o pedido em PDF.
                                                     <Button
                                                         size="sm"
                                                         variant="danger"
-                                                        onClick={() =>
-                                                            dispatch({
-                                                                type: ACTIONS.DELETE_PURCHASE_ORDER,
-                                                                payload: order.id
-                                                            })
-                                                        }
+                                                        onClick={() => handleDeleteOrder(order)}
                                                     >
                                                         <MdDelete />
                                                     </Button>

@@ -127,6 +127,13 @@ const FiltersRow = styled.div`
   flex-wrap: wrap;
 `;
 
+const KpiGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+`;
+
 const Tabs = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing.sm};
@@ -224,38 +231,21 @@ const Reports = () => {
     const consumptionData = useMemo(() => {
         if (!state.stockMovements?.length) return [];
 
+        // 🐛 Fix: aplica filtro de data ANTES de agregar (loop redundante removido)
         let movements = state.stockMovements;
-        const consumptionMap = {};
-        movements
-            .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
-            .forEach((m) => {
-                if (!consumptionMap[m.productId]) {
-                    consumptionMap[m.productId] = 0;
-                }
 
-                consumptionMap[m.productId] += Math.abs(Number(m.quantity || 0));
-            });
-
-
-
-        // filtro por data
         if (dateFrom) {
             movements = movements.filter(
                 (m) => new Date(m.createdAt) >= new Date(dateFrom)
             );
         }
-
         if (dateTo) {
             movements = movements.filter(
                 (m) => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59')
             );
         }
 
-
-
-        // agrupar por produto
         const map = {};
-
         movements
             .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
             .forEach((m) => {
@@ -268,10 +258,8 @@ const Reports = () => {
                         lastDate: m.createdAt
                     };
                 }
-
                 map[m.productId].quantity += Math.abs(Number(m.quantity));
                 map[m.productId].totalCost += Number(m.totalCost || 0);
-
                 if (new Date(m.createdAt) > new Date(map[m.productId].lastDate)) {
                     map[m.productId].lastDate = m.createdAt;
                 }
@@ -590,6 +578,70 @@ const Reports = () => {
             .sort((a, b) => b.value - a.value);
     }, [state.stockMovements, dateFrom, dateTo]);
 
+    // ─── KPI Summary ───────────────────────────────────────
+    const kpiData = useMemo(() => {
+        let orders = (state.purchaseOrders || []).filter(o => o.status === 'completed');
+        let movements = state.stockMovements || [];
+
+        if (dateFrom) {
+            orders = orders.filter(o => new Date(o.completedAt || o.createdAt) >= new Date(dateFrom));
+            movements = movements.filter(m => new Date(m.createdAt) >= new Date(dateFrom));
+        }
+        if (dateTo) {
+            orders = orders.filter(o => new Date(o.completedAt || o.createdAt) <= new Date(dateTo + 'T23:59:59'));
+            movements = movements.filter(m => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59'));
+        }
+
+        const totalSpent = orders.reduce((acc, order) =>
+            acc + (order.items || []).reduce((s, i) =>
+                s + Number(i.adjustedQuantity || 0) * Number(i.unitPrice || 0), 0), 0);
+
+        const bonusValue = movements
+            .filter(m => m.type === 'IN' && m.reason === 'BONUS')
+            .reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+
+        const lowStockCount = (state.products || []).filter(
+            p => Number(p.quantity) < Number(p.minQuantity)
+        ).length;
+
+        return { totalSpent, orderCount: orders.length, bonusValue, lowStockCount };
+    }, [state.purchaseOrders, state.stockMovements, state.products, dateFrom, dateTo]);
+
+    // ─── Monthly Purchases Chart Data ─────────────────────────
+    const monthlyPurchases = useMemo(() => {
+        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        let orders = (state.purchaseOrders || []).filter(o => o.status === 'completed');
+
+        if (dateFrom) orders = orders.filter(o => new Date(o.completedAt || o.createdAt) >= new Date(dateFrom));
+        if (dateTo) orders = orders.filter(o => new Date(o.completedAt || o.createdAt) <= new Date(dateTo + 'T23:59:59'));
+
+        // Sem filtro: mostra últimos 6 meses
+        if (!dateFrom && !dateTo) {
+            const sixAgo = new Date();
+            sixAgo.setMonth(sixAgo.getMonth() - 5);
+            sixAgo.setDate(1);
+            sixAgo.setHours(0, 0, 0, 0);
+            orders = orders.filter(o => new Date(o.completedAt || o.createdAt) >= sixAgo);
+        }
+
+        const map = {};
+        orders.forEach(order => {
+            const date = new Date(order.completedAt || order.createdAt);
+            const key = `${date.getFullYear()}-${date.getMonth()}`;
+            if (!map[key]) {
+                map[key] = {
+                    month: `${monthNames[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`,
+                    total: 0,
+                    sortKey: date.getTime()
+                };
+            }
+            const orderTotal = (order.items || []).reduce(
+                (s, i) => s + Number(i.adjustedQuantity || 0) * Number(i.unitPrice || 0), 0);
+            map[key].total += orderTotal;
+        });
+
+        return Object.values(map).sort((a, b) => a.sortKey - b.sortKey);
+    }, [state.purchaseOrders, dateFrom, dateTo]);
 
     return (
         <>
@@ -627,6 +679,30 @@ const Reports = () => {
                     Limpar
                 </Button>
             </FiltersRow>
+
+            {/* 📊 KPI Cards */}
+            <KpiGrid>
+                <Card padding="20px" style={{ borderLeft: '3px solid #3B82F6' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Gasto em Compras</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#1E293B' }}>{formatCurrency(kpiData.totalSpent)}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>{kpiData.orderCount} ordem(ns) concluída(s) no período</div>
+                </Card>
+                <Card padding="20px" style={{ borderLeft: '3px solid #10B981' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Ganho em Bonificações</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#10B981' }}>{formatCurrency(kpiData.bonusValue)}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>valor injetado via bônus</div>
+                </Card>
+                <Card padding="20px" style={{ borderLeft: '3px solid #F59E0B' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Ordens de Compra</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#1E293B' }}>{kpiData.orderCount}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>pedidos finalizados no período</div>
+                </Card>
+                <Card padding="20px" style={{ borderLeft: `3px solid ${kpiData.lowStockCount > 0 ? '#DC2626' : '#10B981'}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Abaixo do Mínimo</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: kpiData.lowStockCount > 0 ? '#DC2626' : '#10B981' }}>{kpiData.lowStockCount}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>{kpiData.lowStockCount === 0 ? 'Estoque saudável ✅' : 'produtos precisam de reposição'}</div>
+                </Card>
+            </KpiGrid>
 
             {/* Tabs */}
             {purchaseInsight !== null && (
@@ -974,65 +1050,80 @@ const Reports = () => {
                 )}
 
                 {activeTab === 'metrics' && (
-                    <Card padding="24px">
-                        <div style={{ marginBottom: 24 }}>
-                            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>
-                                Evolução Mensal de Bonificações
-                            </h3>
-                            <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
-                                Acompanhe o lucro bruto injetado via bonificações no seu estoque (Histórico {dateFrom || dateTo ? 'filtrado' : 'últimos 6 meses'}).
-                            </p>
-                        </div>
+                    <>
+                        {/* 💰 Gastos Mensais com Compras */}
+                        <Card padding="24px" style={{ marginBottom: 20 }}>
+                            <div style={{ marginBottom: 20 }}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>
+                                    Evolução Mensal de Gastos com Compras
+                                </h3>
+                                <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+                                    Total investido em ordens de compra finalizadas ({dateFrom || dateTo ? 'período filtrado' : 'últimos 6 meses'}).
+                                </p>
+                            </div>
+                            <div style={{ height: 300, width: '100%' }}>
+                                {monthlyPurchases.length === 0 ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B', background: '#F8FAFC', borderRadius: 12 }}>
+                                        Nenhuma ordem de compra finalizada neste período.
+                                    </div>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={monthlyPurchases} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(0) + 'k' : v}`} />
+                                            <Tooltip
+                                                cursor={{ fill: '#F1F5F9', radius: 4 }}
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px', background: '#FFF' }}
+                                                formatter={(value) => [formatCurrency(value), 'Gasto em Compras']}
+                                                labelStyle={{ fontWeight: 600, color: '#1E293B', marginBottom: 4 }}
+                                            />
+                                            <Bar dataKey="total" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={32} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </div>
+                        </Card>
 
-                        <div style={{ height: 400, width: '100%', minHeight: 300 }}>
-                            {bonusTrendLoading ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B' }}>
-                                    Carregando dados evolutivos...
-                                </div>
-                            ) : bonusTrend.length === 0 ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B', background: '#F8FAFC', borderRadius: 12 }}>
-                                    Nenhum dado de bonificação encontrado para este período.
-                                </div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={bonusTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                                        <XAxis 
-                                            dataKey="month" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#64748B', fontSize: 12 }} 
-                                            dy={10}
-                                        />
-                                        <YAxis 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#64748B', fontSize: 12 }}
-                                            tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}
-                                        />
-                                        <Tooltip 
-                                            cursor={{ fill: '#F1F5F9', radius: 4 }}
-                                            contentStyle={{ 
-                                                borderRadius: '12px', 
-                                                border: 'none', 
-                                                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                                                padding: '12px',
-                                                background: '#FFF'
-                                            }}
-                                            formatter={(value) => [formatCurrency(value), 'Bonificação Total']}
-                                            labelStyle={{ fontWeight: 600, color: '#1E293B', marginBottom: 4 }}
-                                        />
-                                        <Bar 
-                                            dataKey="total" 
-                                            fill="#10B981" 
-                                            radius={[6, 6, 0, 0]} 
-                                            barSize={32} 
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
-                        </div>
-                    </Card>
+                        {/* 🎁 Evolução de Bonificações (existente) */}
+                        <Card padding="24px">
+                            <div style={{ marginBottom: 24 }}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>
+                                    Evolução Mensal de Bonificações
+                                </h3>
+                                <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+                                    Acompanhe o lucro bruto injetado via bonificações no seu estoque (Histórico {dateFrom || dateTo ? 'filtrado' : 'últimos 6 meses'}).
+                                </p>
+                            </div>
+
+                            <div style={{ height: 400, width: '100%', minHeight: 300 }}>
+                                {bonusTrendLoading ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B' }}>
+                                        Carregando dados evolutivos...
+                                    </div>
+                                ) : bonusTrend.length === 0 ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B', background: '#F8FAFC', borderRadius: 12 }}>
+                                        Nenhum dado de bonificação encontrado para este período.
+                                    </div>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={bonusTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`} />
+                                            <Tooltip
+                                                cursor={{ fill: '#F1F5F9', radius: 4 }}
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px', background: '#FFF' }}
+                                                formatter={(value) => [formatCurrency(value), 'Bonificação Total']}
+                                                labelStyle={{ fontWeight: 600, color: '#1E293B', marginBottom: 4 }}
+                                            />
+                                            <Bar dataKey="total" fill="#10B981" radius={[6, 6, 0, 0]} barSize={32} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </div>
+                        </Card>
+                    </>
                 )}
 
 

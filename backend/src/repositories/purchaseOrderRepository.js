@@ -154,8 +154,21 @@ const markCompleted = (id) =>
 // ─── DELETE ORDER ─────────────────────────────────────
 
 const remove = (id) =>
-    prisma.purchaseOrder.delete({
-        where: { id }
+    prisma.$transaction(async (tx) => {
+        // 1. Remove histórico de preços vinculado a esta ordem
+        await tx.supplierPriceHistory.deleteMany({
+            where: { purchaseOrderId: id }
+        });
+
+        // 2. Remove os itens da ordem (filhos que causam P2003)
+        await tx.purchaseOrderItem.deleteMany({
+            where: { purchaseOrderId: id }
+        });
+
+        // 3. Remove a ordem em si
+        return tx.purchaseOrder.delete({
+            where: { id }
+        });
     });
 
 const productHasOpenPendingOrder = async (productId, establishmentId) => {

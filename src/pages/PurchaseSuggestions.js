@@ -971,13 +971,10 @@ const PurchaseSuggestions = () => {
                                                                         ...selectedSuppliers,
                                                                         [s.productId]: value
                                                                     };
-
+                                                                    // ✅ Atualiza o state — o useEffect de auto-save persiste no sessionStorage com a chave correta
                                                                     setSelectedSuppliers(updated);
-
-                                                                    localStorage.setItem(
-                                                                        "purchase_selected_suppliers",
-                                                                        JSON.stringify(updated)
-                                                                    );
+                                                                    // 🔥 Persiste imediatamente para não perder em re-renders
+                                                                    sessionStorage.setItem(SUPPLIER_CACHE_KEY, JSON.stringify(updated));
                                                                 }}
                                                             />
                                                         );
