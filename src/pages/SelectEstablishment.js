@@ -109,7 +109,13 @@ const Input = styled.input`
 export default function SelectEstablishment() {
     const navigate = useNavigate();
     const { state, switchEstablishment, reloadContext } = useApp();
-    const establishments = state.establishments || [];
+    
+    const establishments = state.establishments?.length 
+        ? state.establishments 
+        : (() => {
+            try { return JSON.parse(localStorage.getItem("establishments") || "[]"); } 
+            catch { return []; }
+        })();
 
     const [loadingId, setLoadingId] = useState(null);
     const [showCreate, setShowCreate] = useState(false);
