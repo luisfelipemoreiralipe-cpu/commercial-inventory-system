@@ -10,6 +10,7 @@ const findAll = ({ entityType } = {}) => {
 
     return prisma.auditLog.findMany({
         where,
+        take: 100,
         orderBy: { createdAt: 'desc' },
     });
 };

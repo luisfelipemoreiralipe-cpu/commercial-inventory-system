@@ -152,7 +152,8 @@ export default function StockMovement() {
             await fetchAllData();
         } catch (error) {
             console.error(error);
-            toast.error("Erro ao importar CSV");
+            const msg = error.response?.data?.message || "Erro ao importar CSV";
+            toast.error(msg);
         } finally {
             setLoadingImport(false);
         }

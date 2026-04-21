@@ -105,6 +105,8 @@ model PurchaseOrder {
 
   items PurchaseOrderItem[]
 
+  @@index([establishmentId])
+  @@index([createdAt])
   @@map("purchase_orders")
 }
 
@@ -150,6 +152,9 @@ model StockMovement {
   supplierId String? @db.Uuid
   supplier   Supplier? @relation(fields: [supplierId], references: [id])
 
+  @@index([establishmentId])
+  @@index([productId])
+  @@index([createdAt])
   @@map("stock_movements")
 }
 
@@ -166,6 +171,8 @@ model AuditLog {
 
   createdAt DateTime @default(now())
 
+  @@index([establishmentId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 
@@ -347,6 +354,9 @@ model StockAudit {
 
   items StockAuditItem[]
 
+  @@index([establishmentId])
+  @@index([createdAt])
+  @@index([createdBy])
   @@map("stock_audits")
 }
 
@@ -378,6 +388,7 @@ model ConsumptionEvent {
   completedAt     DateTime?
   items           ConsumptionEventItem[]
 
+  @@index([establishmentId])
   @@map("consumption_events")
 }
 
@@ -393,6 +404,8 @@ model ConsumptionEventItem {
 
   createdAt       DateTime  @default(now())
 
+  @@index([eventId])
+  @@index([productId])
   @@map("consumption_event_items")
 }
 
