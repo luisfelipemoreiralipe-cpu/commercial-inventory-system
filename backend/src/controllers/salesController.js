@@ -48,13 +48,27 @@ const importCSV = asyncHandler(async (req, res) => {
         });
     }
 
-    // Detectar o delimitador mestre pelo cabeçalho (quem aparece mais: , ou ;)
+    // Detectar o delimitador mestre de forma robusta
     const header = lines[0];
-    const commaCount = (header.match(/,/g) || []).length;
-    const semiCount = (header.match(/;/g) || []).length;
-    const delimiter = semiCount > commaCount ? ';' : ',';
+    const firstData = lines[1] || "";
     
-    console.log(`🛠️ PASSO 2: Analisando CSV. Delimitador detectado: "${delimiter}" (Virgulas: ${commaCount}, Ponto-e-virgula: ${semiCount})`);
+    const countChars = (str, char) => (str.match(new RegExp(`\\${char}`, 'g')) || []).length;
+    
+    const headerCommas = countChars(header, ',');
+    const headerSemis = countChars(header, ';');
+    const dataCommas = countChars(firstData, ',');
+    const dataSemis = countChars(firstData, ';');
+
+    // Decisão: Prioriza o que aparece nas linhas de dados, ou o que for majoritário no cabeçalho
+    let delimiter = ',';
+    if (dataSemis > dataCommas) {
+        delimiter = ';';
+    } else if (dataCommas === 0 && dataSemis === 0) {
+        // Se a linha de dados não tem nenhum, decide pelo cabeçalho
+        delimiter = headerSemis > headerCommas ? ';' : ',';
+    }
+    
+    console.log(`🛠️ PASSO 2: Analisando CSV. Delimitador final: "${delimiter}" (Dados: ,:${dataCommas} ;:${dataSemis} | Header: ,:${headerCommas} ;:${headerSemis})`);
 
     const dataLines = lines.slice(1);
     const parsed = [];
