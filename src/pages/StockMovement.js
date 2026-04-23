@@ -145,6 +145,7 @@ export default function StockMovement() {
         try {
             await api.post("/sales/import", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
+                timeout: 120000, // 2 minutos — importações grandes podem demorar
             });
             toast.success("CSV importado com sucesso");
             setFile(null);
