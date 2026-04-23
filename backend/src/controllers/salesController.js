@@ -3,6 +3,68 @@ const prisma = require('../utils/prisma');
 const { consumeProduct } = require('../services/stockMovementService');
 const { convertToBaseUnit } = require('../utils/unitConverter');
 
+/**
+ * Normaliza quantidade em formato BR para float.
+ * Suporta: "1.117" (milhar sem decimal), "1.117,5" (milhar com decimal), "1,5" (só decimal)
+ */
+function normalizeQuantity(raw) {
+    if (!raw) return '';
+    const str = raw.trim();
+
+    // Se tem vírgula E ponto: formato BR completo (ex: "1.117,50") -> remover ponto, trocar vírgula por ponto
+    if (str.includes('.') && str.includes(',')) {
+        return str.replace(/\./g, '').replace(',', '.');
+    }
+
+    // Se só tem vírgula: pode ser decimal BR (ex: "1,5") -> trocar vírgula por ponto
+    if (str.includes(',') && !str.includes('.')) {
+        // Só é decimal se a parte após a vírgula tiver 1 ou 2 dígitos
+        const afterComma = str.split(',')[1] || '';
+        if (afterComma.length <= 2) {
+            return str.replace(',', '.');
+        }
+        // Se tiver mais de 2 dígitos após vírgula, é separador de milhar (improvável, mas seguro)
+        return str.replace(',', '');
+    }
+
+    // Se só tem ponto: pode ser milhar BR (ex: "1.117") ou decimal US (ex: "1.5")
+    if (str.includes('.') && !str.includes(',')) {
+        const afterDot = str.split('.')[1] || '';
+        // Se exatamente 3 dígitos após ponto: interpretamos como separador de milhar
+        if (afterDot.length === 3) {
+            return str.replace('.', '');
+        }
+        // Caso contrário, é decimal normal
+        return str;
+    }
+
+    // Sem separadores: número inteiro
+    return str;
+}
+
+/**
+ * Parser robusto de linha CSV que respeita campos entre aspas.
+ */
+function parseCSVLine(line, delimiter) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === delimiter && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
 const importCSV = asyncHandler(async (req, res) => {
     console.log("!!!!!!!!!!!!!!!!!! ESTOU NO ARQUIVO CERTO !!!!!!!!!!!!!!!!!!");
 
@@ -75,7 +137,9 @@ const importCSV = asyncHandler(async (req, res) => {
 
     for (let i = 0; i < dataLines.length; i++) {
         const line = dataLines[i];
-        const parts = line.split(delimiter);
+
+        // Parser robusto de CSV que respeita campos entre aspas
+        const parts = parseCSVLine(line, delimiter);
 
         // Ignora linhas que não têm pelo menos 2 colunas reais
         if (parts.length < 2) {
@@ -83,9 +147,13 @@ const importCSV = asyncHandler(async (req, res) => {
             continue;
         }
 
-        const productName = parts[0].trim().toUpperCase();
-        const rawQty = parts[1] ? parts[1].trim().replace(',', '.') : '';
-        const quantity = parseFloat(rawQty);
+        const productName = parts[0].trim().replace(/^"|"$/g, '').toUpperCase();
+        // Pega a quantidade e normaliza formato BR (ex: "1.117,5" -> 1117.5 | "1,5" -> 1.5)
+        const rawQty = parts[1] ? parts[1].trim().replace(/^"|"$/g, '') : '';
+        const normalizedQty = normalizeQuantity(rawQty);
+        const quantity = parseFloat(normalizedQty);
+
+        console.log(`🔢 Linha ${i + 2}: Produto=[${productName}] rawQty=[${rawQty}] normalizado=[${normalizedQty}] parsed=${quantity}`);
 
         // Só adiciona se o nome for válido e a quantidade for um número real maior que zero
         if (productName && !isNaN(quantity) && quantity > 0 && productName.replace(/[,;]/g, '') !== '') {
