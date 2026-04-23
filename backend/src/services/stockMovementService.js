@@ -5,6 +5,10 @@ const stockMovementRepo = require('../repositories/stockMovementRepository');
  * 🔐 REGRA DE CUSTO (CORE FINANCEIRO)
  * 🛡️ Blindado com establishmentId
  */
+/**
+ * Busca custo usando um cliente de transação (tx).
+ * Usado internamente em operações que já estão dentro de uma transação.
+ */
 const getProductCost = async (productId, establishmentId, tx) => {
 
     // 🥇 Última compra do estabelecimento
@@ -63,6 +67,15 @@ const getProductCost = async (productId, establishmentId, tx) => {
     return 0;
 };
 
+/**
+ * 🔓 Versão FORA de transação — usa prisma diretamente.
+ * Usada para pré-carregar custos antes de abrir uma transação longa,
+ * evitando timeout P2028 em lotes grandes (ex: importação CSV).
+ */
+const getProductCostOutsideTx = async (productId, establishmentId) => {
+    return getProductCost(productId, establishmentId, prisma);
+};
+
 // 🔍 CONSULTA
 const getMovements = (filters) => stockMovementRepo.findAll(filters);
 
@@ -75,7 +88,8 @@ const consumeProduct = async ({
     quantity,
     establishmentId,
     reason,
-    reference
+    reference,
+    preloadedCost  // opcional: custo pré-calculado fora da transação
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -111,7 +125,8 @@ const consumeProduct = async ({
             const previousQuantity = Number(finalProduct.quantity) + Number(quantity);
             const newQuantity = Number(finalProduct.quantity);
 
-            const unitCost = await getProductCost(product.id, establishmentId, tx);
+            // Usa custo pré-calculado se disponível (evita queries extras dentro da transação)
+            const unitCost = preloadedCost !== undefined ? preloadedCost : await getProductCost(product.id, establishmentId, tx);
             const totalCost = unitCost * Number(quantity);
 
             await tx.stockMovement.create({
@@ -328,5 +343,6 @@ module.exports = {
     createInternalUse,
     consumeProduct,
     addStock,
-    addBonus
+    addBonus,
+    getProductCostOutsideTx
 };

@@ -280,8 +280,21 @@ const importCSV = asyncHandler(async (req, res) => {
         return res.status(500).json({ success: false, message: err.message });
     }
 
-    // 🚀 7. Execução Atômica
-    console.log("🛠️ PASSO 7: Abrindo transação para baixar estoque...");
+    // 🚀 7. Pré-buscar custos FORA da transação para não estourar o timeout
+    console.log("🛠️ PASSO 7: Pré-calculando custos fora da transação...");
+    const { getProductCostOutsideTx } = require('../services/stockMovementService');
+    const preloadedCosts = {};
+    for (const productId in totalDemand) {
+        try {
+            preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
+        } catch (e) {
+            preloadedCosts[productId] = 0;
+        }
+    }
+    console.log("✅ Custos pré-calculados:", Object.keys(preloadedCosts).length, "produtos");
+
+    // 🚀 8. Execução Atômica com timeout estendido (60s para lotes grandes)
+    console.log("🛠️ PASSO 8: Abrindo transação para baixar estoque...");
     await prisma.$transaction(async (tx) => {
         for (const productId in totalDemand) {
             const item = totalDemand[productId];
@@ -291,10 +304,11 @@ const importCSV = asyncHandler(async (req, res) => {
                 quantity: item.qty,
                 establishmentId,
                 reason: "SALE",
-                reference: "CSV_IMPORT_CONSOLIDATED"
+                reference: "CSV_IMPORT_CONSOLIDATED",
+                preloadedCost: preloadedCosts[productId]
             }, tx);
         }
-    });
+    }, { timeout: 60000 }); // 60 segundos para lotes grandes
 
     console.log("✅ SUCESSO: Importação concluída.");
     return res.json({
