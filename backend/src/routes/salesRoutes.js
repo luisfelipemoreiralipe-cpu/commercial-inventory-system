@@ -13,4 +13,11 @@ router.post(
     salesController.importCSV
 );
 
+// 🔥 LANÇAMENTO MANUAL DE VENDAS
+router.post(
+    '/manual',
+    authMiddleware,
+    salesController.importManual
+);
+
 module.exports = router;

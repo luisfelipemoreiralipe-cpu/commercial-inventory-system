@@ -372,7 +372,8 @@ const Reports = () => {
                     };
                 }
 
-                map[existingSupplierKey].bonusQuantity += Number(m.quantity || 0);
+                const pack = Number(product?.packQuantity || 1);
+                map[existingSupplierKey].bonusQuantity += Number(m.quantity || 0) / pack;
                 // A economia gerada baseia-se no custo atual salvo em currentCost ou no próprio movimento
                 const costVal = Number(m.totalCost || (Number(m.quantity) * Number(product?.currentCost || 0)));
                 map[existingSupplierKey].bonusValue += costVal;
@@ -460,8 +461,12 @@ const Reports = () => {
                         bonus: 0 
                     };
                 }
-                map[m.productId].bonus += Number(m.quantity || 0);
-                map[m.productId].purchased += Number(m.quantity || 0); // soma no total de recebidos
+                const product = state.products?.find(p => p.id === m.productId);
+                const pack = Number(product?.packQuantity || 1);
+                const convertedBonus = Number(m.quantity || 0) / pack;
+
+                map[m.productId].bonus += convertedBonus;
+                map[m.productId].purchased += convertedBonus; // soma no total de recebidos
             });
 
         return Object.values(map)

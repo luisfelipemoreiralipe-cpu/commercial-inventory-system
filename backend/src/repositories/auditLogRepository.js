@@ -4,9 +4,10 @@ const prisma = require('../utils/prisma');
  * @param {object} filters
  * @param {string} [filters.entityType] "PRODUCT" | "SUPPLIER" | "PURCHASE_ORDER"
  */
-const findAll = ({ entityType } = {}) => {
+const findAll = ({ entityType, establishmentId } = {}) => {
     const where = {};
     if (entityType) where.entityType = entityType;
+    if (establishmentId) where.establishmentId = establishmentId;
 
     return prisma.auditLog.findMany({
         where,

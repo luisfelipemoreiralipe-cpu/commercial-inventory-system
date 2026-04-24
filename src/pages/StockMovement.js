@@ -6,7 +6,42 @@ import Button from "../components/Button";
 import api from "../services/api";
 import toast from "react-hot-toast";
 import { Input, Select } from "../components/FormFields";
-import { MdAddCircle, MdRemoveCircle, MdUploadFile } from "react-icons/md";
+import { MdAddCircle, MdRemoveCircle, MdUploadFile, MdShoppingCart } from "react-icons/md";
+
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.md};
+  margin-bottom: 20px;
+  font-size: 14px;
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+
+  th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  }
+
+  th {
+    color: ${({ theme }) => theme.colors.textMuted};
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+`;
+
+const SmallInput = styled.input`
+  width: 80px;
+  padding: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  text-align: center;
+`;
 
 /* -------------------------------------------------------------------------- */
 /* Styled UI                                   */
@@ -37,7 +72,7 @@ const PageSubtitle = styled.p`
 `;
 
 const FormContainer = styled.div`
-  max-width: 600px; // Aumentado levemente para melhor leitura
+  max-width: ${({ $mode }) => $mode === 'MANUAL_SALE' ? '800px' : '600px'};
   width: 100%;
 `;
 
@@ -74,6 +109,8 @@ export default function StockMovement() {
     const [loading, setLoading] = useState(false);
     const [file, setFile] = useState(null);
     const [loadingImport, setLoadingImport] = useState(false);
+    const [manualSales, setManualSales] = useState({});
+    const [searchTerm, setSearchTerm] = useState("");
 
     const selectedProduct = state.products.find((p) => p.id === productId);
     const parsedQuantity = Number(quantity || 0);
@@ -83,6 +120,30 @@ export default function StockMovement() {
             ? Number(selectedProduct.quantity) + parsedQuantity
             : Number(selectedProduct.quantity) - parsedQuantity
         : 0;
+
+    const handleManualSaleSubmit = async () => {
+        const items = Object.entries(manualSales)
+            .filter(([_, qty]) => Number(qty) > 0)
+            .map(([productId, quantity]) => ({ productId, quantity: Number(quantity) }));
+
+        if (items.length === 0) {
+            toast.error("Informe pelo menos um produto com quantidade maior que zero");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await api.post("/sales/manual", { items });
+            toast.success("Vendas lançadas com sucesso");
+            setManualSales({});
+            await fetchAllData();
+        } catch (error) {
+            console.error(error);
+            toast.error(error.response?.data?.message || "Erro ao lançar vendas manuais");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSubmit = async () => {
         if (!productId) {
@@ -161,13 +222,14 @@ export default function StockMovement() {
     };
 
     return (
-        <FormContainer>
+        <FormContainer $mode={mode}>
             <PageHeader>
                 <div>
                     <PageTitle>Movimentação</PageTitle>
                     <PageSubtitle>
                         {mode === "BONUS" ? "Entrada de bonificação" :
-                            mode === "INTERNAL_USE" ? "Saída para uso interno" : "Importação de vendas"}
+                            mode === "INTERNAL_USE" ? "Saída para uso interno" : 
+                            mode === "MANUAL_SALE" ? "Lançamento manual múltiplo" : "Importação de vendas"}
                     </PageSubtitle>
                 </div>
             </PageHeader>
@@ -193,9 +255,73 @@ export default function StockMovement() {
                 >
                     <MdUploadFile /> Importar CSV
                 </Button>
+
+                <Button
+                    variant={mode === "MANUAL_SALE" ? "primary" : "secondary"}
+                    onClick={() => { setMode("MANUAL_SALE"); setSearchTerm(""); }}
+                >
+                    <MdShoppingCart /> Venda Manual
+                </Button>
             </ButtonGroup>
 
-            {mode !== "CSV_IMPORT" ? (
+            {mode === "MANUAL_SALE" ? (
+                <Card>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <SearchInput 
+                            placeholder="Buscar produto por nome..." 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        <div style={{ overflowX: 'auto' }}>
+                            <Table>
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th>Categoria</th>
+                                        <th style={{ textAlign: 'center' }}>Vendas</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {state.products
+                                        .filter(p => p.isActive !== false)
+                                        .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                        .map(p => {
+                                            const category = state.categories?.find(c => c.id === p.categoryId)?.name || "Sem Categoria";
+                                            return (
+                                                <tr key={p.id}>
+                                                    <td>{p.name}</td>
+                                                    <td>{category}</td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <SmallInput 
+                                                            type="number"
+                                                            min="0"
+                                                            inputMode="numeric"
+                                                            placeholder="0"
+                                                            value={manualSales[p.id] || ""}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setManualSales(prev => ({ ...prev, [p.id]: val }));
+                                                            }}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                </tbody>
+                            </Table>
+                        </div>
+                        <Button
+                            fullWidth
+                            onClick={handleManualSaleSubmit}
+                            disabled={loading || Object.values(manualSales).filter(v => Number(v) > 0).length === 0}
+                            size="lg"
+                        >
+                            {loading ? "Processando..." : "Lançar Vendas Manuais"}
+                        </Button>
+                    </div>
+                </Card>
+            ) : mode !== "CSV_IMPORT" ? (
                 <Card>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <Select

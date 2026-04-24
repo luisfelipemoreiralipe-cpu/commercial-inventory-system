@@ -3,6 +3,59 @@ const prisma = require('../utils/prisma');
 const { consumeProduct } = require('../services/stockMovementService');
 const { convertToBaseUnit } = require('../utils/unitConverter');
 
+async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establishmentId, isRoot = true) {
+    let product;
+    let recipe;
+
+    if (typeof productOrId === 'object' && productOrId.id) {
+        product = productOrId;
+        recipe = product.Recipe; 
+    } else {
+        product = await prisma.product.findFirst({ where: { id: productOrId, establishmentId } });
+        if (!product) throw new Error(`Produto id ${productOrId} não encontrado`);
+        if (product.type === 'PRODUCTION') {
+            recipe = await prisma.recipe.findFirst({
+                where: { productId: product.id, establishmentId },
+                include: { items: { include: { product: true } } }
+            });
+        }
+    }
+
+    if (product.type === 'INVENTORY') {
+        if (!totalDemand[product.id]) {
+            totalDemand[product.id] = { id: product.id, name: product.name, qty: 0 };
+        }
+        if (isRoot) {
+            const packQty = Number(product.packQuantity || 1);
+            totalDemand[product.id].qty += saleQty * packQty;
+        } else {
+            totalDemand[product.id].qty += saleQty;
+        }
+    } else if (product.type === 'PRODUCTION') {
+        if (!recipe) {
+            recipe = await prisma.recipe.findFirst({
+                where: { productId: product.id, establishmentId },
+                include: { items: { include: { product: true } } }
+            });
+            if (!recipe) {
+                throw new Error(`O produto "${product.name}" é de produção mas não possui Ficha Técnica cadastrada.`);
+            }
+        }
+
+        for (const rItem of recipe.items) {
+            if (!rItem.product) throw new Error(`Ingrediente órfão em ${product.name}`);
+            
+            const ingredient = rItem.product;
+            const neededBase = convertToBaseUnit(
+                Number(rItem.quantity) * saleQty,
+                ingredient.unit
+            );
+            
+            await explodeDemandRecursive(ingredient.id, neededBase, totalDemand, establishmentId, false);
+        }
+    }
+}
+
 /**
  * Normaliza quantidade em formato BR para float.
  * Suporta: "1.117" (milhar sem decimal), "1.117,5" (milhar com decimal), "1,5" (só decimal)
@@ -235,44 +288,14 @@ const importCSV = asyncHandler(async (req, res) => {
     }
 
     // 💣 6. Explosão de Ingredientes
-    console.log("🛠️ PASSO 6: Iniciando Explosão de Ingredientes...");
+    console.log("🛠️ PASSO 6: Iniciando Explosão de Ingredientes (Recursiva)...");
     const totalDemand = {};
 
     try {
         for (const item of parsed) {
             const product = productMap.get(item.product);
             const saleQty = Number(item.quantity);
-
-            if (product.type === 'INVENTORY') {
-                if (!totalDemand[product.id]) {
-                    totalDemand[product.id] = { id: product.id, name: product.name, qty: 0 };
-                }
-                const packQty = Number(product.packQuantity || 1);
-                totalDemand[product.id].qty += saleQty * packQty;
-            } else if (product.type === 'PRODUCTION') {
-                if (!product.Recipe) {
-                    console.log(`❌ ERRO: ${product.name} não tem receita.`);
-                    return res.status(400).json({
-                        success: false,
-                        message: `O produto "${product.name}" é de produção mas não possui Ficha Técnica cadastrada.`
-                    });
-                }
-
-                for (const rItem of product.Recipe.items) {
-                    if (!rItem.product) throw new Error(`Ingrediente órfão em ${product.name}`);
-
-                    const ingredient = rItem.product;
-                    if (!totalDemand[ingredient.id]) {
-                        totalDemand[ingredient.id] = { id: ingredient.id, name: ingredient.name, qty: 0 };
-                    }
-
-                    const neededBase = convertToBaseUnit(
-                        Number(rItem.quantity) * saleQty,
-                        ingredient.unit
-                    );
-                    totalDemand[ingredient.id].qty += neededBase;
-                }
-            }
+            await explodeDemandRecursive(product, saleQty, totalDemand, establishmentId, true);
         }
         console.log("📊 DEMANDA TOTAL CALCULADA:", JSON.stringify(totalDemand, null, 2));
     } catch (err) {
@@ -284,13 +307,16 @@ const importCSV = asyncHandler(async (req, res) => {
     console.log("🛠️ PASSO 7: Pré-calculando custos fora da transação...");
     const { getProductCostOutsideTx } = require('../services/stockMovementService');
     const preloadedCosts = {};
-    for (const productId in totalDemand) {
-        try {
-            preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
-        } catch (e) {
-            preloadedCosts[productId] = 0;
-        }
-    }
+    
+    await Promise.all(
+        Object.keys(totalDemand).map(async (productId) => {
+            try {
+                preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
+            } catch (e) {
+                preloadedCosts[productId] = 0;
+            }
+        })
+    );
     console.log("✅ Custos pré-calculados:", Object.keys(preloadedCosts).length, "produtos");
 
     // 🚀 8. Execução Atômica com timeout estendido (60s para lotes grandes)
@@ -319,4 +345,123 @@ const importCSV = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { importCSV };
+const importManual = asyncHandler(async (req, res) => {
+    const { items } = req.body; // Array de { productId, quantity }
+
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, message: 'Nenhum item informado para venda manual' });
+    }
+
+    const establishmentId = req.user.establishmentId;
+
+    // 🔒 Bloquear se auditoria aberta
+    const openAudit = await prisma.stockAudit.findFirst({
+        where: { establishmentId, status: "OPEN" }
+    });
+
+    if (openAudit) {
+        return res.status(400).json({
+            success: false,
+            message: "Existe uma auditoria em andamento. Finalize antes de lançar vendas."
+        });
+    }
+
+    const productIds = items.map(i => i.productId);
+
+    // Buscar os produtos e suas receitas do banco
+    const dbProducts = await prisma.product.findMany({
+        where: { id: { in: productIds }, establishmentId, isActive: true },
+        include: {
+            Recipe: {
+                include: { items: { include: { product: true } } }
+            }
+        }
+    });
+
+    const productMap = new Map();
+    // Atenção: como o back-end retorna um array de receitas mas a modelagem no esquema pode ser "Recipe" (um-para-um)
+    // Precisamos de cuidado. Na função importCSV, é feito: recipes.find(r => r.productId === p.id).
+    // Prisma model para Product -> Recipe (muitos-para-um ou um-para-um).
+    // Como pedimos findMany com include Recipe, dbProducts.Recipe já estará lá (se um-para-um e se chama Recipe).
+    // Na função findMany do prisma.product, às vezes o relacionamento é um para muitos, mas na linha 207 ele busca de "prisma.recipe".
+    // Vamos fazer igual o passo 4 de importCSV para não errar a estrutura:
+    const recipes = await prisma.recipe.findMany({
+        where: { productId: { in: productIds } },
+        include: { items: { include: { product: true } } },
+        take: 5000
+    });
+
+    dbProducts.forEach(p => {
+        const recipe = recipes.find(r => r.productId === p.id);
+        productMap.set(p.id, { ...p, Recipe: recipe });
+    });
+
+    // Validar produtos não encontrados
+    const errors = [];
+    items.forEach(item => {
+        if (!productMap.has(item.productId)) {
+            errors.push({ productId: item.productId, error: 'Produto não encontrado ou inativo' });
+        }
+    });
+
+    if (errors.length > 0) {
+        return res.status(400).json({ 
+            success: false, 
+            message: "Alguns produtos não existem ou estão inativos.",
+            errors 
+        });
+    }
+
+    // 💣 Explosão de Ingredientes Recursiva
+    const totalDemand = {};
+
+    try {
+        for (const item of items) {
+            const product = productMap.get(item.productId);
+            const saleQty = Number(item.quantity);
+
+            if (isNaN(saleQty) || saleQty <= 0) continue;
+            await explodeDemandRecursive(product, saleQty, totalDemand, establishmentId, true);
+        }
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+
+    // 🚀 Pré-buscar custos FORA da transação
+    const { getProductCostOutsideTx } = require('../services/stockMovementService');
+    const preloadedCosts = {};
+
+    await Promise.all(
+        Object.keys(totalDemand).map(async (productId) => {
+            try {
+                preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
+            } catch (e) {
+                preloadedCosts[productId] = 0;
+            }
+        })
+    );
+
+    // 🚀 Execução Atômica
+    await prisma.$transaction(async (tx) => {
+        for (const productId in totalDemand) {
+            const demandItem = totalDemand[productId];
+            await consumeProduct({
+                productId: demandItem.id,
+                quantity: demandItem.qty,
+                establishmentId,
+                reason: "SALE",
+                reference: "MANUAL_SALE",
+                preloadedCost: preloadedCosts[productId]
+            }, tx);
+        }
+    }, { timeout: 60000 });
+
+    return res.json({
+        success: true,
+        message: 'Vendas lançadas com sucesso!',
+        processedItems: items.length,
+        distinctIngredients: Object.keys(totalDemand).length
+    });
+});
+
+module.exports = { importCSV, importManual };

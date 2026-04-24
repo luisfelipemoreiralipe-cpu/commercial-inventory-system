@@ -5,6 +5,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const getAll = asyncHandler(async (req, res) => {
 
     const { productId, dateFrom, dateTo, type, reason, supplierId } = req.query;
+    const establishmentId = req.user.establishmentId;
 
     const data = await stockMovementService.getMovements({
         productId,
@@ -12,7 +13,8 @@ const getAll = asyncHandler(async (req, res) => {
         dateTo,
         type,
         reason,
-        supplierId
+        supplierId,
+        establishmentId
     });
 
     res.json({

@@ -46,16 +46,13 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
 
     const products = await purchaseSuggestionRepo.getProductsBelowMinimum(establishmentId);
 
-    const suggestions = [];
-
-    for (const product of products) {
-
+    const suggestions = (await Promise.all(products.map(async (product) => {
         const hasOpenOrder = await purchaseOrderRepo.productHasOpenPendingOrder(
             product.id,
             establishmentId
         );
 
-        if (hasOpenOrder) continue;
+        if (hasOpenOrder) return null;
 
         const consumption = await calculateAverageConsumption(
             product.id,
@@ -73,11 +70,9 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
         const packQuantity = Number(product.packQuantity || 1);
         const suggestedInUnits = suggestedMl > 0 ? Math.ceil(suggestedMl / packQuantity) : 0;
 
-        if (suggestedInUnits <= 0) continue;
+        if (suggestedInUnits <= 0) return null;
 
-        const suppliers = [];
-
-        for (const ps of product.productSuppliers) {
+        const suppliers = await Promise.all(product.productSuppliers.map(async (ps) => {
             const sid = ps.supplier.id;
 
             // Histórico (Últimas 3 compras deste fornecedor/produto e ESTABELECIMENTO)
@@ -112,14 +107,14 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             const bonusAdvantage = Math.min(bonusCount * 0.05, 0.20);
             const score = nominalPrice * (1 - bonusAdvantage);
 
-            suppliers.push({
+            return {
                 supplierId: sid,
                 supplierName: ps.supplier.name,
                 price: nominalPrice,
                 score,
                 bonusCount
-            });
-        }
+            };
+        }));
 
         suppliers.sort((a, b) => a.score - b.score);
 
@@ -142,7 +137,7 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             }
         }
 
-        suggestions.push({
+        return {
             productId: product.id,
             productName: product.name,
             unit: product.unit,
@@ -160,8 +155,8 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             hasOpenOrder,
             consumptionLast7Days: consumption.totalConsumed,
             averageDailyConsumption: consumption.averageDailyConsumption
-        });
-    }
+        };
+    }))).filter(Boolean);
 
     return {
         items: suggestions

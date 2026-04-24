@@ -6,8 +6,9 @@ const prisma = require('../utils/prisma');
  * @param {string} [filters.dateFrom]  ISO string
  * @param {string} [filters.dateTo]    ISO string
  */
-const findAll = ({ productId, dateFrom, dateTo, type, reason, supplierId } = {}) => {
+const findAll = ({ productId, dateFrom, dateTo, type, reason, supplierId, establishmentId } = {}) => {
     const where = {};
+    if (establishmentId) where.establishmentId = establishmentId;
 
     if (productId) {
         where.product = {
