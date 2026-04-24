@@ -238,7 +238,13 @@ const Dashboard = () => {
 
   const filteredValue = useMemo(
     () => filteredProducts.reduce(
-      (sum, p) => sum + Number(p.currentCost || 0) * Number(p.quantity || 0),
+      (sum, p) => {
+        const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
+            ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
+            : Number(p.unitPrice || 0);
+
+        return sum + ((bestPriceOfProduct / (Number(p.packQuantity) || 1)) * Number(p.quantity || 0));
+      },
       0
     ),
     [filteredProducts]
@@ -758,8 +764,15 @@ const Dashboard = () => {
                 {lowStock.map((p) => {
                   const pct = p.minQuantity > 0 ? (p.quantity / p.minQuantity) * 100 : 0;
                   const suggestion = suggestions.find(s => s.productId === p.id);
-                  const price = suggestion ? Number(suggestion.bestPrice || p.currentCost || p.unitPrice) : Number(p.currentCost || p.unitPrice);
-                  const needs = Math.max(0, Number(p.minQuantity) - Number(p.quantity));
+                  let packPrice = suggestion ? Number(suggestion.bestPrice || 0) : 0;
+                  if (!packPrice) {
+                      packPrice = p.productSuppliers && p.productSuppliers.length > 0
+                        ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
+                        : Number(p.unitPrice || 0);
+                  }
+                  const packQty = Number(p.packQuantity || 1);
+                  const needsMl = Math.max(0, Number(p.minQuantity) - Number(p.quantity));
+                  const needsPacks = Math.ceil(needsMl / packQty);
                   
                   return (
                     <Tr key={p.id}>
@@ -774,7 +787,7 @@ const Dashboard = () => {
                         <StockBar><StockFill pct={pct} /></StockBar>
                       </Td>
                       <Td>
-                        {formatCurrency(price * Math.ceil(needs))}
+                        {formatCurrency(packPrice * needsPacks)}
                       </Td>
                     </Tr>
                   );

@@ -167,6 +167,9 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
         });
 
         return updated;
+    }, {
+        maxWait: 5000,
+        timeout: 20000
     });
 
     return completedOrder;
