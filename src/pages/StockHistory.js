@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { Select } from '../components/FormFields';
+import Select from '../components/Select';
 
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
@@ -270,21 +270,23 @@ const StockHistory = () => {
 
                 <FilterGroup>
                     Produto:
-                    <Select value={filterProduct} onChange={setFilterProduct}>
-                        <option value="">Todos</option>
-                        {movementProducts.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                    </Select>
+                    <Select value={filterProduct} onChange={setFilterProduct}
+                        options={[
+                            { value: "", label: "Todos" },
+                            ...movementProducts.map(p => ({ value: p.id, label: p.name }))
+                        ]}
+                    />
                 </FilterGroup>
 
                 <FilterGroup>
                     Tipo:
-                    <Select value={filterType} onChange={setFilterType}>
-                        <option value="">Todos</option>
-                        <option value="entry">Entrada</option>
-                        <option value="exit">Saída</option>
-                    </Select>
+                    <Select value={filterType} onChange={setFilterType}
+                        options={[
+                            { value: "", label: "Todos" },
+                            { value: "entry", label: "Entrada" },
+                            { value: "exit", label: "Saída" }
+                        ]}
+                    />
                 </FilterGroup>
 
                 <FilterGroup>

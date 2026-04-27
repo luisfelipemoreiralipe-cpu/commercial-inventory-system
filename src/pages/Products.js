@@ -11,7 +11,8 @@ import toast from "react-hot-toast";
 import EmptyState from '../components/EmptyState';
 import api from "../services/api";
 import RecipeModal from "../components/RecipeModal";
-import { Input, Select } from '../components/FormFields';
+import { Input } from '../components/FormFields';
+import Select from "../components/Select";
 import { useLocation } from "react-router-dom";
 import { MdMenuBook } from "react-icons/md";
 import {
@@ -650,19 +651,21 @@ const Products = () => {
                 <Select 
                     value={filterCategory} 
                     onChange={setFilterCategory}
-                >
-                    <option value="">Todas as categorias</option>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </Select>
+                    options={[
+                        { value: "", label: "Todas as categorias" },
+                        ...categories.map((c) => ({ value: c.id, label: c.name }))
+                    ]}
+                />
 
                 <Select 
                     value={filterStock} 
                     onChange={setFilterStock}
-                >
-                    <option value="all">Todos os estoques</option>
-                    <option value="low">Abaixo do mínimo</option>
-                    <option value="ok">Estoque adequado</option>
-                </Select>
+                    options={[
+                        { value: "all", label: "Todos os estoques" },
+                        { value: "low", label: "Abaixo do mínimo" },
+                        { value: "ok", label: "Estoque adequado" }
+                    ]}
+                />
             </SearchRow>
 
             {/* Table */}
@@ -836,10 +839,11 @@ const Products = () => {
                         onChange={(val) =>
                             setForm((f) => ({ ...f, type: val }))
                         }
-                    >
-                        <option value="INVENTORY">Estoque</option>
-                        <option value="PRODUCTION">Produção</option>
-                    </Select>
+                        options={[
+                            { value: "INVENTORY", label: "Estoque" },
+                            { value: "PRODUCTION", label: "Produção" }
+                        ]}
+                    />
 
                     <Select 
                         label="Categoria *" 

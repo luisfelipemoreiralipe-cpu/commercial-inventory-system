@@ -5,7 +5,8 @@ import Card from "../components/Card";
 import Button from "../components/Button";
 import api from "../services/api";
 import toast from "react-hot-toast";
-import { Input, Select } from "../components/FormFields";
+import { Input } from "../components/FormFields";
+import Select from "../components/Select";
 import { MdAddCircle, MdRemoveCircle, MdUploadFile, MdShoppingCart } from "react-icons/md";
 
 const SearchInput = styled.input`
@@ -237,21 +238,21 @@ export default function StockMovement() {
             <ButtonGroup>
                 <Button
                     variant={mode === "BONUS" ? "primary" : "secondary"}
-                    onClick={() => { setMode("BONUS"); setProductId(""); }}
+                    onClick={() => { setMode("BONUS"); setProductId(""); setSearchTerm(""); }}
                 >
                     <MdAddCircle /> Bonificação
                 </Button>
 
                 <Button
                     variant={mode === "INTERNAL_USE" ? "primary" : "secondary"}
-                    onClick={() => { setMode("INTERNAL_USE"); setProductId(""); }}
+                    onClick={() => { setMode("INTERNAL_USE"); setProductId(""); setSearchTerm(""); }}
                 >
                     <MdRemoveCircle /> Consumo Interno
                 </Button>
 
                 <Button
                     variant={mode === "CSV_IMPORT" ? "primary" : "secondary"}
-                    onClick={() => setMode("CSV_IMPORT")}
+                    onClick={() => { setMode("CSV_IMPORT"); setSearchTerm(""); }}
                 >
                     <MdUploadFile /> Importar CSV
                 </Button>
@@ -327,11 +328,8 @@ export default function StockMovement() {
                         <Select
                             label="Produto para Movimentar"
                             value={productId}
-                            // 👈 CORREÇÃO 1: Garante que o React pegue o ID do evento correto
-                            onChange={(e) => setProductId(e?.target ? e.target.value : e)}
+                            onChange={(val) => setProductId(val)}
                             options={[
-                                // 👈 CORREÇÃO 2: Força uma linha vazia para o React não se enganar com o primeiro item
-                                { value: "", label: "Selecione um produto..." },
                                 ...(state.products || [])
                                     .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
                                     .map((p) => {

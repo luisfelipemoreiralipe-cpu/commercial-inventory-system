@@ -12,7 +12,7 @@ import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
-import { Select } from '../components/FormFields';
+import Select from '../components/Select';
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 const PageHeader = styled.div`
@@ -165,23 +165,27 @@ const ActivityLog = () => {
 
                 <FilterGroup>
                     Entidade:
-                    <Select value={filterEntity} onChange={setFilterEntity}>
-                        <option value="">Todas</option>
-                        <option value="PRODUCT">Produto</option>
-                        <option value="SUPPLIER">Fornecedor</option>
-                        <option value="PURCHASE_ORDER">Ordem de Compra</option>
-                    </Select>
+                    <Select value={filterEntity} onChange={setFilterEntity}
+                        options={[
+                            { value: "", label: "Todas" },
+                            { value: "PRODUCT", label: "Produto" },
+                            { value: "SUPPLIER", label: "Fornecedor" },
+                            { value: "PURCHASE_ORDER", label: "Ordem de Compra" }
+                        ]}
+                    />
                 </FilterGroup>
 
                 <FilterGroup>
                     Ação:
-                    <Select value={filterAction} onChange={setFilterAction}>
-                        <option value="">Todas</option>
-                        <option value="CREATE">Criação</option>
-                        <option value="UPDATE">Edição</option>
-                        <option value="DELETE">Exclusão</option>
-                        <option value="COMPLETE">Conclusão</option>
-                    </Select>
+                    <Select value={filterAction} onChange={setFilterAction}
+                        options={[
+                            { value: "", label: "Todas" },
+                            { value: "CREATE", label: "Criação" },
+                            { value: "UPDATE", label: "Edição" },
+                            { value: "DELETE", label: "Exclusão" },
+                            { value: "COMPLETE", label: "Conclusão" }
+                        ]}
+                    />
                 </FilterGroup>
 
                 {hasFilters && (

@@ -15,7 +15,8 @@ import { formatCurrency } from "../utils/formatCurrency";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import EmptyState from "../components/EmptyState";
-import { Input, Select as NativeSelect } from "../components/FormFields";
+import { Input } from "../components/FormFields";
+import Select from "../components/Select";
 import toast from "react-hot-toast";
 
 import api from "../services/api";
@@ -343,13 +344,13 @@ const ManualOrderModal = ({ isOpen, onClose, products, suppliers, onSuccess }) =
                         </ManualItemHeader>
 
                         <ManualGrid>
-                            <NativeSelect
+                            <Select
                                 label="Produto"
                                 value={item.productId}
                                 onChange={(val) => updateItem(item._key, "productId", val)}
                                 options={productOptions}
                             />
-                            <NativeSelect
+                            <Select
                                 label="Fornecedor"
                                 value={item.supplierId}
                                 onChange={(val) => updateItem(item._key, "supplierId", val)}

@@ -16,6 +16,7 @@ import autoTable from 'jspdf-autotable';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
+import Select from '../components/Select';
 import toast from 'react-hot-toast';
 
 // ─── Styled Components ────────────────────────────────────────────────────────
@@ -460,19 +461,18 @@ export default function MarketingEvents() {
               {eventItems.map((item, idx) => (
                 <ItemRow key={idx}>
                   <FormGroup style={{ marginBottom: 0 }}>
-                    <select 
+                    <Select 
                       value={item.productId}
-                      onChange={e => {
+                      onChange={val => {
                         const newItems = [...eventItems];
-                        newItems[idx].productId = e.target.value;
+                        newItems[idx].productId = val;
                         setEventItems(newItems);
                       }}
-                    >
-                      <option value="">Selecione um produto...</option>
-                      {productsOptions.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.purchaseUnit})</option>
-                      ))}
-                    </select>
+                      options={[
+                          { value: "", label: "Selecione um produto..." },
+                          ...productsOptions.map(p => ({ value: p.id, label: `${p.name} (${p.purchaseUnit})` }))
+                      ]}
+                    />
                   </FormGroup>
                   <FormGroup style={{ marginBottom: 0 }}>
                     <input 

@@ -3,7 +3,7 @@ import { useApp } from "../context/AppContext";
 import styled from "styled-components";
 import api from "../services/api";
 import Badge from "../components/Badge";
-import { Select } from "../components/FormFields";
+import Select from "../components/Select";
 import toast from "react-hot-toast"
 import Button from "../components/Button";
 

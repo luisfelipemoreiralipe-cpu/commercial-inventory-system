@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Modal from "./Modal";
 import Button from "./Button";
-import { Input, Select } from "./FormFields";
+import { Input } from "./FormFields";
+import Select from "./Select";
 import { formatCurrency } from "../utils/formatCurrency";
 import api from "../services/api";
 
@@ -155,16 +156,13 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                         const found = products.find(p => p.id === val);
                         setSelectedIngUnit(found?.unit || "");
                     }}
-                >
-                    <option value="">Selecionar produto</option>
-                    {products
-                        .filter(p => p.id !== product?.id)
-                        .map((p) => (
-                            <option key={p.id} value={p.id}>
-                                {p.name}
-                            </option>
-                        ))}
-                </Select>
+                    options={[
+                        { value: "", label: "Selecionar produto" },
+                        ...products
+                            .filter(p => p.id !== product?.id)
+                            .map(p => ({ value: p.id, label: p.name }))
+                    ]}
+                />
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 15 }}>
                     <div style={{ flex: 1 }}>
