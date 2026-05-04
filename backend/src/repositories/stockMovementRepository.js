@@ -36,7 +36,6 @@ const findAll = ({ productId, dateFrom, dateTo, type, reason, supplierId, establ
 
     return prisma.stockMovement.findMany({
         where,
-        take: 100,
         include: {
             product: { select: { id: true, name: true, unit: true } },
             supplier: { select: { name: true } },
