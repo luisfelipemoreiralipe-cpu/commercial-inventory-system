@@ -80,10 +80,30 @@ const rejectTransfer = async (req, res) => {
     }
 };
 
+// =============================
+// RESUMO DE TRANSFERÊNCIAS POR PERÍODO
+// =============================
+const getTransferSummary = async (req, res) => {
+    try {
+        const establishmentId = req.user?.establishmentId;
+        const { startDate, endDate } = req.query;
+
+        const summary = await stockTransferService.getTransferSummary(establishmentId, {
+            startDate,
+            endDate
+        });
+
+        res.json({ success: true, data: summary });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createTransfer,
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
-    getReceivedTransfers
+    getReceivedTransfers,
+    getTransferSummary
 };

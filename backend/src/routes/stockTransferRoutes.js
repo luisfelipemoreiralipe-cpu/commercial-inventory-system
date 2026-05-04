@@ -7,6 +7,12 @@ const controller = require('../controllers/stockTransferController');
 router.post('/', authMiddleware, controller.createTransfer);
 
 router.get(
+    '/summary',
+    authMiddleware,
+    controller.getTransferSummary
+);
+
+router.get(
     '/sent',
     authMiddleware,
     controller.getSentTransfers

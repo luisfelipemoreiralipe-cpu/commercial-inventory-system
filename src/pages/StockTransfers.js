@@ -151,6 +151,119 @@ const Input = styled.input`
   }
 `;
 
+const FilterRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing.md};
+  align-items: flex-end;
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const FilterField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const FilterLabel = styled.label`
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.textMuted};
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+`;
+
+const FilterInput = styled.input`
+  padding: 8px 12px;
+  border-radius: ${({ theme }) => theme.radii.md};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.bgInput};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.textPrimary};
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.borderFocus};
+  }
+`;
+
+const SummarySection = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing.xl || '32px'};
+`;
+
+const SectionTitle = styled.h3`
+  font-size: ${({ theme }) => theme.fontSizes.lg};
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  margin-bottom: ${({ theme }) => theme.spacing.md};
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const SectionIcon = styled.span`
+  font-size: 1.2em;
+`;
+
+const GroupCard = styled.div`
+  background: ${({ theme }) => theme.colors.bgHover};
+  border-radius: ${({ theme }) => theme.radii.md};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const GroupHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: ${({ theme }) => theme.transition};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.bgCard};
+  }
+`;
+
+const GroupName = styled.span`
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
+
+const GroupMeta = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+  align-items: center;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
+
+const GroupMetaItem = styled.span`
+  color: ${({ theme }) => theme.colors.textMuted};
+
+  strong {
+    color: ${({ theme }) => theme.colors.textPrimary};
+  }
+`;
+
+const ExpandIcon = styled.span`
+  transition: transform 0.2s ease;
+  transform: ${({ $expanded }) => $expanded ? 'rotate(180deg)' : 'rotate(0deg)'};
+  font-size: 0.8em;
+  color: ${({ theme }) => theme.colors.textMuted};
+`;
+
+const GroupBody = styled.div`
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 0;
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 40px 20px;
+  color: ${({ theme }) => theme.colors.textMuted};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+`;
+
 export default function StockTransfers() {
 
     const { state } = useApp();
@@ -165,7 +278,19 @@ export default function StockTransfers() {
     const [quantity, setQuantity] = useState("");
     const [destinationId, setDestinationId] = useState("");
     const [loading, setLoading] = useState(false);
-    const [processingId, setProcessingId] = useState(null)
+    const [processingId, setProcessingId] = useState(null);
+
+    // Summary state
+    const [summaryData, setSummaryData] = useState(null);
+    const [summaryLoading, setSummaryLoading] = useState(false);
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(1);
+        return d.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [expandedGroups, setExpandedGroups] = useState({});
+
     const topProduct = getTopTransferredProduct();
 
     // 🔹 Criar transferência
@@ -320,6 +445,28 @@ export default function StockTransfers() {
 
     // 🔹 Carregar estabelecimentos
 
+    // Summary helpers
+    const toggleGroup = (key) => {
+        setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+    };
+
+    async function loadSummary() {
+        try {
+            setSummaryLoading(true);
+            const res = await api.get(`/stock-transfers/summary?startDate=${startDate}&endDate=${endDate}`);
+            setSummaryData(res);
+        } catch (err) {
+            console.error(err);
+            toast.error("Erro ao carregar resumo de transferências");
+        } finally {
+            setSummaryLoading(false);
+        }
+    }
+
     useEffect(() => {
 
         if (tab === "sent") {
@@ -328,6 +475,10 @@ export default function StockTransfers() {
 
         if (tab === "received") {
             loadReceivedTransfers();
+        }
+
+        if (tab === "summary") {
+            loadSummary();
         }
 
     }, [tab]);
@@ -401,6 +552,15 @@ export default function StockTransfers() {
                     }}
                 >
                     Recebidas
+                </Tab>
+
+                <Tab
+                    $active={tab === "summary"}
+                    onClick={() => {
+                        setTab("summary");
+                    }}
+                >
+                    📊 Resumo
                 </Tab>
 
             </Tabs>
@@ -664,6 +824,201 @@ export default function StockTransfers() {
 
                     </TableOverflow>
 
+                )}
+
+                {tab === "summary" && (
+                    <>
+                        <FilterRow>
+                            <FilterField>
+                                <FilterLabel>Data Início</FilterLabel>
+                                <FilterInput
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                />
+                            </FilterField>
+
+                            <FilterField>
+                                <FilterLabel>Data Fim</FilterLabel>
+                                <FilterInput
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                />
+                            </FilterField>
+
+                            <Button
+                                onClick={loadSummary}
+                                disabled={summaryLoading}
+                                variant="primary"
+                                size="sm"
+                            >
+                                {summaryLoading ? "Carregando..." : "Filtrar"}
+                            </Button>
+                        </FilterRow>
+
+                        {summaryLoading && (
+                            <EmptyState>Carregando dados...</EmptyState>
+                        )}
+
+                        {!summaryLoading && summaryData && (
+                            <>
+                                <KpiGrid>
+                                    <KpiCard>
+                                        <KpiTitle>Total Enviado (Qtd)</KpiTitle>
+                                        <KpiValue>{summaryData.sent?.totalQuantity?.toFixed(1) || 0}</KpiValue>
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                            {summaryData.sent?.transferCount || 0} transferência(s)
+                                        </span>
+                                    </KpiCard>
+
+                                    <KpiCard>
+                                        <KpiTitle>Total Enviado (Valor)</KpiTitle>
+                                        <KpiValue style={{ color: '#ef4444' }}>
+                                            {formatCurrency(summaryData.sent?.totalValue)}
+                                        </KpiValue>
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Saída de valor</span>
+                                    </KpiCard>
+
+                                    <KpiCard>
+                                        <KpiTitle>Total Recebido (Qtd)</KpiTitle>
+                                        <KpiValue>{summaryData.received?.totalQuantity?.toFixed(1) || 0}</KpiValue>
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                            {summaryData.received?.transferCount || 0} transferência(s)
+                                        </span>
+                                    </KpiCard>
+
+                                    <KpiCard>
+                                        <KpiTitle>Total Recebido (Valor)</KpiTitle>
+                                        <KpiValue style={{ color: '#22c55e' }}>
+                                            {formatCurrency(summaryData.received?.totalValue)}
+                                        </KpiValue>
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Entrada de valor</span>
+                                    </KpiCard>
+                                </KpiGrid>
+
+                                {/* ENVIADAS POR ESTABELECIMENTO */}
+                                <SummarySection>
+                                    <SectionTitle>
+                                        <SectionIcon>📤</SectionIcon>
+                                        Enviadas por Destino
+                                    </SectionTitle>
+
+                                    {(!summaryData.sent?.byEstablishment || summaryData.sent.byEstablishment.length === 0) && (
+                                        <EmptyState>Nenhuma transferência enviada no período</EmptyState>
+                                    )}
+
+                                    {summaryData.sent?.byEstablishment?.map((group) => (
+                                        <GroupCard key={`sent-${group.establishmentId}`}>
+                                            <GroupHeader onClick={() => toggleGroup(`sent-${group.establishmentId}`)}>
+                                                <GroupName>🏪 {group.establishmentName}</GroupName>
+                                                <GroupMeta>
+                                                    <GroupMetaItem>
+                                                        Qtd: <strong>{group.totalQuantity.toFixed(1)}</strong>
+                                                    </GroupMetaItem>
+                                                    <GroupMetaItem>
+                                                        Valor: <strong>{formatCurrency(group.totalValue)}</strong>
+                                                    </GroupMetaItem>
+                                                    <ExpandIcon $expanded={expandedGroups[`sent-${group.establishmentId}`]}>
+                                                        ▼
+                                                    </ExpandIcon>
+                                                </GroupMeta>
+                                            </GroupHeader>
+
+                                            {expandedGroups[`sent-${group.establishmentId}`] && (
+                                                <GroupBody>
+                                                    <Table>
+                                                        <thead>
+                                                            <tr>
+                                                                <Th>Produto</Th>
+                                                                <Th>Quantidade</Th>
+                                                                <Th>Custo Unit.</Th>
+                                                                <Th>Valor Total</Th>
+                                                                <Th>Data</Th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {group.products.map((p, idx) => (
+                                                                <Tr key={idx}>
+                                                                    <Td>{p.productName}</Td>
+                                                                    <Td>{p.quantity.toFixed(1)} {p.unit}</Td>
+                                                                    <Td>{formatCurrency(p.unitCost)}</Td>
+                                                                    <Td>{formatCurrency(p.totalCost)}</Td>
+                                                                    <Td>{new Date(p.date).toLocaleDateString('pt-BR')}</Td>
+                                                                </Tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </Table>
+                                                </GroupBody>
+                                            )}
+                                        </GroupCard>
+                                    ))}
+                                </SummarySection>
+
+                                {/* RECEBIDAS POR ESTABELECIMENTO */}
+                                <SummarySection>
+                                    <SectionTitle>
+                                        <SectionIcon>📥</SectionIcon>
+                                        Recebidas por Origem
+                                    </SectionTitle>
+
+                                    {(!summaryData.received?.byEstablishment || summaryData.received.byEstablishment.length === 0) && (
+                                        <EmptyState>Nenhuma transferência recebida no período</EmptyState>
+                                    )}
+
+                                    {summaryData.received?.byEstablishment?.map((group) => (
+                                        <GroupCard key={`recv-${group.establishmentId}`}>
+                                            <GroupHeader onClick={() => toggleGroup(`recv-${group.establishmentId}`)}>
+                                                <GroupName>🏪 {group.establishmentName}</GroupName>
+                                                <GroupMeta>
+                                                    <GroupMetaItem>
+                                                        Qtd: <strong>{group.totalQuantity.toFixed(1)}</strong>
+                                                    </GroupMetaItem>
+                                                    <GroupMetaItem>
+                                                        Valor: <strong>{formatCurrency(group.totalValue)}</strong>
+                                                    </GroupMetaItem>
+                                                    <ExpandIcon $expanded={expandedGroups[`recv-${group.establishmentId}`]}>
+                                                        ▼
+                                                    </ExpandIcon>
+                                                </GroupMeta>
+                                            </GroupHeader>
+
+                                            {expandedGroups[`recv-${group.establishmentId}`] && (
+                                                <GroupBody>
+                                                    <Table>
+                                                        <thead>
+                                                            <tr>
+                                                                <Th>Produto</Th>
+                                                                <Th>Quantidade</Th>
+                                                                <Th>Custo Unit.</Th>
+                                                                <Th>Valor Total</Th>
+                                                                <Th>Data</Th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {group.products.map((p, idx) => (
+                                                                <Tr key={idx}>
+                                                                    <Td>{p.productName}</Td>
+                                                                    <Td>{p.quantity.toFixed(1)} {p.unit}</Td>
+                                                                    <Td>{formatCurrency(p.unitCost)}</Td>
+                                                                    <Td>{formatCurrency(p.totalCost)}</Td>
+                                                                    <Td>{new Date(p.date).toLocaleDateString('pt-BR')}</Td>
+                                                                </Tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </Table>
+                                                </GroupBody>
+                                            )}
+                                        </GroupCard>
+                                    ))}
+                                </SummarySection>
+                            </>
+                        )}
+
+                        {!summaryLoading && !summaryData && (
+                            <EmptyState>Selecione um período e clique em "Filtrar" para ver o resumo</EmptyState>
+                        )}
+                    </>
                 )}
 
             </Card>

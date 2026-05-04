@@ -244,10 +244,161 @@ const rejectTransfer = async (transferId, userId, establishmentId) => {
     });
 };
 
+/**
+ * 📊 RESUMO DE TRANSFERÊNCIAS POR PERÍODO
+ * Retorna totais de quantidade e valor estimado, agrupados por estabelecimento e produto
+ */
+const getTransferSummary = async (establishmentId, { startDate, endDate }) => {
+    const dateFilter = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.lte = end;
+    }
+
+    const createdAtFilter = Object.keys(dateFilter).length > 0 ? dateFilter : undefined;
+
+    // Transferências ENVIADAS (aprovadas) no período
+    const sent = await prisma.stockTransfer.findMany({
+        where: {
+            fromEstablishmentId: establishmentId,
+            status: "APPROVED",
+            ...(createdAtFilter ? { approvedAt: createdAtFilter } : {})
+        },
+        include: {
+            product: {
+                select: { id: true, name: true, unit: true, unitPrice: true, currentCost: true, packQuantity: true }
+            },
+            toEstablishment: {
+                select: { id: true, name: true }
+            }
+        },
+        orderBy: { approvedAt: "desc" }
+    });
+
+    // Transferências RECEBIDAS (aprovadas) no período
+    const received = await prisma.stockTransfer.findMany({
+        where: {
+            toEstablishmentId: establishmentId,
+            status: "APPROVED",
+            ...(createdAtFilter ? { approvedAt: createdAtFilter } : {})
+        },
+        include: {
+            product: {
+                select: { id: true, name: true, unit: true, unitPrice: true, currentCost: true, packQuantity: true }
+            },
+            fromEstablishment: {
+                select: { id: true, name: true }
+            }
+        },
+        orderBy: { approvedAt: "desc" }
+    });
+
+    // Calcula custo unitário base (por ml/g) de um produto
+    const getUnitCost = (product) => {
+        const cost = Number(product.currentCost || product.unitPrice || 0);
+        const pack = product.packQuantity || 1;
+        return cost / pack;
+    };
+
+    // Agrupa ENVIADAS por estabelecimento destino
+    const sentByEstablishment = {};
+    let totalSentQty = 0;
+    let totalSentValue = 0;
+
+    for (const t of sent) {
+        const estName = t.toEstablishment?.name || "Desconhecido";
+        const estId = t.toEstablishment?.id || "unknown";
+        const unitCost = getUnitCost(t.product);
+        const qty = Number(t.quantity);
+        const value = unitCost * qty;
+
+        totalSentQty += qty;
+        totalSentValue += value;
+
+        if (!sentByEstablishment[estId]) {
+            sentByEstablishment[estId] = {
+                establishmentId: estId,
+                establishmentName: estName,
+                totalQuantity: 0,
+                totalValue: 0,
+                products: []
+            };
+        }
+
+        sentByEstablishment[estId].totalQuantity += qty;
+        sentByEstablishment[estId].totalValue += value;
+        sentByEstablishment[estId].products.push({
+            productId: t.product.id,
+            productName: t.product.name,
+            unit: t.product.unit,
+            quantity: qty,
+            unitCost,
+            totalCost: value,
+            date: t.approvedAt || t.createdAt
+        });
+    }
+
+    // Agrupa RECEBIDAS por estabelecimento origem
+    const receivedByEstablishment = {};
+    let totalReceivedQty = 0;
+    let totalReceivedValue = 0;
+
+    for (const t of received) {
+        const estName = t.fromEstablishment?.name || "Desconhecido";
+        const estId = t.fromEstablishment?.id || "unknown";
+        const unitCost = getUnitCost(t.product);
+        const qty = Number(t.quantity);
+        const value = unitCost * qty;
+
+        totalReceivedQty += qty;
+        totalReceivedValue += value;
+
+        if (!receivedByEstablishment[estId]) {
+            receivedByEstablishment[estId] = {
+                establishmentId: estId,
+                establishmentName: estName,
+                totalQuantity: 0,
+                totalValue: 0,
+                products: []
+            };
+        }
+
+        receivedByEstablishment[estId].totalQuantity += qty;
+        receivedByEstablishment[estId].totalValue += value;
+        receivedByEstablishment[estId].products.push({
+            productId: t.product.id,
+            productName: t.product.name,
+            unit: t.product.unit,
+            quantity: qty,
+            unitCost,
+            totalCost: value,
+            date: t.approvedAt || t.createdAt
+        });
+    }
+
+    return {
+        sent: {
+            totalQuantity: totalSentQty,
+            totalValue: totalSentValue,
+            transferCount: sent.length,
+            byEstablishment: Object.values(sentByEstablishment)
+        },
+        received: {
+            totalQuantity: totalReceivedQty,
+            totalValue: totalReceivedValue,
+            transferCount: received.length,
+            byEstablishment: Object.values(receivedByEstablishment)
+        }
+    };
+};
+
 module.exports = {
     createTransfer,
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
-    getReceivedTransfers
+    getReceivedTransfers,
+    getTransferSummary
 };
