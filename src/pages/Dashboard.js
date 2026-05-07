@@ -294,15 +294,22 @@ const Dashboard = () => {
       .forEach(m => {
         if (!map[m.productId]) {
           map[m.productId] = {
+            id: m.productId,
             name: m.productName,
-            value: 0
+            value: 0,
+            quantity: 0
           };
         }
 
         map[m.productId].value += Number(m.totalCost || 0);
+        map[m.productId].quantity += Math.abs(Number(m.quantity || 0));
       });
 
-    const sorted = Object.values(map).sort((a, b) => b.value - a.value);
+    // Ordena por valor, mas se todos forem 0, ordena por quantidade
+    const sorted = Object.values(map).sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value;
+      return b.quantity - a.quantity;
+    });
 
     return sorted[0] || null;
 
@@ -313,13 +320,14 @@ const Dashboard = () => {
   const lowStock = getLowStockProducts();
   const pendingOrders = state.purchaseOrders.filter((o) => o.status === 'pending');
   const lossValue = useMemo(() => {
-    if (!filteredMovements?.length) return 0;
+    if (!filteredMovements?.length) return { value: 0, count: 0 };
 
-    return filteredMovements
-      .filter((m) => m.reason === "LOSS")
-      .reduce((sum, m) => {
-        return sum + Number(m.totalCost || 0);
-      }, 0);
+    const lossMovements = filteredMovements.filter((m) => m.reason === "LOSS");
+
+    return {
+      value: lossMovements.reduce((sum, m) => sum + Number(m.totalCost || 0), 0),
+      count: lossMovements.length
+    };
 
   }, [filteredMovements]);
   const mostConsumedProduct = useMemo(() => {
@@ -415,11 +423,14 @@ const Dashboard = () => {
   }, [filteredMovements]);
 
   const totalLoss = useMemo(() => {
-    if (!state.stockMovements?.length) return 0;
+    if (!state.stockMovements?.length) return { value: 0, count: 0 };
 
-    return state.stockMovements
-      .filter(m => m.reason === "LOSS")
-      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+    const lossMovements = state.stockMovements.filter(m => m.reason === "LOSS");
+
+    return {
+      value: lossMovements.reduce((sum, m) => sum + Number(m.totalCost || 0), 0),
+      count: lossMovements.length
+    };
 
   }, [state.stockMovements]);
 
@@ -568,11 +579,13 @@ const Dashboard = () => {
             <StatLabel>Perda Total</StatLabel>
 
             <StatValue style={{ fontSize: '1.3rem', color: '#b91c1c' }}>
-              {formatCurrency(totalLoss)}
+              {totalLoss.value > 0 ? formatCurrency(totalLoss.value) : `${totalLoss.count} ocorrência(s)`}
             </StatValue>
 
             <StatSub>
-              prejuízo acumulado
+              {totalLoss.count > 0
+                ? `${totalLoss.count} perda(s) registrada(s)${totalLoss.value > 0 ? '' : ' — sem custo cadastrado'}`
+                : 'nenhuma perda registrada'}
             </StatSub>
           </StatInfo>
         </StatCard>
@@ -649,9 +662,13 @@ const Dashboard = () => {
           <StatInfo>
             <StatLabel>Perda no Período</StatLabel>
             <StatValue style={{ fontSize: '1.3rem', color: '#dc2626' }}>
-              {formatCurrency(lossValue)}
+              {lossValue.value > 0 ? formatCurrency(lossValue.value) : `${lossValue.count} ocorrência(s)`}
             </StatValue>
-            <StatSub>valor perdido no estoque</StatSub>
+            <StatSub>
+              {lossValue.count > 0
+                ? `${lossValue.count} perda(s) no período${lossValue.value > 0 ? '' : ' — cadastre custos para ver valores'}`
+                : 'nenhuma perda no período'}
+            </StatSub>
           </StatInfo>
         </StatCard>
         <StatCard accent="#ef4444">
@@ -675,7 +692,17 @@ const Dashboard = () => {
                 </StatValue>
 
                 <StatSub>
-                  {formatCurrency(mostLossProduct.value)} perdidos
+                  {mostLossProduct.value > 0
+                    ? `${formatCurrency(mostLossProduct.value)} perdidos`
+                    : (() => {
+                        const product = state.products?.find(p => p.id === mostLossProduct.id);
+                        const pack = Number(product?.packQuantity || 1);
+                        const unit = product?.purchaseUnit || 'un';
+                        const bUnit = product?.unit || 'ml';
+                        const qty = mostLossProduct.quantity;
+                        const inUnits = (qty / pack).toFixed(2);
+                        return `${inUnits} ${unit} (${qty} ${bUnit}) perdidos`;
+                      })()}
                 </StatSub>
               </>
             ) : (

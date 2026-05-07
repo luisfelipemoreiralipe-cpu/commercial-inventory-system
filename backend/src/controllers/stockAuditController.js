@@ -213,7 +213,10 @@ exports.updateItems = async (req, res) => {
                 if (!dbItem) continue;
 
                 const rawCounted = Number(item.countedQuantity || 0);
-                const difference = rawCounted - Number(item.systemQuantity);
+                // 🛡️ USAR systemQuantity do BANCO (seguro), não do frontend
+                const difference = rawCounted - Number(dbItem.systemQuantity);
+
+                console.log(`[AUDIT] ${dbItem.product?.name}: sistema=${dbItem.systemQuantity}, contado=${rawCounted}, diff=${difference}`);
 
                 await tx.stockAuditItem.update({
                     where: { id: item.id },
@@ -259,18 +262,24 @@ exports.finish = async (req, res) => {
         await prisma.$transaction(async (tx) => {
 
             const items = await tx.stockAuditItem.findMany({
-                where: { auditId: id }
+                where: { auditId: id },
+                include: { product: { select: { name: true } } }
             });
 
-            for (const item of items) {
+            console.log(`[AUDIT FINISH] Processando ${items.length} itens da auditoria ${id}`);
 
-                if (Number(item.difference) === 0) continue;
+            for (const item of items) {
+                const diff = Number(item.difference);
+                console.log(`[AUDIT FINISH] ${item.product?.name}: contado=${item.countedQuantity}, sistema=${item.systemQuantity}, diff=${diff}`);
+
+                if (diff === 0) continue;
 
                 // 🔴 PERDA (LOSS)
-                if (Number(item.difference) < 0) {
+                if (diff < 0) {
+                    console.log(`[AUDIT FINISH] >> LOSS: baixando ${Math.abs(diff)} de ${item.product?.name}`);
                     await consumeProduct({
                         productId: item.productId,
-                        quantity: Math.abs(item.difference),
+                        quantity: Math.abs(diff),
                         establishmentId: req.user.establishmentId,
                         reason: "LOSS",
                         reference: "STOCK_AUDIT"
@@ -278,10 +287,11 @@ exports.finish = async (req, res) => {
                 }
 
                 // 🟢 SOBRA (AJUSTE POSITIVO)
-                if (Number(item.difference) > 0) {
+                if (diff > 0) {
+                    console.log(`[AUDIT FINISH] >> GAIN: adicionando ${diff} a ${item.product?.name}`);
                     await addStock({
                         productId: item.productId,
-                        quantity: item.difference,
+                        quantity: diff,
                         establishmentId: req.user.establishmentId,
                         reason: "GAIN",
                         reference: "STOCK_AUDIT"
@@ -294,6 +304,8 @@ exports.finish = async (req, res) => {
                 where: { id },
                 data: { status: "CLOSED" }
             });
+
+            console.log(`[AUDIT FINISH] Auditoria ${id} finalizada com sucesso.`);
 
         });
 

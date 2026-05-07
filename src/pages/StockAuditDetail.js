@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { MdSave, MdCheckCircle, MdArrowBack } from "react-icons/md";
 import api from "../services/api";
-import { useApp, ACTIONS } from "../context/AppContext";
+import { useApp } from "../context/AppContext";
 import Card from "../components/Card";
 import Button from "../components/Button";
 
@@ -172,11 +172,13 @@ const TotalPreview = styled.div`
 export default function StockAuditDetail() {
     const navigate = useNavigate();
     const { id } = useParams();
-    const { state, dispatch } = useApp();
+    const { fetchAllData } = useApp();
 
     const [audit, setAudit] = useState(null);
     const [items, setItems] = useState([]);
     const [saving, setSaving] = useState(false);
+    const [hasSaved, setHasSaved] = useState(false);
+    const [hasChanges, setHasChanges] = useState(false);
 
     async function loadAudit() {
         try {
@@ -191,6 +193,13 @@ export default function StockAuditDetail() {
                     difference: counted - system
                 };
             }));
+
+            // Se os itens já têm contagem salva (vindos do banco), considerar como "salvo"
+            const anyCountSaved = data.items.some(i => Number(i.countedQuantity || 0) > 0);
+            if (anyCountSaved) {
+                setHasSaved(true);
+                setHasChanges(false);
+            }
         } catch (error) {
             console.error(error);
         }
@@ -229,6 +238,7 @@ export default function StockAuditDetail() {
             return item;
         });
         setItems(updated);
+        setHasChanges(true);
     }
 
     const saveItems = async () => {
@@ -241,6 +251,8 @@ export default function StockAuditDetail() {
             }));
             await api.patch(`/stock-audits/${id}/items`, payload);
             await loadAudit();
+            setHasSaved(true);
+            setHasChanges(false);
         } catch (error) {
             console.error("ERRO SAVE ITEMS:", error);
         }
@@ -251,11 +263,15 @@ export default function StockAuditDetail() {
         if (!window.confirm("Deseja finalizar a auditoria? O estoque do sistema será atualizado.")) return;
         try {
             await api.patch(`/stock-audits/${id}/finish`);
-            const response = await api.get("/products");
-            dispatch({ type: ACTIONS.SET_PRODUCTS, payload: response });
+
+            // 🔥 RECARREGAR TODOS OS DADOS — inclui stockMovements para as perdas
+            // aparecerem imediatamente no Dashboard e Relatórios
+            await fetchAllData(false);
+
             navigate("/stock-audits");
         } catch (error) {
-            console.error(error);
+            console.error("ERRO AO FINALIZAR AUDITORIA:", error);
+            alert("Erro ao finalizar auditoria: " + (error?.response?.data?.error || error.message));
         }
     }
 
@@ -388,12 +404,31 @@ export default function StockAuditDetail() {
             {isOpen && (
                 <ActionFooter>
                     <Button onClick={saveItems} disabled={saving} style={{ flex: 1 }}>
-                        <MdSave /> {saving ? "Salvando..." : "Salvar Progresso"}
+                        <MdSave /> {saving ? "Salvando..." : hasChanges ? "⚠️ Salvar Contagem" : "Salvar Contagem"}
                     </Button>
 
-                    <Button onClick={finishAudit} variant="success" style={{ flex: 1 }}>
-                        <MdCheckCircle /> Finalizar Auditoria
-                    </Button>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <Button
+                            onClick={finishAudit}
+                            variant="success"
+                            disabled={!hasSaved || hasChanges}
+                            style={{ width: '100%', opacity: (!hasSaved || hasChanges) ? 0.5 : 1 }}
+                        >
+                            <MdCheckCircle /> Finalizar Auditoria
+                        </Button>
+                        {(!hasSaved || hasChanges) && (
+                            <span style={{
+                                fontSize: '11px',
+                                color: '#DC2626',
+                                fontWeight: 600,
+                                textAlign: 'center'
+                            }}>
+                                {hasChanges
+                                    ? "⚠️ Salve a contagem antes de finalizar"
+                                    : "⚠️ Faça a contagem e salve antes de finalizar"}
+                            </span>
+                        )}
+                    </div>
                 </ActionFooter>
             )}
         </>
