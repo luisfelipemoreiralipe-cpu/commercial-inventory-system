@@ -239,6 +239,9 @@ const Dashboard = () => {
   const filteredValue = useMemo(
     () => filteredProducts.reduce(
       (sum, p) => {
+        if (Number(p.currentCost) > 0) {
+            return sum + (Number(p.currentCost) * Number(p.quantity || 0));
+        }
         const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
             ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
             : Number(p.unitPrice || 0);
@@ -253,9 +256,15 @@ const Dashboard = () => {
   const totalConsumption = useMemo(() => {
     if (!filteredMovements?.length) return 0;
 
-    return filteredMovements
+    const outValue = filteredMovements
       .filter(m => m.type === "OUT" && m.reason !== "LOSS")
       .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+
+    const inValue = filteredMovements
+      .filter(m => m.type === "IN" && m.reason === "MARKETING_EVENT_IN")
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+
+    return Math.max(0, outValue - inValue);
 
   }, [filteredMovements]);
 
@@ -335,9 +344,8 @@ const Dashboard = () => {
 
     const map = {};
 
-    filteredMovements
-      .filter(m => m.type === "OUT" && m.reason !== "LOSS")
-      .forEach(m => {
+    filteredMovements.forEach(m => {
+      if ((m.type === "OUT" && m.reason !== "LOSS") || (m.type === "IN" && m.reason === "MARKETING_EVENT_IN")) {
         if (!map[m.productId]) {
           map[m.productId] = {
             id: m.productId,
@@ -346,12 +354,17 @@ const Dashboard = () => {
           };
         }
 
-        map[m.productId].quantity += Math.abs(Number(m.quantity));
-      });
+        if (m.type === "OUT") {
+          map[m.productId].quantity += Math.abs(Number(m.quantity));
+        } else {
+          map[m.productId].quantity -= Math.abs(Number(m.quantity));
+        }
+      }
+    });
 
-    const sorted = Object.values(map).sort(
-      (a, b) => b.quantity - a.quantity
-    );
+    const sorted = Object.values(map)
+      .filter(p => p.quantity > 0)
+      .sort((a, b) => b.quantity - a.quantity);
 
     return sorted[0] || null;
 
@@ -362,9 +375,8 @@ const Dashboard = () => {
 
     const map = {};
 
-    filteredMovements
-      .filter(m => m.type === "OUT" && m.reason !== "LOSS")
-      .forEach(m => {
+    filteredMovements.forEach(m => {
+      if ((m.type === "OUT" && m.reason !== "LOSS") || (m.type === "IN" && m.reason === "MARKETING_EVENT_IN")) {
         if (!map[m.productId]) {
           map[m.productId] = {
             name: m.productName,
@@ -372,10 +384,16 @@ const Dashboard = () => {
           };
         }
 
-        map[m.productId].quantity += Math.abs(Number(m.quantity));
-      });
+        if (m.type === "OUT") {
+          map[m.productId].quantity += Math.abs(Number(m.quantity));
+        } else {
+          map[m.productId].quantity -= Math.abs(Number(m.quantity));
+        }
+      }
+    });
 
     const result = Object.values(map)
+      .filter(p => p.quantity > 0)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
 

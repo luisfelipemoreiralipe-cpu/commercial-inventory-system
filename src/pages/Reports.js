@@ -246,9 +246,8 @@ const Reports = () => {
         }
 
         const map = {};
-        movements
-            .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
-            .forEach((m) => {
+        movements.forEach((m) => {
+            if ((m.type === 'OUT' && m.reason !== 'LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!map[m.productId]) {
                     map[m.productId] = {
                         productId: m.productId,
@@ -258,12 +257,19 @@ const Reports = () => {
                         lastDate: m.createdAt
                     };
                 }
-                map[m.productId].quantity += Math.abs(Number(m.quantity));
-                map[m.productId].totalCost += Number(m.totalCost || 0);
+                if (m.type === 'OUT') {
+                    map[m.productId].quantity += Math.abs(Number(m.quantity));
+                    map[m.productId].totalCost += Number(m.totalCost || 0);
+                } else {
+                    map[m.productId].quantity -= Math.abs(Number(m.quantity));
+                    map[m.productId].totalCost -= Number(m.totalCost || 0);
+                }
+                
                 if (new Date(m.createdAt) > new Date(map[m.productId].lastDate)) {
                     map[m.productId].lastDate = m.createdAt;
                 }
-            });
+            }
+        });
 
         return Object.values(map).sort((a, b) => b.quantity - a.quantity);
     }, [state.stockMovements, dateFrom, dateTo]);
@@ -416,10 +422,9 @@ const Reports = () => {
 
         const map = {};
 
-        // 🟢 CONSUMO (Saídas gerais e CSV, ignora perdas)
-        movements
-            .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
-            .forEach((m) => {
+        // 🟢 CONSUMO (Saídas gerais e CSV, ignora perdas mas abate devoluções)
+        movements.forEach((m) => {
+            if ((m.type === 'OUT' && m.reason !== 'LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!map[m.productId]) {
                     map[m.productId] = { 
                         productId: m.productId,
@@ -429,8 +434,13 @@ const Reports = () => {
                         bonus: 0 
                     };
                 }
-                map[m.productId].consumed += Math.abs(Number(m.quantity));
-            });
+                if (m.type === 'OUT') {
+                    map[m.productId].consumed += Math.abs(Number(m.quantity));
+                } else {
+                    map[m.productId].consumed -= Math.abs(Number(m.quantity));
+                }
+            }
+        });
 
         // 🔵 COMPRA (Vindo direto das Ordens de Compra Concluídas)
         orders.forEach((order) => {
@@ -448,9 +458,9 @@ const Reports = () => {
             });
         });
 
-        // 🟡 BONIFICAÇÕES (Entradas tipo BONUS)
+        // 🟡 BONIFICAÇÕES (Entradas tipo BONUS ou legados)
         movements
-            .filter((m) => m.type === 'IN' && m.reason === 'BONUS')
+            .filter(m => (m.type === 'IN' && m.reason === 'BONUS') || m.type === 'BONUS')
             .forEach((m) => {
                 if (!map[m.productId]) {
                     map[m.productId] = { 
@@ -541,15 +551,19 @@ const Reports = () => {
         const consumptionMap = {};
 
         // 🔵 CONSUMO (base para %)
-        movements
-            .filter((m) => m.type === 'OUT' && m.reason !== 'LOSS')
-            .forEach((m) => {
+        movements.forEach((m) => {
+            if ((m.type === 'OUT' && m.reason !== 'LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!consumptionMap[m.productId]) {
                     consumptionMap[m.productId] = 0;
                 }
 
-                consumptionMap[m.productId] += Math.abs(Number(m.quantity || 0));
-            });
+                if (m.type === 'OUT') {
+                    consumptionMap[m.productId] += Math.abs(Number(m.quantity || 0));
+                } else {
+                    consumptionMap[m.productId] -= Math.abs(Number(m.quantity || 0));
+                }
+            }
+        });
 
         // 🔴 PERDAS
         movements
@@ -602,8 +616,12 @@ const Reports = () => {
                 s + Number(i.adjustedQuantity || 0) * Number(i.unitPrice || 0), 0), 0);
 
         const bonusValue = movements
-            .filter(m => m.type === 'IN' && m.reason === 'BONUS')
-            .reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+            .filter(m => (m.type === 'IN' && m.reason === 'BONUS') || m.type === 'BONUS')
+            .reduce((acc, m) => {
+                const product = state.products?.find(p => p.id === m.productId);
+                const fallbackCost = Number(m.quantity || 0) * Number(product?.currentCost || 0);
+                return acc + Number(m.totalCost || fallbackCost);
+            }, 0);
 
         const lowStockCount = (state.products || []).filter(
             p => Number(p.quantity) < Number(p.minQuantity)
