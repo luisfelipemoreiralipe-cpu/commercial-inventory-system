@@ -90,60 +90,62 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
                 }
             });
 
-            // 🔥 ENTRADA PADRONIZADA NO ESTOQUE (VALIDADO)
-            await stockMovementService.addStock({
-                productId: dbItem.productId,
-                quantity: finalQuantity,
-                establishmentId,
-                reason: "PURCHASE",
-                reference: ref,
-                unitCost: finalUnitCost
-            }, tx);
+            if (quantity > 0) {
+                // 🔥 ENTRADA PADRONIZADA NO ESTOQUE (VALIDADO)
+                await stockMovementService.addStock({
+                    productId: dbItem.productId,
+                    quantity: finalQuantity,
+                    establishmentId,
+                    reason: "PURCHASE",
+                    reference: ref,
+                    unitCost: finalUnitCost
+                }, tx);
 
-            // 🔹 ATUALIZA CUSTO DO PRODUTO
-            await tx.product.updateMany({
-                where: { id: dbItem.productId, establishmentId },
-                data: {
-                    currentCost: finalUnitCost
-                }
-            });
-
-            // 🔹 HISTÓRICO DO FORNECEDOR (Vínculo Produto-Supplier)
-            if (dbItem.supplierId) {
-                // Upsert garantindo que o produto é do tenant
-                await tx.productSupplier.upsert({
-                    where: {
-                        productId_supplierId: {
-                            productId: dbItem.productId,
-                            supplierId: dbItem.supplierId
-                        }
-                    },
-                    update: { price: unitPrice },
-                    create: {
-                        productId: dbItem.productId,
-                        supplierId: dbItem.supplierId,
-                        price: unitPrice
+                // 🔹 ATUALIZA CUSTO DO PRODUTO
+                await tx.product.updateMany({
+                    where: { id: dbItem.productId, establishmentId },
+                    data: {
+                        currentCost: finalUnitCost
                     }
                 });
 
-                const lastPrice = await tx.supplierPriceHistory.findFirst({
-                    where: {
-                        productId: dbItem.productId,
-                        supplierId: dbItem.supplierId,
-                        product: { establishmentId }
-                    },
-                    orderBy: { createdAt: "desc" }
-                });
-
-                if (!lastPrice || Number(lastPrice.price) !== unitPrice) {
-                    await tx.supplierPriceHistory.create({
-                        data: {
+                // 🔹 HISTÓRICO DO FORNECEDOR (Vínculo Produto-Supplier)
+                if (dbItem.supplierId) {
+                    // Upsert garantindo que o produto é do tenant
+                    await tx.productSupplier.upsert({
+                        where: {
+                            productId_supplierId: {
+                                productId: dbItem.productId,
+                                supplierId: dbItem.supplierId
+                            }
+                        },
+                        update: { price: unitPrice },
+                        create: {
                             productId: dbItem.productId,
                             supplierId: dbItem.supplierId,
-                            price: unitPrice,
-                            purchaseOrderId: orderId
+                            price: unitPrice
                         }
                     });
+
+                    const lastPrice = await tx.supplierPriceHistory.findFirst({
+                        where: {
+                            productId: dbItem.productId,
+                            supplierId: dbItem.supplierId,
+                            product: { establishmentId }
+                        },
+                        orderBy: { createdAt: "desc" }
+                    });
+
+                    if (!lastPrice || Number(lastPrice.price) !== unitPrice) {
+                        await tx.supplierPriceHistory.create({
+                            data: {
+                                productId: dbItem.productId,
+                                supplierId: dbItem.supplierId,
+                                price: unitPrice,
+                                purchaseOrderId: orderId
+                            }
+                        });
+                    }
                 }
             }
         }
