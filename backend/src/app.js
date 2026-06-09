@@ -22,6 +22,7 @@ const stockTransferRoutes = require('./routes/stockTransferRoutes');
 const stockAuditRoutes = require('./routes/stockAuditRoutes');
 const userRoutes = require('./routes/userRoutes');
 const consumptionEventRoutes = require('./routes/consumptionEventRoutes');
+const productionRoutes = require('./routes/productionRoutes');
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use('/api/establishments', establishmentRoutes);
 app.use('/api/stock-audits', stockAuditRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/consumption-events', consumptionEventRoutes);
+app.use('/api/productions', productionRoutes);
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);

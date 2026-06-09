@@ -16,7 +16,8 @@ import {
   MdWbSunny,
   MdNightlightRound,
   MdLogout,
-  MdStore
+  MdStore,
+  MdFactory
 } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeModeProvider';
@@ -356,6 +357,7 @@ const NAV_GROUPS = [
       { to: '/', label: 'Dashboard', icon: <MdDashboard /> },
       { to: '/products', label: 'Produtos', icon: <MdInventory2 />, badge: true },
       { to: '/suppliers', label: 'Fornecedores', icon: <MdPeople /> },
+      { to: '/production', label: 'Produção', icon: <MdFactory /> },
       { to: '/purchase-orders', label: 'Ordens de Compra', icon: <MdShoppingCart /> },
       { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
       { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
