@@ -1,5 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
-const { consumeProduct, addStock } = require('../services/stockMovementService');
+const { consumeProduct, addStock, getProductCostOutsideTx } = require('../services/stockMovementService');
 
 const prisma = new PrismaClient();
 
@@ -203,20 +203,25 @@ exports.updateItems = async (req, res) => {
                 throw new Error("Nenhuma auditoria aberta");
             }
 
-            for (const item of items) {
+            // OTIMIZAÇÃO: Buscar todos os itens do banco em uma única query
+            // Isso evita o problema de N+1 queries que causa lentidão
+            const itemIds = items.map(i => i.id).filter(Boolean);
+            if (itemIds.length === 0) return;
 
-                const dbItem = await tx.stockAuditItem.findUnique({
-                    where: { id: item.id },
-                    include: { product: true }
-                });
+            const dbItems = await tx.stockAuditItem.findMany({
+                where: { id: { in: itemIds } },
+                include: { product: true }
+            });
+            const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
+
+            for (const item of items) {
+                const dbItem = dbItemsMap.get(item.id);
 
                 if (!dbItem) continue;
 
                 const rawCounted = Number(item.countedQuantity || 0);
                 // 🛡️ USAR systemQuantity do BANCO (seguro), não do frontend
                 const difference = rawCounted - Number(dbItem.systemQuantity);
-
-                console.log(`[AUDIT] ${dbItem.product?.name}: sistema=${dbItem.systemQuantity}, contado=${rawCounted}, diff=${difference}`);
 
                 await tx.stockAuditItem.update({
                     where: { id: item.id },
@@ -225,18 +230,21 @@ exports.updateItems = async (req, res) => {
                         difference: Number(difference.toFixed(4))
                     }
                 });
-
             }
 
+        }, {
+            maxWait: 10000,  // Aumentado o tempo de espera de conexão
+            timeout: 60000   // Aumentado o timeout da transação para 60 segundos
         });
 
         res.json({ success: true });
 
     } catch (error) {
-        console.error(error);
+        console.error("Erro no updateItems:", error);
         res.status(500).json({ error: "Erro ao salvar contagem" });
     }
 };
+
 
 /*
 ====================================================
@@ -246,6 +254,7 @@ FINALIZAR AUDITORIA
 exports.finish = async (req, res) => {
     try {
         const { id } = req.params;
+        const establishmentId = req.user.establishmentId;
 
         const audit = await prisma.stockAudit.findUnique({
             where: { id }
@@ -259,16 +268,37 @@ exports.finish = async (req, res) => {
             return res.status(400).json({ error: "Auditoria já finalizada" });
         }
 
+        // ─────────────────────────────────────────────────────────────────
+        // ETAPA 1 (FORA DA TRANSAÇÃO): buscar itens e pré-carregar custos
+        // Isso evita o erro P2028 (timeout) causado por múltiplas queries
+        // de custo aninhadas dentro de uma transação longa.
+        // ─────────────────────────────────────────────────────────────────
+        const items = await prisma.stockAuditItem.findMany({
+            where: { auditId: id },
+            include: { product: { select: { name: true } } }
+        });
+
+        console.log(`[AUDIT FINISH] Pré-carregando custos para ${items.length} itens (fora da tx)...`);
+
+        // Pré-carregar custo de cada produto que terá diferença
+        const itemsWithCost = await Promise.all(
+            items.map(async (item) => {
+                const diff = Number(item.difference);
+                if (diff === 0) return { ...item, preloadedCost: 0 };
+                const preloadedCost = await getProductCostOutsideTx(item.productId, establishmentId);
+                return { ...item, preloadedCost };
+            })
+        );
+
+        console.log(`[AUDIT FINISH] Custos pré-carregados. Iniciando transação...`);
+
+        // ─────────────────────────────────────────────────────────────────
+        // ETAPA 2 (DENTRO DA TRANSAÇÃO): apenas escrita no banco
+        // Sem queries de custo — apenas updates e inserts.
+        // ─────────────────────────────────────────────────────────────────
         await prisma.$transaction(async (tx) => {
 
-            const items = await tx.stockAuditItem.findMany({
-                where: { auditId: id },
-                include: { product: { select: { name: true } } }
-            });
-
-            console.log(`[AUDIT FINISH] Processando ${items.length} itens da auditoria ${id}`);
-
-            for (const item of items) {
+            for (const item of itemsWithCost) {
                 const diff = Number(item.difference);
                 console.log(`[AUDIT FINISH] ${item.product?.name}: contado=${item.countedQuantity}, sistema=${item.systemQuantity}, diff=${diff}`);
 
@@ -276,28 +306,29 @@ exports.finish = async (req, res) => {
 
                 // 🔴 PERDA (LOSS)
                 if (diff < 0) {
-                    console.log(`[AUDIT FINISH] >> LOSS: baixando ${Math.abs(diff)} de ${item.product?.name}`);
+                    console.log(`[AUDIT FINISH] >> LOSS: baixando ${Math.abs(diff)} de ${item.product?.name} (custo: ${item.preloadedCost})`);
                     await consumeProduct({
                         productId: item.productId,
                         quantity: Math.abs(diff),
-                        establishmentId: req.user.establishmentId,
+                        establishmentId,
                         reason: "LOSS",
-                        reference: "STOCK_AUDIT"
+                        reference: "STOCK_AUDIT",
+                        preloadedCost: item.preloadedCost
                     }, tx);
                 }
 
                 // 🟢 SOBRA (AJUSTE POSITIVO)
                 if (diff > 0) {
-                    console.log(`[AUDIT FINISH] >> GAIN: adicionando ${diff} a ${item.product?.name}`);
+                    console.log(`[AUDIT FINISH] >> GAIN: adicionando ${diff} a ${item.product?.name} (custo: ${item.preloadedCost})`);
                     await addStock({
                         productId: item.productId,
                         quantity: diff,
-                        establishmentId: req.user.establishmentId,
+                        establishmentId,
                         reason: "GAIN",
-                        reference: "STOCK_AUDIT"
+                        reference: "STOCK_AUDIT",
+                        unitCost: item.preloadedCost
                     }, tx);
                 }
-
             }
 
             await tx.stockAudit.update({
@@ -307,12 +338,15 @@ exports.finish = async (req, res) => {
 
             console.log(`[AUDIT FINISH] Auditoria ${id} finalizada com sucesso.`);
 
+        }, {
+            maxWait: 15000,
+            timeout: 60000 // Reduzido para 60s pois a tx agora só faz escritas
         });
 
         res.json({ success: true });
 
     } catch (error) {
-        console.error(error);
+        console.error("Erro ao finalizar auditoria:", error);
         res.status(500).json({ error: "Erro ao finalizar auditoria" });
     }
 };

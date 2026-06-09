@@ -85,7 +85,8 @@ model Product {
   supplierPriceHistory  SupplierPriceHistory[]
   recipeItems           RecipeItem[]
   Recipe                Recipe?
-  transfers             StockTransfer[]
+  transfersAsSource             StockTransfer[] @relation("TransferSourceProduct")
+  transfersAsDestination        StockTransfer[] @relation("TransferDestinationProduct")
   consumptionEventItems ConsumptionEventItem[]
 
   @@map("products")
@@ -296,9 +297,10 @@ model Organization {
 }
 
 model StockTransfer {
-  id String @id @default(uuid()) @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
 
   productId String @db.Uuid
+  destinationProductId String? @db.Uuid
   quantity  Float
 
   fromEstablishmentId String @db.Uuid
@@ -312,7 +314,8 @@ model StockTransfer {
   createdAt  DateTime  @default(now())
   approvedAt DateTime?
 
-  product Product @relation(fields: [productId], references: [id])
+  product            Product  @relation("TransferSourceProduct", fields: [productId], references: [id])
+  destinationProduct Product? @relation("TransferDestinationProduct", fields: [destinationProductId], references: [id])
 
   fromEstablishment establishments @relation("TransferFrom", fields: [fromEstablishmentId], references: [id])
   toEstablishment   establishments @relation("TransferTo", fields: [toEstablishmentId], references: [id])

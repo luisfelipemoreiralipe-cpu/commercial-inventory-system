@@ -119,11 +119,68 @@ const Tr = styled.tr`
   }
 `;
 
+const TransferLayout = styled.div`
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: ${({ theme }) => theme.spacing.lg};
+  align-items: flex-start;
+
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 const Form = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing.md};
-  max-width: 400px;
+`;
+
+const MappingPanel = styled.div`
+  background: ${({ theme }) => theme.colors.bgHover};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  padding: ${({ theme }) => theme.spacing.lg};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.md};
+  min-height: 200px;
+`;
+
+const MappingTitle = styled.div`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding-bottom: ${({ theme }) => theme.spacing.sm};
+`;
+
+const MappingHint = styled.div`
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  color: ${({ theme }) => theme.colors.textMuted};
+  line-height: 1.5;
+`;
+
+const MappingSelectWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const MappingBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: ${({ $color }) => $color || '#3b82f620'};
+  color: ${({ $textColor }) => $textColor || '#3b82f6'};
+  font-weight: 600;
+  width: fit-content;
 `;
 
 const Field = styled.div`
@@ -136,8 +193,6 @@ const Label = styled.label`
   font-size: ${({ theme }) => theme.fontSizes.sm};
   font-weight: ${({ theme }) => theme.fontWeights.semibold};
 `;
-
-
 
 const Input = styled.input`
   padding: 10px;
@@ -280,6 +335,11 @@ export default function StockTransfers() {
     const [loading, setLoading] = useState(false);
     const [processingId, setProcessingId] = useState(null);
 
+    // Mapeamento de produto no destino
+    const [destinationProducts, setDestinationProducts] = useState([]);
+    const [destinationProductId, setDestinationProductId] = useState("");
+    const [loadingDestProducts, setLoadingDestProducts] = useState(false);
+
     // Summary state
     const [summaryData, setSummaryData] = useState(null);
     const [summaryLoading, setSummaryLoading] = useState(false);
@@ -413,7 +473,8 @@ export default function StockTransfers() {
             await api.post("/stock-transfers", {
                 productId,
                 quantity: Number(quantity),
-                toEstablishmentId: destinationId
+                toEstablishmentId: destinationId,
+                destinationProductId: destinationProductId || null
             });
 
             toast.success("Transferência criada com sucesso");
@@ -421,6 +482,8 @@ export default function StockTransfers() {
             setProductId("");
             setQuantity("");
             setDestinationId("");
+            setDestinationProductId("");
+            setDestinationProducts([]);
 
         } catch (err) {
 
@@ -439,6 +502,36 @@ export default function StockTransfers() {
             loadSentTransfers();
         }
 
+    }
+
+    async function loadDestinationProducts(estId) {
+        if (!estId) {
+            setDestinationProducts([]);
+            setDestinationProductId("");
+            return;
+        }
+        try {
+            setLoadingDestProducts(true);
+            const res = await api.get(`/stock-transfers/destination-products/${estId}`);
+            setDestinationProducts(res);
+            // Autoselect por similaridade de nome
+            const sourceProduct = products.find(p => p.id === productId);
+            if (sourceProduct) {
+                const sourceName = sourceProduct.name.toLowerCase();
+                const match = res.find(p => {
+                    const n = p.name.toLowerCase();
+                    return n === sourceName || n.includes(sourceName) || sourceName.includes(n);
+                });
+                setDestinationProductId(match ? match.id : "");
+            } else {
+                setDestinationProductId("");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Erro ao carregar produtos do destino");
+        } finally {
+            setLoadingDestProducts(false);
+        }
     }
 
 
@@ -476,12 +569,16 @@ export default function StockTransfers() {
         if (tab === "received") {
             loadReceivedTransfers();
         }
-
         if (tab === "summary") {
             loadSummary();
         }
 
     }, [tab]);
+
+    // Carrega produtos do destino sempre que o destino mudar
+    useEffect(() => {
+        loadDestinationProducts(destinationId);
+    }, [destinationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
 
@@ -591,89 +688,153 @@ export default function StockTransfers() {
 
                 {tab === "create" && (
 
-                    <Form>
+                    <TransferLayout>
 
-                        <Field>
+                        {/* COLUNA ESQUERDA: Formulário */}
+                        <Form>
+                            <Field>
+                                <Select
+                                    label="Produto (Origem)"
+                                    value={productId}
+                                    onChange={(val) => {
+                                        setProductId(val);
+                                        if (destinationId) loadDestinationProducts(destinationId);
+                                    }}
+                                    options={[
+                                        { value: "", label: "-- Selecione um produto --" },
+                                        ...products.map((product) => ({
+                                            value: product.id,
+                                            label: `${product.name} (Estoque: ${product.quantity || 0} ${product.unit || 'ml'})`,
+                                        }))
+                                    ]}
+                                />
+                            </Field>
 
+                            <Field>
+                                <Label>Quantidade ({products.find(p => p.id === productId)?.unit || 'ml'})</Label>
+                                <Input
+                                    type="number"
+                                    min="1"
+                                    placeholder="Quantidade"
+                                    value={quantity}
+                                    onChange={(e) => setQuantity(e.target.value)}
+                                />
+                                {(() => {
+                                    const selectedProduct = products.find(p => p.id === productId);
+                                    const q = Number(quantity);
+                                    if (!selectedProduct || q <= 0) return null;
+                                    const units = (q / (selectedProduct.packQuantity || 1)).toFixed(2);
+                                    const isExceeded = q > Number(selectedProduct.quantity);
+                                    return (
+                                        <div style={{ fontSize: '0.8rem', color: isExceeded ? '#ef4444' : '#64748b', marginTop: '4px', fontWeight: isExceeded ? 600 : 400 }}>
+                                            {isExceeded ? `⚠️ Estoque insuficiente! Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}` : `Equivale a ${units} ${selectedProduct.purchaseUnit || 'un'}(s)`}
+                                        </div>
+                                    );
+                                })()}
+                            </Field>
 
+                            <Field>
+                                <Select
+                                    label="Estabelecimento Destino"
+                                    value={destinationId}
+                                    onChange={setDestinationId}
+                                    options={[
+                                        { value: "", label: "-- Selecione um destino --" },
+                                        ...establishments.map((est) => ({
+                                            value: est.id,
+                                            label: est.name,
+                                        }))
+                                    ]}
+                                />
+                            </Field>
 
-                            <Select
-                                label="Produto"
-                                value={productId}
-                                onChange={setProductId}
-                                options={[
-                                    { value: "", label: "-- Selecione um produto --" },
-                                    ...products.map((product) => ({
-                                        value: product.id,
-                                        label: `${product.name} (Estoque: ${product.quantity || 0} ${product.unit || 'ml'})`,
-                                    }))
-                                ]}
-                            />
-
-                        </Field>
-
-
-                        <Field>
-                            <Label>Quantidade ({products.find(p => p.id === productId)?.unit || 'ml'})</Label>
-                            <Input
-                                type="number"
-                                min="1"
-                                placeholder="Quantidade"
-                                value={quantity}
-                                onChange={(e) => setQuantity(e.target.value)}
-                            />
                             {(() => {
                                 const selectedProduct = products.find(p => p.id === productId);
                                 const q = Number(quantity);
-                                if (!selectedProduct || q <= 0) return null;
-                                
-                                const units = (q / (selectedProduct.packQuantity || 1)).toFixed(2);
-                                const isExceeded = q > Number(selectedProduct.quantity);
-                                
+                                const isExceeded = selectedProduct && q > Number(selectedProduct.quantity);
                                 return (
-                                    <div style={{ fontSize: '0.8rem', color: isExceeded ? '#ef4444' : '#64748b', marginTop: '4px', fontWeight: isExceeded ? 600 : 400 }}>
-                                        {isExceeded ? `⚠️ Estoque insuficiente! Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}` : `Equivale a ${units} ${selectedProduct.purchaseUnit || 'un'}(s)`}
-                                    </div>
+                                    <Button
+                                        onClick={handleTransfer}
+                                        disabled={loading || isExceeded}
+                                        variant={isExceeded ? "secondary" : "primary"}
+                                        style={{ opacity: isExceeded ? 0.6 : 1 }}
+                                    >
+                                        {loading ? "Transferindo..." : isExceeded ? "Estoque Insuficiente" : "Transferir"}
+                                    </Button>
                                 );
                             })()}
-                        </Field>
+                        </Form>
 
-                        <Field>
+                        {/* COLUNA DIREITA: Painel de Mapeamento */}
+                        <MappingPanel>
+                            <MappingTitle>
+                                🔗 Produto no Destino
+                            </MappingTitle>
 
-                            <Select
-                                label="Destino"
-                                value={destinationId}
-                                onChange={setDestinationId}
-                                options={[
-                                    { value: "", label: "-- Selecione um destino --" },
-                                    ...establishments.map((est) => ({
-                                        value: est.id,
-                                        label: est.name,
-                                    }))
-                                ]}
-                            />
+                            {!destinationId && (
+                                <MappingHint>
+                                    Selecione um <strong>produto</strong> e um <strong>estabelecimento de destino</strong> para ver como o produto será mapeado.
+                                </MappingHint>
+                            )}
 
-                        </Field>
+                            {destinationId && loadingDestProducts && (
+                                <MappingHint>🔄 Buscando produtos do destino...</MappingHint>
+                            )}
 
-                        {(() => {
-                            const selectedProduct = products.find(p => p.id === productId);
-                            const q = Number(quantity);
-                            const isExceeded = selectedProduct && q > Number(selectedProduct.quantity);
-                            
-                            return (
-                                <Button
-                                    onClick={handleTransfer}
-                                    disabled={loading || isExceeded}
-                                    variant={isExceeded ? "secondary" : "primary"}
-                                    style={{ opacity: isExceeded ? 0.6 : 1 }}
-                                >
-                                    {loading ? "Transferindo..." : isExceeded ? "Estoque Insuficiente" : "Transferir"}
-                                </Button>
-                            );
-                        })()}
+                            {destinationId && !loadingDestProducts && (
+                                <>
+                                    {productId && (() => {
+                                        const src = products.find(p => p.id === productId);
+                                        const destEst = establishments.find(e => e.id === destinationId);
+                                        return src ? (
+                                            <MappingHint>
+                                                Você está transferindo <strong>"{src.name}"</strong> para <strong>{destEst?.name}</strong>.<br />
+                                                Selecione abaixo o produto correspondente no destino, ou deixe em branco para criar um novo.
+                                            </MappingHint>
+                                        ) : null;
+                                    })()}
 
-                    </Form>
+                                    <MappingSelectWrapper>
+                                        <Label>Produto correspondente no destino</Label>
+                                        <select
+                                            value={destinationProductId}
+                                            onChange={(e) => setDestinationProductId(e.target.value)}
+                                            style={{
+                                                padding: '10px',
+                                                borderRadius: '8px',
+                                                border: '1px solid #e2e8f0',
+                                                background: 'transparent',
+                                                fontSize: '0.875rem',
+                                                width: '100%',
+                                                cursor: 'pointer',
+                                                color: 'inherit',
+                                            }}
+                                        >
+                                            <option value="">➕ Criar como NOVO produto no destino</option>
+                                            {destinationProducts.map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name} ({Number(p.quantity).toFixed(1)} {p.unit})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </MappingSelectWrapper>
+
+                                    {destinationProductId ? (
+                                        <MappingBadge $color="#22c55e20" $textColor="#16a34a">
+                                            ✅ Vai incrementar estoque em "{destinationProducts.find(p => p.id === destinationProductId)?.name}"
+                                        </MappingBadge>
+                                    ) : (
+                                        <MappingBadge $color="#f59e0b20" $textColor="#d97706">
+                                            ⚠️ Um novo produto será criado no destino com o nome da origem
+                                        </MappingBadge>
+                                    )}
+                                </>
+                            )}
+                        </MappingPanel>
+
+                    </TransferLayout>
                 )}
+
                 {tab === "sent" && (
 
                     <table style={{ width: "100%" }}>

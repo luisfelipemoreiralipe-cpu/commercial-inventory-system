@@ -99,11 +99,25 @@ const getTransferSummary = async (req, res) => {
     }
 };
 
+// =============================
+// BUSCAR PRODUTOS DO DESTINO
+// =============================
+const getDestinationProducts = async (req, res) => {
+    try {
+        const { establishmentId } = req.params;
+        const products = await stockTransferService.getDestinationProducts(establishmentId);
+        res.json({ success: true, data: products });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createTransfer,
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
     getReceivedTransfers,
-    getTransferSummary
+    getTransferSummary,
+    getDestinationProducts
 };
