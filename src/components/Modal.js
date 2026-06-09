@@ -73,6 +73,14 @@ const Footer = styled.div`
   gap: ${({ theme }) => theme.spacing.sm};
   padding: ${({ theme }) => `${theme.spacing.md} ${theme.spacing.xl}`};
   border-top: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: 480px) {
+    flex-direction: column-reverse;
+    
+    button {
+      width: 100%;
+    }
+  }
 `;
 
 const Modal = ({ isOpen, onClose, title, children, maxWidth, footer }) => {

@@ -221,10 +221,58 @@ const cancelProductionOrder = async (orderId, establishmentId) => {
     return { success: true };
 };
 
+/**
+ * 📊 ESTATÍSTICAS DE PRODUÇÃO
+ * Retorna contagem por status e custo total no período
+ */
+const getProductionStats = async ({ establishmentId, startDate, endDate }) => {
+    const where = { establishmentId };
+    if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt.gte = new Date(startDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            where.createdAt.lte = end;
+        }
+    }
+
+    const [pending, completed, cancelled] = await Promise.all([
+        prisma.productionOrder.count({ where: { ...where, status: 'PENDING' } }),
+        prisma.productionOrder.count({ where: { ...where, status: 'COMPLETED' } }),
+        prisma.productionOrder.count({ where: { ...where, status: 'CANCELLED' } }),
+    ]);
+
+    // Custo de produção: soma dos movimentos OUT com reason=PRODUCTION no período
+    const costWhere = { establishmentId, reason: 'PRODUCTION' };
+    if (startDate || endDate) {
+        costWhere.createdAt = {};
+        if (startDate) costWhere.createdAt.gte = new Date(startDate);
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            costWhere.createdAt.lte = end;
+        }
+    }
+    const costResult = await prisma.stockMovement.aggregate({
+        where: costWhere,
+        _sum: { totalCost: true }
+    });
+
+    return {
+        pending,
+        completed,
+        cancelled,
+        total: pending + completed + cancelled,
+        productionCost: Number(costResult._sum.totalCost || 0)
+    };
+};
+
 module.exports = {
     previewProduction,
     createProductionOrder,
     listProductionOrders,
     completeProductionOrder,
-    cancelProductionOrder
+    cancelProductionOrder,
+    getProductionStats
 };

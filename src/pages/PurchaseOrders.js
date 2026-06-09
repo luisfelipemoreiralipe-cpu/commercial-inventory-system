@@ -160,6 +160,16 @@ const ManualItemNumber = styled.span`
   border-radius: 999px;
 `;
 
+const FormGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing.md};
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 const ManualGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -298,9 +308,11 @@ const ManualOrderModal = ({ isOpen, onClose, products, suppliers, onSuccess }) =
         }
     };
 
+    const purchasableProducts = products.filter(p => p.type !== "ASSET");
+
     const productOptions = [
         { value: "", label: "Selecione um produto..." },
-        ...products.map(p => ({ value: p.id, label: p.name }))
+        ...purchasableProducts.map(p => ({ value: p.id, label: p.name }))
     ];
 
     return (

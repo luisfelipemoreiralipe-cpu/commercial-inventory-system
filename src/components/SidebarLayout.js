@@ -356,6 +356,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/', label: 'Dashboard', icon: <MdDashboard /> },
       { to: '/products', label: 'Produtos', icon: <MdInventory2 />, badge: true },
+      { to: '/patrimony', label: 'Patrimônio', icon: <MdStore /> },
       { to: '/suppliers', label: 'Fornecedores', icon: <MdPeople /> },
       { to: '/production', label: 'Produção', icon: <MdFactory /> },
       { to: '/purchase-orders', label: 'Ordens de Compra', icon: <MdShoppingCart /> },

@@ -54,7 +54,6 @@ const findById = async (id, establishmentId) => {
         where: { id, establishmentId },
         include: {
             product: {
-                select: { id: true, name: true, unit: true, quantity: true },
                 include: {
                     Recipe: {
                         include: {

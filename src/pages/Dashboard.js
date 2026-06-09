@@ -4,6 +4,7 @@ import { MdCalendarToday } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
+import Select from '../components/Select';
 
 import {
   BarChart,
@@ -124,6 +125,13 @@ const LowStockTable = styled.div`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+  }
 `;
 
 const Th = styled.th`
@@ -135,6 +143,10 @@ const Th = styled.th`
   text-transform: uppercase;
   letter-spacing: 0.04em;
   background: ${({ theme }) => theme.colors.bgHover};
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
@@ -142,6 +154,29 @@ const Td = styled.td`
   font-size: ${({ theme }) => theme.fontSizes.sm};
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    width: 100%;
+
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+
+    &:last-child {
+      border-bottom: none;
+      padding-top: 15px;
+      justify-content: stretch;
+    }
+  }
 `;
 
 const Tr = styled.tr`
@@ -149,6 +184,16 @@ const Tr = styled.tr`
 
   &:hover {
     background: ${({ theme }) => theme.colors.bgHover};
+  }
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    background: ${({ theme }) => theme.colors.bgCard};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   }
 `;
 
@@ -192,7 +237,9 @@ const Dashboard = () => {
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [productionStats, setProductionStats] = useState(null);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -207,6 +254,24 @@ const Dashboard = () => {
     fetchSuggestions();
   }, []);
 
+  useEffect(() => {
+    const fetchProductionStats = async () => {
+      try {
+        const { default: api } = await import('../services/api');
+        let url = '/productions/stats';
+        const params = new URLSearchParams();
+        if (dateFrom) params.append('startDate', dateFrom);
+        if (dateTo) params.append('endDate', dateTo);
+        if (params.toString()) url += `?${params.toString()}`;
+        const res = await api.get(url);
+        setProductionStats(res);
+      } catch (err) {
+        console.error("Erro ao buscar stats de produção:", err);
+      }
+    };
+    fetchProductionStats();
+  }, [dateFrom, dateTo]);
+
   const totalEstimatedPurchase = useMemo(() => {
     return suggestions.reduce((sum, s) => {
       const price = Number(s.bestPrice || 0);
@@ -216,8 +281,12 @@ const Dashboard = () => {
   }, [suggestions]);
 
   const filteredProducts = useMemo(() => {
-    return state.products || [];
-  }, [state.products]);
+    let list = state.products || [];
+    if (filterCategory) {
+      list = list.filter(p => p.categoryId === filterCategory);
+    }
+    return list;
+  }, [state.products, filterCategory]);
 
   const filteredMovements = useMemo(() => {
     console.log("MOVEMENTS:", state.stockMovements);
@@ -231,10 +300,18 @@ const Dashboard = () => {
       list = list.filter(m => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59'));
     }
 
+    if (filterCategory) {
+      // Assuming m.productId can be used to find the product category
+      list = list.filter(m => {
+        const product = state.products?.find(p => p.id === m.productId);
+        return product?.categoryId === filterCategory;
+      });
+    }
+
     console.log("MOVEMENTS:", state.stockMovements);
 
     return list;
-  }, [state.stockMovements, dateFrom, dateTo]);
+  }, [state.stockMovements, dateFrom, dateTo, filterCategory, state.products]);
 
   const filteredValue = useMemo(
     () => filteredProducts.reduce(
@@ -285,13 +362,13 @@ const Dashboard = () => {
   }, [internalConsumptionValue, totalConsumption]);
 
   const criticalProducts = useMemo(() => {
-    if (!state.products?.length) return 0;
+    if (!filteredProducts?.length) return 0;
 
-    return state.products.filter(
+    return filteredProducts.filter(
       (p) => Number(p.quantity || 0) <= Number(p.minQuantity || 0)
     ).length;
 
-  }, [state.products]);
+  }, [filteredProducts]);
 
   const mostLossProduct = useMemo(() => {
     if (!filteredMovements?.length) return null;
@@ -326,7 +403,13 @@ const Dashboard = () => {
 
 
 
-  const lowStock = getLowStockProducts();
+  const lowStock = useMemo(() => {
+    const list = getLowStockProducts();
+    if (filterCategory) {
+      return list.filter(p => p.categoryId === filterCategory);
+    }
+    return list;
+  }, [getLowStockProducts, filterCategory]);
   const pendingOrders = state.purchaseOrders.filter((o) => o.status === 'pending');
   const lossValue = useMemo(() => {
     if (!filteredMovements?.length) return { value: 0, count: 0 };
@@ -540,10 +623,24 @@ const Dashboard = () => {
           Até:
           <DateInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </FilterLabel>
-        {(dateFrom || dateTo) && (
+
+        <FilterLabel style={{ marginLeft: '16px' }}>
+          Categoria:
+          <div style={{ minWidth: '200px' }}>
+            <Select 
+              value={filterCategory} 
+              onChange={setFilterCategory}
+              options={[
+                { value: "", label: "Todas as categorias" },
+                ...(state.categories || []).map((c) => ({ value: c.id, label: c.name }))
+              ]}
+            />
+          </div>
+        </FilterLabel>
+        {(dateFrom || dateTo || filterCategory) && (
           <button
-            onClick={() => { setDateFrom(''); setDateTo(''); }}
-            style={{ fontSize: '0.75rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+            onClick={() => { setDateFrom(''); setDateTo(''); setFilterCategory(''); }}
+            style={{ fontSize: '0.75rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', marginLeft: '16px' }}
           >
             Limpar filtro
           </button>
@@ -783,6 +880,48 @@ const Dashboard = () => {
             <StatSub>aguardando conclusão</StatSub>
           </StatInfo>
         </StatCard>
+
+        {productionStats !== null && (
+          <>
+            <StatCard accent="#6366f1">
+              <StatInfo>
+                <StatLabel>🏭 Produções Pendentes</StatLabel>
+                <StatValue style={{ color: productionStats.pending > 0 ? '#f59e0b' : '#10b981' }}>
+                  {productionStats.pending}
+                </StatValue>
+                <StatSub>
+                  {productionStats.pending > 0
+                    ? `${productionStats.pending} ordem(ns) aguardando`
+                    : 'nenhuma pendente'}
+                </StatSub>
+              </StatInfo>
+            </StatCard>
+
+            <StatCard accent="#10b981">
+              <StatInfo>
+                <StatLabel>✅ Produções Concluídas</StatLabel>
+                <StatValue style={{ color: '#10b981' }}>
+                  {productionStats.completed}
+                </StatValue>
+                <StatSub>
+                  {productionStats.total > 0
+                    ? `de ${productionStats.total} ordens no período`
+                    : 'nenhuma produção no período'}
+                </StatSub>
+              </StatInfo>
+            </StatCard>
+
+            <StatCard accent="#8b5cf6">
+              <StatInfo>
+                <StatLabel>💰 Custo de Produção</StatLabel>
+                <StatValue style={{ fontSize: '1.2rem', color: '#8b5cf6' }}>
+                  {formatCurrency(productionStats.productionCost)}
+                </StatValue>
+                <StatSub>insumos consumidos em produções</StatSub>
+              </StatInfo>
+            </StatCard>
+          </>
+        )}
       </StatsGrid>
 
       {/* Low Stock Table */}
@@ -821,17 +960,17 @@ const Dashboard = () => {
                   
                   return (
                     <Tr key={p.id}>
-                      <Td style={{ fontWeight: 600 }}>{p.name}</Td>
-                      <Td>{p.category?.name || 'N/A'}</Td>
-                      <Td style={{ color: '#ef4444', fontWeight: 600 }}>
+                      <Td data-label="Produto" style={{ fontWeight: 600 }}>{p.name}</Td>
+                      <Td data-label="Categoria">{p.category?.name || 'N/A'}</Td>
+                      <Td data-label="Qtd. Atual" style={{ color: '#ef4444', fontWeight: 600 }}>
                         {p.quantity} {p.unit}
                       </Td>
-                      <Td>{p.minQuantity} {p.unit}</Td>
-                      <Td style={{ minWidth: 120 }}>
+                      <Td data-label="Estoque Mínimo">{p.minQuantity} {p.unit}</Td>
+                      <Td data-label="Progresso" style={{ minWidth: 120 }}>
                         <span style={{ fontSize: '0.7rem', color: '#f59e0b' }}>{Math.round(pct)}%</span>
                         <StockBar><StockFill pct={pct} /></StockBar>
                       </Td>
-                      <Td>
+                      <Td data-label="Estimativa Reposição">
                         {formatCurrency(packPrice * needsPacks)}
                       </Td>
                     </Tr>

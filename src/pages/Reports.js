@@ -22,6 +22,13 @@ const PageHeader = styled.div`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+  }
 `;
 
 const StatusBadge = styled.span`
@@ -91,6 +98,10 @@ const Th = styled.th`
   text-transform: uppercase;
   letter-spacing: 0.04em;
   background: ${({ theme }) => theme.colors.bgHover};
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
@@ -98,6 +109,29 @@ const Td = styled.td`
   font-size: ${({ theme }) => theme.fontSizes.sm};
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    width: 100%;
+
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+
+    &:last-child {
+      border-bottom: none;
+      padding-top: 15px;
+      justify-content: stretch;
+    }
+  }
 `;
 
 const Tr = styled.tr`
@@ -105,6 +139,16 @@ const Tr = styled.tr`
 
   &:hover {
     background: ${({ theme }) => theme.colors.bgHover};
+  }
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    background: ${({ theme }) => theme.colors.bgCard};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   }
 `;
 

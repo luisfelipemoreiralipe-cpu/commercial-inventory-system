@@ -22,6 +22,16 @@ const PageHeader = styled.div`
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: stretch;
+    
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 `;
 const PageTitle = styled.h1`font-size:${({ theme }) => theme.fontSizes['3xl']};font-weight:${({ theme }) => theme.fontWeights.bold};`;
 const PageSubtitle = styled.p`color:${({ theme }) => theme.colors.textSecondary};font-size:${({ theme }) => theme.fontSizes.sm};margin-top:4px;`;
@@ -110,7 +120,17 @@ const SummaryValue = styled.span`
 
 const TableWrap = styled.div`overflow-x: auto;`;
 
-const Table = styled.table`width: 100%; border-collapse: collapse;`;
+const Table = styled.table`
+  width: 100%; 
+  border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+  }
+`;
 
 const Th = styled.th`
   text-align: left;
@@ -123,6 +143,10 @@ const Th = styled.th`
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.bgInput};
   white-space: nowrap;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
@@ -131,12 +155,45 @@ const Td = styled.td`
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   vertical-align: middle;
+
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    width: 100%;
+
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+
+    &:last-child {
+      border-bottom: none;
+      padding-top: 15px;
+      justify-content: stretch;
+    }
+  }
 `;
 
 const Tr = styled.tr`
   transition: ${({ theme }) => theme.transition};
   &:hover { background: ${({ theme }) => theme.colors.bgHover}; }
   &:last-child td { border-bottom: none; }
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    background: ${({ theme }) => theme.colors.bgCard};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  }
 `;
 
 const TypeIcon = styled.span`
@@ -368,18 +425,18 @@ const StockHistory = () => {
 
                                     return (
                                         <Tr key={m.id}>
-                                            <Td style={{ whiteSpace: 'nowrap', color: '#6B7280', fontSize: '0.8rem' }}>
+                                            <Td data-label="Data / Hora" style={{ whiteSpace: 'nowrap', color: '#6B7280', fontSize: '0.8rem' }}>
                                                 {new Date(m.createdAt).toLocaleDateString('pt-BR')}{' '}
                                                 {new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             </Td>
-                                            <Td><strong>{m.productName}</strong></Td>
-                                            <Td>
+                                            <Td data-label="Produto"><strong>{m.productName}</strong></Td>
+                                            <Td data-label="Tipo">
                                                 <Badge variant={cfg.variant}>
                                                     <TypeIcon color={cfg.color}>{cfg.icon}</TypeIcon>
                                                     {cfg.label}
                                                 </Badge>
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Qtd. Movimentada">
                                                 <QtyDelta $positive={isPositive}>
                                                     {isPositive ? '+' : ''}{deltaConv.toFixed(2)} {pUnit}
                                                 </QtyDelta>
@@ -387,7 +444,7 @@ const StockHistory = () => {
                                                     ({isPositive ? '+' : ''}{deltaRaw.toFixed(0)} {bUnit})
                                                 </span>
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Estoque Anterior">
                                                 <span style={{ color: '#4B5563', fontWeight: 500 }}>
                                                     {prevConv.toFixed(2)} {pUnit}
                                                 </span>
@@ -395,7 +452,7 @@ const StockHistory = () => {
                                                     ({Number(m.previousQuantity).toFixed(0)} {bUnit})
                                                 </span>
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Estoque Novo">
                                                 <span style={{ color: '#111827', fontWeight: 600 }}>
                                                     {newConv.toFixed(2)} {pUnit}
                                                 </span>
@@ -403,7 +460,7 @@ const StockHistory = () => {
                                                     ({Number(m.newQuantity).toFixed(0)} {bUnit})
                                                 </span>
                                             </Td>
-                                            <Td style={{ color: '#4B5563', fontSize: '0.8rem' }}>{m.reference}</Td>
+                                            <Td data-label="Referência" style={{ color: '#4B5563', fontSize: '0.8rem' }}>{m.reference}</Td>
                                         </Tr>
                                     );
                                 })}

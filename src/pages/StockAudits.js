@@ -156,8 +156,8 @@ export default function StockAudits() {
         doc.text(`Data da Emissão: ${date}`, 14, 37);
         
         // Preparar dados da tabela
-        // Ordenar produtos por categoria
-        const sortedProducts = [...products].sort((a, b) => {
+        // Ordenar produtos por categoria (excluindo ASSET)
+        const sortedProducts = products.filter(p => p.type !== "ASSET").sort((a, b) => {
             const catA = categories.find(c => c.id === a.categoryId)?.name || "";
             const catB = categories.find(c => c.id === b.categoryId)?.name || "";
             return catA.localeCompare(catB) || a.name.localeCompare(b.name);

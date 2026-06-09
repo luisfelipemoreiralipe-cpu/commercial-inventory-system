@@ -7,6 +7,7 @@ const getProductsBelowMinimum = async (establishmentId) => {
     return prisma.product.findMany({
         where: {
             establishmentId,
+            type: { not: "ASSET" },
             quantity: {
                 lt: prisma.product.fields.minQuantity
             }

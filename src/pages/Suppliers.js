@@ -21,6 +21,16 @@ const PageHeader = styled.div`
   flex-wrap: wrap;
   gap: ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: stretch;
+    
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 `;
 
 const PageTitle = styled.h1`

@@ -8,6 +8,9 @@ const AppError = require('../utils/AppError');
 const errorMiddleware = (err, req, res, next) => {
     // 1. Known operational error (thrown by AppError)
     if (err.isOperational) {
+        // LOGGING TEMPORÁRIO PARA DEBUG
+        console.error("DEBUG [AppError]:", err.message, err.stack);
+        
         return res.status(err.statusCode).json({
             success: false,
             message: err.message,

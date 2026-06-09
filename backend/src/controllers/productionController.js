@@ -51,7 +51,7 @@ const createProductionOrder = async (req, res, next) => {
     try {
         const { productId, quantity, notes } = req.body;
         const establishmentId = req.user.establishmentId;
-        const createdBy = req.user.id;
+        const createdBy = req.user.userId; // Correção: authMiddleware define como userId
 
         const order = await productionService.createProductionOrder({
             productId,
@@ -99,10 +99,32 @@ const cancelProductionOrder = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/productions/stats
+ * Retorna estatísticas de produção por período
+ */
+const getProductionStats = async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const establishmentId = req.user.establishmentId;
+
+        const stats = await productionService.getProductionStats({
+            establishmentId,
+            startDate,
+            endDate
+        });
+
+        res.json(stats);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     previewProduction,
     listProductionOrders,
     createProductionOrder,
     completeProductionOrder,
-    cancelProductionOrder
+    cancelProductionOrder,
+    getProductionStats
 };

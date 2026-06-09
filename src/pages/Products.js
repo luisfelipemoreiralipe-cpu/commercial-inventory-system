@@ -41,9 +41,26 @@ const PageHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.spacing.md};
   margin-bottom: ${({ theme }) => theme.spacing.xl};
+  flex-wrap: wrap;
+  gap: 16px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    & > div {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 `;
 
 const TitleBlock = styled.div``;
@@ -109,6 +126,13 @@ const FilterGroup = styled.div`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+  }
 `;
 
 const Th = styled.th`
@@ -121,6 +145,10 @@ const Th = styled.th`
   letter-spacing: 0.04em;
   background: ${({ theme }) => theme.colors.bgHover};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const Td = styled.td`
@@ -129,6 +157,29 @@ const Td = styled.td`
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   vertical-align: middle;
+
+  @media (max-width: 768px) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    width: 100%;
+
+    &:before {
+      content: attr(data-label);
+      font-weight: 700;
+      font-size: 11px;
+      color: ${({ theme }) => theme.colors.textMuted};
+      text-transform: uppercase;
+    }
+
+    &:last-child {
+      border-bottom: none;
+      padding-top: 15px;
+      justify-content: stretch;
+    }
+  }
 `;
 
 const Tr = styled.tr`
@@ -142,6 +193,16 @@ const Tr = styled.tr`
 
   &:hover {
     background: ${({ theme }) => theme.colors.bgHover};
+  }
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    background: ${({ theme }) => theme.colors.bgCard};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   }
 `;
 
@@ -179,9 +240,11 @@ const IconBtn = styled.button`
 const FormGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: ${({ theme }) => theme.spacing.lg};
 
-  @media (max-width: 480px) { grid-template-columns: 1fr; }
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const FormFull = styled.div`
@@ -312,7 +375,7 @@ const Products = () => {
 
         const matchType =
             filterType === "ALL"
-                ? true
+                ? p.type !== "ASSET"
                 : p.type === filterType;
 
         const matchCat =
@@ -636,6 +699,8 @@ const Products = () => {
                     Produção
                 </Button>
 
+
+
             </div>
 
             {/* Filters */}
@@ -703,22 +768,22 @@ const Products = () => {
 
                                     return (
                                         <Tr key={p.id} lowStock={isLow}>
-                                            <Td>
+                                            <Td data-label="Nome">
                                                 <div style={{ fontWeight: 600 }}>{p.name}</div>
                                                 <DateMeta>
                                                     Criado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}
                                                 </DateMeta>
                                             </Td>
-                                            <Td>{p.category?.name || 'N/A'}</Td>
-                                            <Td>{p.unit}</Td>
-                                            <Td>{bestPrice || p.unitPrice ? formatCurrency(bestPrice || Number(p.unitPrice)) : "-"}</Td>
-                                            <Td style={{ color: isLow ? '#413232ff' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
+                                            <Td data-label="Categoria">{p.category?.name || 'N/A'}</Td>
+                                            <Td data-label="Unidade">{p.unit}</Td>
+                                            <Td data-label="Custo Atual">{bestPrice || p.unitPrice ? formatCurrency(bestPrice || Number(p.unitPrice)) : "-"}</Td>
+                                            <Td data-label="Qtd." style={{ color: isLow ? '#413232ff' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
                                                 {p.quantity} {p.unit} ({(Number(p.quantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Mín.">
                                                 {p.minQuantity} {p.unit} ({(Number(p.minQuantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Fornec">
                                                 {p.suppliers?.length ? (
                                                     <div style={{ fontSize: '13px', fontWeight: 500 }}>
                                                         {p.suppliers[0]?.name}
@@ -735,24 +800,24 @@ const Products = () => {
                                                     </Badge>
                                                 )}
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Melhor Preço">
                                                 {p.productSuppliers && p.productSuppliers.length > 0
                                                     ? formatCurrency(bestPrice)
                                                     : "-"}
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Valor Total">
                                                 {formatCurrency(
                                                     ((bestPrice || Number(p.unitPrice) || 0) / (Number(p.packQuantity) || 1)) * Number(p.quantity)
                                                 )}
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Status">
                                                 {isLow ? (
                                                     <Badge variant="danger">Baixo</Badge>
                                                 ) : (
                                                     <Badge variant="success">OK</Badge>
                                                 )}
                                             </Td>
-                                            <Td>
+                                            <Td data-label="Ações">
                                                 <ActionRow>
                                                     <IconBtn
                                                         title="Ficha Técnica"
@@ -833,17 +898,15 @@ const Products = () => {
 
 
                     {/* TIPO DE PRODUTO */}
-                    <Select
-                        label="Tipo de Produto *"
-                        value={form.type}
-                        onChange={(val) =>
-                            setForm((f) => ({ ...f, type: val }))
-                        }
-                        options={[
-                            { value: "INVENTORY", label: "Estoque" },
-                            { value: "PRODUCTION", label: "Produção" }
-                        ]}
-                    />
+                        <Select
+                            label="Tipo de Produto"
+                            value={form.type || 'INVENTORY'}
+                            onChange={(val) => setForm(f => ({ ...f, type: val }))}
+                            options={[
+                                { value: 'INVENTORY', label: 'Insumo / Matéria-prima' },
+                                { value: 'PRODUCTION', label: 'Produção Própria' }
+                            ]}
+                        />
 
                     <Select 
                         label="Categoria *" 

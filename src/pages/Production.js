@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled, { keyframes } from "styled-components";
 import { useApp } from "../context/AppContext";
 import api from "../services/api";
+import axios from "axios";
 import toast from "react-hot-toast";
 import {
     MdAdd, MdClose, MdCheckCircle, MdCancel, MdPendingActions,
@@ -544,6 +545,11 @@ export default function Production() {
     const [loadingOrders, setLoadingOrders] = useState(false);
     const [search, setSearch] = useState('');
 
+    // Fichas Técnicas
+    const [recipes, setRecipes] = useState([]);  // { product, recipe }
+    const [loadingRecipes, setLoadingRecipes] = useState(false);
+    const [expandedRecipes, setExpandedRecipes] = useState({});
+
     // Modal nova produção
     const [showModal, setShowModal] = useState(false);
     const [modalProductId, setModalProductId] = useState('');
@@ -574,7 +580,38 @@ export default function Production() {
         }
     }, []);
 
+    const loadRecipes = useCallback(async () => {
+        setLoadingRecipes(true);
+        try {
+            const token = localStorage.getItem('token');
+            const baseURL = (process.env.REACT_APP_API_URL || 'http://localhost:3333') + '/api';
+
+            const results = await Promise.all(
+                productionProducts.map(async (p) => {
+                    try {
+                        const res = await axios.get(`${baseURL}/recipes/product/${p.id}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const recipe = res.data?.data !== undefined ? res.data.data : res.data;
+                        return { product: p, recipe };
+                    } catch {
+                        // 404 = sem receita, sem toast
+                        return { product: p, recipe: null };
+                    }
+                })
+            );
+            setRecipes(results);
+        } catch {
+            toast.error('Erro ao carregar fichas técnicas');
+        } finally {
+            setLoadingRecipes(false);
+        }
+    }, [productionProducts]);
+
     useEffect(() => { loadOrders(); }, [loadOrders]);
+    useEffect(() => {
+        if (tab === 'recipes') loadRecipes();
+    }, [tab, loadRecipes]);
 
     // ─── Preview on qty/product change ────────────────────────────────────────
     useEffect(() => {
@@ -714,6 +751,7 @@ export default function Production() {
                     { key: 'PENDING', label: `Pendentes (${kpiPending})` },
                     { key: 'COMPLETED', label: 'Concluídas' },
                     { key: 'CANCELLED', label: 'Canceladas' },
+                    { key: 'recipes', label: '📋 Fichas Técnicas' },
                 ].map(t => (
                     <Tab key={t.key} $active={tab === t.key} onClick={() => setTab(t.key)}>{t.label}</Tab>
                 ))}
@@ -838,6 +876,170 @@ export default function Production() {
                     </Table>
                 </TableOverflow>
             </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════
+                FICHAS TÉCNICAS
+            ═══════════════════════════════════════════════════════════════ */}
+            {tab === 'recipes' && (
+                <Card style={{ padding: 0, overflow: 'hidden' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid', borderColor: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: 15 }}>Fichas Técnicas de Produção</span>
+                        <IconBtn $variant="default" onClick={loadRecipes} title="Recarregar">
+                            <MdRefresh />
+                        </IconBtn>
+                    </div>
+
+                    {loadingRecipes ? (
+                        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando fichas técnicas...</div>
+                    ) : recipes.length === 0 ? (
+                        <EmptyState>
+                            <EmptyIcon><MdFactory /></EmptyIcon>
+                            <p style={{ fontWeight: 700, marginBottom: 4 }}>Nenhum produto de produção cadastrado</p>
+                            <p>Cadastre produtos com tipo "Produção" na tela de Produtos</p>
+                        </EmptyState>
+                    ) : (
+                        <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {recipes.map(({ product, recipe }) => {
+                                const isExpanded = expandedRecipes[product.id];
+                                const hasRecipe = recipe && recipe.items && recipe.items.length > 0;
+                                return (
+                                    <div
+                                        key={product.id}
+                                        style={{
+                                            border: '1px solid',
+                                            borderColor: hasRecipe ? '#6366f130' : '#f59e0b30',
+                                            borderRadius: 12,
+                                            overflow: 'hidden',
+                                            background: hasRecipe ? 'rgba(99,102,241,0.03)' : 'rgba(245,158,11,0.04)'
+                                        }}
+                                    >
+                                        {/* Header da ficha */}
+                                        <div
+                                            style={{
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                padding: '14px 16px', cursor: hasRecipe ? 'pointer' : 'default'
+                                            }}
+                                            onClick={() => hasRecipe && setExpandedRecipes(prev => ({ ...prev, [product.id]: !prev[product.id] }))}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{
+                                                    width: 36, height: 36, borderRadius: 8,
+                                                    background: hasRecipe ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#f59e0b20',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    color: hasRecipe ? '#fff' : '#f59e0b', fontSize: '1.1rem'
+                                                }}>
+                                                    {hasRecipe ? '🏭' : '⚠️'}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: 700, fontSize: 14 }}>{product.name}</div>
+                                                    <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                                                        {hasRecipe
+                                                            ? `${recipe.items.length} ingrediente(s) • ${product.unit}`
+                                                            : 'Sem ficha técnica cadastrada'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{
+                                                    fontSize: 11, fontWeight: 700, padding: '3px 10px',
+                                                    borderRadius: 999,
+                                                    background: hasRecipe ? '#d1fae5' : '#fef3c7',
+                                                    color: hasRecipe ? '#065f46' : '#92400e'
+                                                }}>
+                                                    {hasRecipe ? '✓ Com receita' : 'Sem receita'}
+                                                </span>
+                                                {hasRecipe && (
+                                                    <span style={{ color: '#94a3b8', fontSize: 12 }}>
+                                                        {isExpanded ? '▲' : '▼'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Ingredientes expandidos */}
+                                        {hasRecipe && isExpanded && (
+                                            <div style={{ borderTop: '1px solid #6366f120', padding: '12px 16px' }}>
+                                                <div style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1fr 120px 120px 80px',
+                                                    gap: 8, padding: '4px 8px',
+                                                    fontSize: 11, fontWeight: 700,
+                                                    textTransform: 'uppercase', color: '#94a3b8',
+                                                    letterSpacing: '0.05em'
+                                                }}>
+                                                    <span>Ingrediente</span>
+                                                    <span style={{ textAlign: 'right' }}>Qtd p/ unid.</span>
+                                                    <span style={{ textAlign: 'right' }}>Estoque atual</span>
+                                                    <span style={{ textAlign: 'center' }}>Status</span>
+                                                </div>
+                                                {recipe.items.map(item => {
+                                                    const available = Number(item.product?.quantity || 0);
+                                                    const needed = Number(item.quantity || 0);
+                                                    const ok = available >= needed;
+                                                    return (
+                                                        <div
+                                                            key={item.id}
+                                                            style={{
+                                                                display: 'grid',
+                                                                gridTemplateColumns: '1fr 120px 120px 80px',
+                                                                gap: 8, padding: '10px 8px',
+                                                                borderRadius: 8,
+                                                                background: ok ? 'transparent' : 'rgba(239,68,68,0.04)',
+                                                                border: ok ? 'none' : '1px solid rgba(239,68,68,0.15)',
+                                                                marginBottom: 4
+                                                            }}
+                                                        >
+                                                            <span style={{ fontSize: 13, fontWeight: 600 }}>
+                                                                {item.product?.name}
+                                                            </span>
+                                                            <span style={{ fontSize: 13, textAlign: 'right', color: '#6366f1', fontWeight: 700 }}>
+                                                                {Number(needed).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {item.product?.unit}
+                                                            </span>
+                                                            <span style={{ fontSize: 13, textAlign: 'right', color: ok ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+                                                                {Number(available).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {item.product?.unit}
+                                                            </span>
+                                                            <span style={{ textAlign: 'center' }}>
+                                                                <span style={{
+                                                                    fontSize: 11, fontWeight: 700, padding: '2px 8px',
+                                                                    borderRadius: 999,
+                                                                    background: ok ? '#d1fae5' : '#fee2e2',
+                                                                    color: ok ? '#065f46' : '#991b1b'
+                                                                }}>
+                                                                    {ok ? 'OK' : 'Falta'}
+                                                                </span>
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {/* Custo estimado da ficha */}
+                                                {recipe.items.length > 0 && (() => {
+                                                    const totalCost = recipe.items.reduce((sum, item) => {
+                                                        return sum + (Number(item.quantity) * Number(item.product?.currentCost || 0));
+                                                    }, 0);
+                                                    return totalCost > 0 ? (
+                                                        <div style={{
+                                                            display: 'flex', justifyContent: 'flex-end',
+                                                            marginTop: 8, padding: '8px 8px',
+                                                            background: 'rgba(99,102,241,0.08)',
+                                                            borderRadius: 8, fontWeight: 700
+                                                        }}>
+                                                            <span style={{ color: '#94a3b8', marginRight: 8 }}>Custo estimado por unidade:</span>
+                                                            <span style={{ color: '#6366f1' }}>
+                                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalCost)}
+                                                            </span>
+                                                        </div>
+                                                    ) : null;
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </Card>
+            )}
 
             {/* ═══════════════════════════════════════════════════════════════
                 MODAL — NOVA PRODUÇÃO

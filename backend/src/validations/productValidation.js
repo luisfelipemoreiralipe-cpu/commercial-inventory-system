@@ -4,10 +4,10 @@ const createProductSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
     categoryId: z.string().uuid('ID de categoria inválido'),
     unit: z.string().min(1, 'Unidade é obrigatória'),
-    type: z.enum(['INVENTORY', 'PRODUCTION']),
+    type: z.enum(['INVENTORY', 'PRODUCTION', 'ASSET']),
     unitPrice: z.number().min(0, 'Preço deve ser positivo').optional().nullable(),
-    quantity: z.number().int().min(0, 'Quantidade deve ser ≥ 0').default(0),
-    minQuantity: z.number().int().min(0, 'Estoque mínimo deve ser ≥ 0').default(0),
+    quantity: z.number().min(0, 'Quantidade deve ser ≥ 0').default(0),
+    minQuantity: z.number().min(0, 'Estoque mínimo deve ser ≥ 0').default(0),
     purchaseUnit: z.string().optional().nullable(),
     packQuantity: z.preprocess((val) => Number(val), z.number().min(0).optional().default(1)),
 });

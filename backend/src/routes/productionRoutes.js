@@ -10,6 +10,9 @@ router.use(authMiddleware);
 // Preview de insumos necessários (sem alterar estoque)
 router.get('/preview', productionController.previewProduction);
 
+// Estatísticas de produção
+router.get('/stats', productionController.getProductionStats);
+
 // Listar ordens de produção
 router.get('/', productionController.listProductionOrders);
 
