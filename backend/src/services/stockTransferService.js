@@ -7,6 +7,7 @@ const { consumeProduct, addStock } = require('./stockMovementService');
  */
 const createTransfer = async ({
     productId,
+    destinationProductId,
     quantity,
     fromEstablishmentId,
     toEstablishmentId,
@@ -67,6 +68,7 @@ const createTransfer = async ({
     const transfer = await prisma.stockTransfer.create({
         data: {
             productId,
+            destinationProductId: destinationProductId || null,
             quantity: Number(quantity),
             fromEstablishmentId,
             toEstablishmentId,
@@ -90,6 +92,9 @@ const getSentTransfers = async (establishmentId) => {
             product: {
                 select: { id: true, name: true, unit: true }
             },
+            destinationProduct: {
+                select: { id: true, name: true, unit: true }
+            },
             toEstablishment: {
                 select: { id: true, name: true }
             }
@@ -108,6 +113,9 @@ const getReceivedTransfers = async (establishmentId) => {
         },
         include: {
             product: {
+                select: { id: true, name: true, unit: true }
+            },
+            destinationProduct: {
                 select: { id: true, name: true, unit: true }
             },
             fromEstablishment: {
@@ -142,6 +150,7 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
 
         const {
             productId,
+            destinationProductId,
             quantity,
             fromEstablishmentId,
             toEstablishmentId
@@ -164,12 +173,16 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
         }
 
         // 3️⃣ Buscar ou criar produto no destino
-        let destinationProduct = await tx.product.findFirst({
-            where: {
-                name: product.name,
-                establishmentId: toEstablishmentId
-            }
-        });
+        let destinationProduct = null;
+        
+        if (destinationProductId) {
+             destinationProduct = await tx.product.findFirst({
+                 where: {
+                     id: destinationProductId,
+                     establishmentId: toEstablishmentId
+                 }
+             });
+        }
 
         if (!destinationProduct) {
             destinationProduct = await tx.product.create({
@@ -209,7 +222,8 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
             data: {
                 status: "APPROVED",
                 approvedBy: userId,
-                approvedAt: new Date()
+                approvedAt: new Date(),
+                destinationProductId: destinationProduct.id // Garante que o ID final fique salvo
             }
         });
     });
@@ -394,11 +408,32 @@ const getTransferSummary = async (establishmentId, { startDate, endDate }) => {
     };
 };
 
+/**
+ * 📦 BUSCAR PRODUTOS DO DESTINO
+ * Retorna todos os produtos ativos do estabelecimento de destino para permitir o mapeamento.
+ */
+const getDestinationProducts = async (establishmentId) => {
+    return prisma.product.findMany({
+        where: {
+            establishmentId,
+            isActive: true
+        },
+        select: {
+            id: true,
+            name: true,
+            unit: true,
+            quantity: true
+        },
+        orderBy: { name: 'asc' }
+    });
+};
+
 module.exports = {
     createTransfer,
     approveTransfer,
     rejectTransfer,
     getSentTransfers,
     getReceivedTransfers,
-    getTransferSummary
+    getTransferSummary,
+    getDestinationProducts
 };
