@@ -29,6 +29,30 @@ const createRecipe = async (productId, establishmentId) => {
 };
 
 /**
+ * 🔐 ATUALIZAR RENDIMENTO (YIELD QUANTITY)
+ */
+const updateRecipe = async (recipeId, yieldQuantity, establishmentId) => {
+    if (!yieldQuantity || yieldQuantity <= 0) {
+        throw new AppError('Rendimento inválido.', 400);
+    }
+
+    const recipeCheck = await prisma.recipe.findFirst({
+        where: { id: recipeId, establishmentId }
+    });
+
+    if (!recipeCheck) {
+        throw new AppError('Ficha técnica não encontrada ou acesso negado.', 404);
+    }
+
+    const updated = await prisma.recipe.update({
+        where: { id: recipeId },
+        data: { yieldQuantity }
+    });
+
+    return updated;
+};
+
+/**
  * 🔐 ADICIONAR ITEM À FICHA
  */
 const addRecipeItem = async (recipeId, productId, quantity, establishmentId) => {
@@ -131,15 +155,21 @@ const calculateRecipeCost = async (recipeId, establishmentId) => {
         });
     }
 
+    const recipe = await prisma.recipe.findFirst({ where: { id: recipeId } });
+    const yieldQty = recipe ? (Number(recipe.yieldQuantity) || 1) : 1;
+
     return {
         recipeId,
         ingredients,
-        totalCost
+        totalCost,
+        yieldQuantity: yieldQty,
+        unitCost: totalCost / yieldQty
     };
 };
 
 module.exports = {
     createRecipe,
+    updateRecipe,
     addRecipeItem,
     getRecipeByProduct,
     removeRecipeItem,

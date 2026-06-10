@@ -10,6 +10,9 @@ router.use(authMiddleware);
 // criar receita
 router.post('/', recipeController.createRecipe);
 
+// atualizar receita (ex: rendimento)
+router.patch('/:recipeId', recipeController.updateRecipe);
+
 // adicionar item na receita
 router.post('/items', recipeController.addRecipeItem);
 

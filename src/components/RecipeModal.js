@@ -13,6 +13,8 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
     const [ingredientId, setIngredientId] = useState("");
     const [quantity, setQuantity] = useState("");
     const [cost, setCost] = useState(0);
+    const [unitCost, setUnitCost] = useState(0);
+    const [yieldQuantity, setYieldQuantity] = useState(1);
     const [useFractional, setUseFractional] = useState('base');
     const [selectedIngUnit, setSelectedIngUnit] = useState('');
 
@@ -32,6 +34,7 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
             const recipeData = await api.get(`/recipes/product/${productId}`);
 
             setRecipe(recipeData);
+            setYieldQuantity(recipeData.yieldQuantity || 1);
 
             await loadCost(recipeData.id);
 
@@ -43,6 +46,8 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
                 setRecipe(null);
                 setIngredients([]);
                 setCost(0);
+                setUnitCost(0);
+                setYieldQuantity(1);
 
             } else {
 
@@ -63,6 +68,7 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
 
             setIngredients(costData.ingredients || []);
             setCost(costData.totalCost || 0);
+            setUnitCost(costData.unitCost || 0);
 
         } catch (err) {
 
@@ -70,6 +76,18 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
 
         }
 
+    };
+
+    const handleUpdateYield = async (newYield) => {
+        setYieldQuantity(newYield);
+        if (recipe) {
+            try {
+                await api.patch(`/recipes/${recipe.id}`, { yieldQuantity: Number(newYield) });
+                await loadCost(recipe.id);
+            } catch (err) {
+                console.error(err);
+            }
+        }
     };
 
     const handleAddIngredient = async () => {
@@ -145,6 +163,30 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
             title={`Ficha Técnica — ${product?.name}`}
             footer={<Button onClick={onClose}>Fechar</Button>}
         >
+
+            <div style={{ marginBottom: 20, padding: 15, backgroundColor: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: 14 }}>Configuração de Rendimento</h4>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                        <Input
+                            label={`Rendimento da Receita (em ${getBaseUnit(product?.unit)})`}
+                            type="number"
+                            min="0.001"
+                            step="any"
+                            value={yieldQuantity}
+                            onChange={(e) => handleUpdateYield(e.target.value)}
+                            onBlur={(e) => {
+                                if(!e.target.value || Number(e.target.value) <= 0) {
+                                    handleUpdateYield(1);
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+                <p style={{ margin: '8px 0 0 0', fontSize: 12, color: '#6b7280' }}>
+                    Defina quanto a receita abaixo rende. Ex: Se a receita inteira rende 1 litro, coloque 1000 se a unidade do produto for ml.
+                </p>
+            </div>
 
             <div style={{ marginBottom: 20 }}>
 
@@ -237,11 +279,22 @@ const RecipeModal = ({ product, isOpen, onClose, products }) => {
             <div
                 style={{
                     marginTop: 20,
-                    fontWeight: 600,
-                    fontSize: 18
+                    padding: 15,
+                    backgroundColor: '#f3f4f6',
+                    borderRadius: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8
                 }}
             >
-                Custo total: {formatCurrency(cost)}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 500, color: '#4b5563' }}>
+                    <span>Custo total da panela (receita completa):</span>
+                    <span>{formatCurrency(cost)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 18, color: '#111827' }}>
+                    <span>Custo por 1 {getBaseUnit(product?.unit)}:</span>
+                    <span>{formatCurrency(unitCost)}</span>
+                </div>
             </div>
 
         </Modal>

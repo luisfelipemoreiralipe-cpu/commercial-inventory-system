@@ -270,6 +270,8 @@ model Recipe {
 
   items RecipeItem[]
 
+  yieldQuantity Decimal @default(1) @db.Decimal(12, 3)
+
   createdAt DateTime @default(now())
 
   @@map("recipes")

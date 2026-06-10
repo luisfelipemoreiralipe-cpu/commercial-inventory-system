@@ -45,7 +45,8 @@ const previewProduction = async (productId, quantity, establishmentId) => {
 
     for (const item of recipe.items) {
         const ingredient = item.product;
-        const needed = Number(item.quantity) * qty;
+        const yieldQty = Number(recipe.yieldQuantity) || 1;
+        const needed = (Number(item.quantity) / yieldQty) * qty;
         const available = Number(ingredient.quantity);
         const sufficient = available >= needed;
 
@@ -158,7 +159,8 @@ const completeProductionOrder = async (orderId, establishmentId) => {
         // 1️⃣ Baixa de cada insumo proporcionalmente
         for (const item of recipe.items) {
             const ingredient = item.product;
-            const needed = Number(item.quantity) * qty;
+            const yieldQty = Number(recipe.yieldQuantity) || 1;
+            const needed = (Number(item.quantity) / yieldQty) * qty;
 
             // Verifica estoque disponível
             const current = await tx.product.findFirst({

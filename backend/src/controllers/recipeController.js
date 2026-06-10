@@ -13,6 +13,20 @@ const createRecipe = async (req, res, next) => {
     }
 };
 
+const updateRecipe = async (req, res, next) => {
+    try {
+        const { recipeId } = req.params;
+        const { yieldQuantity } = req.body;
+        const establishmentId = req.user.establishmentId;
+
+        const recipe = await recipeService.updateRecipe(recipeId, yieldQuantity, establishmentId);
+        res.json(recipe);
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 const addRecipeItem = async (req, res, next) => {
     try {
         const { recipeId, productId, quantity } = req.body;
@@ -97,6 +111,7 @@ const updateRecipeItemQuantity = async (req, res, next) => {
 
 module.exports = {
     createRecipe,
+    updateRecipe,
     addRecipeItem,
     getRecipeByProduct,
     removeRecipeItem,
