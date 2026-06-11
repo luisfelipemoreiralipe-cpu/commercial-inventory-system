@@ -941,19 +941,22 @@ const Products = () => {
                                 {...field('purchaseUnit')}
                             />
 
-                            <div>
-                                <Input
-                                    label="Quantidade na Embalagem"
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    placeholder="Ex: 750"
-                                    {...field('packQuantity')}
-                                />
-                                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
-                                    Quantos ml/g/un vêm dentro da unidade de compra?
-                                </span>
-                            </div>
+                            {form.type !== 'PRODUCTION' && (
+  <div>
+    <Input
+      label="Quantidade na Embalagem"
+      type="number"
+      min="0"
+      step="any"
+      placeholder="Ex: 750"
+      {...field('packQuantity')}
+    />
+    <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+      Quantos ml/g/un vêm dentro da unidade de compra?
+    </span>
+  </div>
+)}
+</div>
                         </div>
                     </FormFull>
 
