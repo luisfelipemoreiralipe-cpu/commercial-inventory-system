@@ -338,11 +338,119 @@ const createInternalUse = async ({
     });
 };
 
+// 📋 TIPOS DE LANÇAMENTO
+const ENTRY_TYPES = {
+    COURTESY: { reason: 'COURTESY', reference: 'CORTESIA', label: 'Cortesia' },
+    DOUBLE_DRINK: { reason: 'DOUBLE_DRINK', reference: 'DRINK EM DOBRO', label: 'Drink em Dobro' },
+    PROMO: { reason: 'PROMO', reference: 'PROMOÇÃO', label: 'Promoção' },
+    TASTING: { reason: 'TASTING', reference: 'DEGUSTAÇÃO', label: 'Degustação' },
+    OPERATIONAL_LOSS: { reason: 'OPERATIONAL_LOSS', reference: 'PERDA OPERACIONAL', label: 'Perda Operacional' },
+};
+
+// 🎯 CRIAR LANÇAMENTO (Cortesia, Drink em Dobro, Promoção, etc.)
+const createEntry = async ({
+    productId,
+    quantity,
+    entryType,
+    notes,
+    establishmentId
+}) => {
+    const typeConfig = ENTRY_TYPES[entryType];
+    if (!typeConfig) throw new Error(`Tipo de lançamento inválido: ${entryType}`);
+    if (!productId) throw new Error("Produto é obrigatório");
+    if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
+
+    const openAudit = await prisma.stockAudit.findFirst({
+        where: { establishmentId, status: "OPEN" }
+    });
+    if (openAudit) throw new Error("Operação bloqueada: Existe uma auditoria em andamento.");
+
+    const reference = notes
+        ? `${typeConfig.reference} — ${notes}`
+        : typeConfig.reference;
+
+    return prisma.$transaction(async (tx) => {
+        await consumeProduct({
+            productId,
+            quantity,
+            establishmentId,
+            reason: typeConfig.reason,
+            reference
+        }, tx);
+    });
+};
+
+// 📊 RESUMO DE LANÇAMENTOS POR TIPO
+const getEntrySummary = async ({ establishmentId, dateFrom, dateTo }) => {
+    const entryReasons = Object.values(ENTRY_TYPES).map(t => t.reason);
+
+    const where = {
+        establishmentId,
+        type: 'OUT',
+        reason: { in: entryReasons }
+    };
+
+    if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) where.createdAt.lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
+
+    const movements = await prisma.stockMovement.findMany({
+        where,
+        select: {
+            reason: true,
+            totalCost: true,
+            quantity: true,
+            productName: true,
+            productId: true
+        }
+    });
+
+    // Agrupa por tipo
+    const byType = {};
+    for (const r of entryReasons) {
+        byType[r] = { count: 0, totalCost: 0 };
+    }
+
+    // Top produto por tipo
+    const productMap = {};
+
+    for (const m of movements) {
+        if (byType[m.reason]) {
+            byType[m.reason].count += 1;
+            byType[m.reason].totalCost += Number(m.totalCost || 0);
+        }
+
+        const key = `${m.reason}:${m.productId}`;
+        if (!productMap[key]) {
+            productMap[key] = {
+                reason: m.reason,
+                productId: m.productId,
+                productName: m.productName,
+                totalQty: 0,
+                totalCost: 0
+            };
+        }
+        productMap[key].totalQty += Number(m.quantity || 0);
+        productMap[key].totalCost += Number(m.totalCost || 0);
+    }
+
+    // Top produto geral
+    const topProduct = Object.values(productMap)
+        .sort((a, b) => b.totalCost - a.totalCost)[0] || null;
+
+    return { byType, topProduct, totalMovements: movements.length };
+};
+
 module.exports = {
     getMovements,
     createInternalUse,
     consumeProduct,
     addStock,
     addBonus,
-    getProductCostOutsideTx
+    getProductCostOutsideTx,
+    createEntry,
+    getEntrySummary,
+    ENTRY_TYPES
 };

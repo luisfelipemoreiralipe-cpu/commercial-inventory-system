@@ -166,7 +166,7 @@ export default function StockMovement() {
 
         setLoading(true);
         try {
-            const pack = Number(selectedProduct?.packQuantity || 1);
+            const pack = selectedProduct?.type === 'PRODUCTION' ? 1 : Number(selectedProduct?.packQuantity || 1);
             const moveQty = Number(quantity) * pack;
 
             if (mode === "BONUS") {

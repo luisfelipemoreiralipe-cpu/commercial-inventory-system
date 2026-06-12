@@ -20,6 +20,7 @@ import Reports from "./pages/Reports";
 import MarketingEvents from "./pages/MarketingEvents";
 import Production from "./pages/Production";
 import Patrimony from "./pages/Patrimony";
+import Entries from "./pages/Entries";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -89,6 +90,7 @@ function App() {
               <Route path="/marketing-events" element={<MarketingEvents />} />
               <Route path="/production" element={<Production />} />
               <Route path="/patrimony" element={<Patrimony />} />
+              <Route path="/entries" element={<Entries />} />
 
               <Route
                 path="/purchase-suggestions"

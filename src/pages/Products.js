@@ -957,7 +957,6 @@ const Products = () => {
   </div>
 )}
 </div>
-                        </div>
                     </FormFull>
 
                     {form.type !== 'PRODUCTION' && (

@@ -523,6 +523,27 @@ const Dashboard = () => {
 
   }, [filteredMovements]);
 
+  const doubleDrinkValue = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+    return filteredMovements
+      .filter(m => m.reason === 'DOUBLE_DRINK')
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+  }, [filteredMovements]);
+
+  const courtesyValue = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+    return filteredMovements
+      .filter(m => m.reason === 'COURTESY')
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+  }, [filteredMovements]);
+
+  const promoValue = useMemo(() => {
+    if (!filteredMovements?.length) return 0;
+    return filteredMovements
+      .filter(m => m.reason === 'PROMO')
+      .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
+  }, [filteredMovements]);
+
   const totalLoss = useMemo(() => {
     if (!state.stockMovements?.length) return { value: 0, count: 0 };
 
@@ -744,6 +765,41 @@ const Dashboard = () => {
           </StatInfo>
         </StatCard>
 
+        <StatCard accent="#8B5CF6">
+          <StatInfo>
+            <StatLabel>Drink em Dobro</StatLabel>
+            <StatValue style={{ fontSize: '1.3rem', color: '#8B5CF6' }}>
+              {formatCurrency(doubleDrinkValue)}
+            </StatValue>
+            <StatSub>
+              custo promoção no período
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#EC4899">
+          <StatInfo>
+            <StatLabel>Cortesias</StatLabel>
+            <StatValue style={{ fontSize: '1.3rem', color: '#EC4899' }}>
+              {formatCurrency(courtesyValue)}
+            </StatValue>
+            <StatSub>
+              valor em cortesias no período
+            </StatSub>
+          </StatInfo>
+        </StatCard>
+
+        <StatCard accent="#F59E0B">
+          <StatInfo>
+            <StatLabel>Promoções</StatLabel>
+            <StatValue style={{ fontSize: '1.3rem', color: '#F59E0B' }}>
+              {formatCurrency(promoValue)}
+            </StatValue>
+            <StatSub>
+              custo de promoções no período
+            </StatSub>
+          </StatInfo>
+        </StatCard>
 
         <StatCard accent="#7c3aed">
 
