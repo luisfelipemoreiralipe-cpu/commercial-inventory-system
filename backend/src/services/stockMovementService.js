@@ -99,24 +99,20 @@ const consumeProduct = async ({
     if (!product) throw new Error("Produto não encontrado ou acesso negado.");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
-    // 🟢 INVENTORY
-    if (product.type === "INVENTORY") {
-        try {
-            const updatedResult = await tx.product.updateMany({
-                where: {
-                    id: product.id,
-                    establishmentId,
-                    quantity: { gte: quantity }
-                },
-                data: {
-                    quantity: { decrement: quantity }
-                }
-            });
-
-            if (updatedResult.count === 0) {
-                throw new Error(`Estoque insuficiente para ${product.name}`);
+    // 🟢 TENTA BAIXA DIRETA (INVENTORY ou PRODUCTION com estoque)
+    try {
+        const updatedResult = await tx.product.updateMany({
+            where: {
+                id: product.id,
+                establishmentId,
+                quantity: { gte: quantity }
+            },
+            data: {
+                quantity: { decrement: quantity }
             }
+        });
 
+        if (updatedResult.count > 0) {
             // Busca saldo atualizado para o log de movimentação (com filtro!)
             const finalProduct = await tx.product.findFirst({ 
                 where: { id: product.id, establishmentId } 
@@ -145,14 +141,19 @@ const consumeProduct = async ({
                 }
             });
 
-        } catch (err) {
-            console.error("❌ ERRO REAL DETECTADO (INVENTORY):", err);
-            throw err;
+            return; // Sucesso na baixa direta
         }
-
-        return;
+    } catch (err) {
+        console.error("❌ ERRO REAL DETECTADO (BAIXA DIRETA):", err);
+        throw err;
     }
 
+    // Se falhou (count === 0) e é INVENTORY, lança erro
+    if (product.type === "INVENTORY" || product.type === "ASSET") {
+        throw new Error(`Estoque insuficiente para ${product.name}`);
+    }
+
+    // Se falhou (count === 0) e é PRODUCTION, faz a baixa pela receita (produção sob demanda)
     // 🔴 PRODUCTION
     const recipe = await tx.recipe.findFirst({
         where: { productId: product.id, establishmentId },

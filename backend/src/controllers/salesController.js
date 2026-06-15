@@ -32,6 +32,23 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
             totalDemand[product.id].qty += saleQty;
         }
     } else if (product.type === 'PRODUCTION') {
+        let neededQty = saleQty;
+        if (isRoot) {
+            const packQty = Number(product.packQuantity || 1);
+            neededQty = saleQty * packQty;
+        }
+
+        const currentDemand = totalDemand[product.id] ? totalDemand[product.id].qty : 0;
+
+        // Se temos estoque suficiente do produto de PRODUÇÃO, deduzimos diretamente em vez de explodir a ficha técnica
+        if (Number(product.quantity) >= (currentDemand + neededQty)) {
+            if (!totalDemand[product.id]) {
+                totalDemand[product.id] = { id: product.id, name: product.name, qty: 0 };
+            }
+            totalDemand[product.id].qty += neededQty;
+            return; // Interrompe a recursão
+        }
+
         if (!recipe) {
             recipe = await prisma.recipe.findFirst({
                 where: { productId: product.id, establishmentId },
