@@ -316,9 +316,6 @@ const Dashboard = () => {
   const filteredValue = useMemo(
     () => filteredProducts.reduce(
       (sum, p) => {
-        if (Number(p.currentCost) > 0) {
-            return sum + (Number(p.currentCost) * Number(p.quantity || 0));
-        }
         const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
             ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
             : Number(p.unitPrice || 0);

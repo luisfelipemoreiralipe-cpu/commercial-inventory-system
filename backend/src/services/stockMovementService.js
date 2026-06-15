@@ -61,7 +61,8 @@ const getProductCost = async (productId, establishmentId, tx) => {
     }
 
     if (product?.unitPrice && product.unitPrice > 0) {
-        return Number(product.unitPrice);
+        const packQuantity = product.packQuantity || 1;
+        return Number(product.unitPrice) / packQuantity;
     }
 
     return 0;
