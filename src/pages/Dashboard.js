@@ -314,16 +314,28 @@ const Dashboard = () => {
   }, [state.stockMovements, dateFrom, dateTo, filterCategory, state.products]);
 
   const filteredValue = useMemo(
-    () => filteredProducts.reduce(
-      (sum, p) => {
-        const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
-            ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
-            : Number(p.unitPrice || 0);
-
-        return sum + ((bestPriceOfProduct / (Number(p.packQuantity) || 1)) * Number(p.quantity || 0));
-      },
-      0
-    ),
+    () => filteredProducts
+      // 🔥 FIX: Excluir ASSET (patrimônio) — eles não são estoque de insumos
+      .filter(p => p.type === 'INVENTORY')
+      .reduce(
+        (sum, p) => {
+          // 🔥 FIX: Usar mesma hierarquia de custo do backend:
+          // 1º currentCost (atualizado a cada compra)
+          // 2º menor preço de fornecedor ÷ packQuantity
+          // 3º unitPrice ÷ packQuantity
+          let unitCost = 0;
+          if (Number(p.currentCost) > 0) {
+            unitCost = Number(p.currentCost);
+          } else if (p.productSuppliers && p.productSuppliers.length > 0) {
+            const bestPrice = Math.min(...p.productSuppliers.map(s => Number(s.price)));
+            unitCost = bestPrice / (Number(p.packQuantity) || 1);
+          } else {
+            unitCost = Number(p.unitPrice || 0) / (Number(p.packQuantity) || 1);
+          }
+          return sum + (unitCost * Number(p.quantity || 0));
+        },
+        0
+      ),
     [filteredProducts]
   );
 
