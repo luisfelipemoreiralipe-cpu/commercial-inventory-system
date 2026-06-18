@@ -357,6 +357,19 @@ const Products = () => {
     const categories = state.categories || [];
     console.log("CATEGORIES:", state.categories);
 
+    // Novo KPI: Estoque por Categoria
+    const stockByCategory = categories.map(cat => {
+        const productsInCat = state.products.filter(p => p.categoryId === cat.id);
+        const totalValue = productsInCat.reduce((sum, p) => {
+            const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
+                ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
+                : Number(p.unitPrice || 0);
+    
+            return sum + ((bestPriceOfProduct / (Number(p.packQuantity) || 1)) * Number(p.quantity));
+        }, 0);
+        return { name: cat.name, value: totalValue, count: productsInCat.length };
+    }).filter(cat => cat.count > 0).sort((a, b) => b.value - a.value);
+
     const availableSuppliers = state.suppliers.filter((supplier) => {
 
         return !productSuppliers.some(
@@ -670,6 +683,29 @@ const Products = () => {
                     </div>
                 </Card>
 
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+                <h3 style={{ fontSize: "16px", marginBottom: "12px", color: "#334155" }}>Valor de Estoque por Categoria</h3>
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                        gap: "16px",
+                    }}
+                >
+                    {stockByCategory.map(cat => (
+                        <Card key={cat.name} padding="16px">
+                            <div style={{ fontSize: 12, color: "#64748B" }}>{cat.name} ({cat.count} itens)</div>
+                            <div style={{ fontSize: 18, fontWeight: 600, color: "#1e293b", marginTop: 4 }}>
+                                {formatCurrency(cat.value)}
+                            </div>
+                        </Card>
+                    ))}
+                    {stockByCategory.length === 0 && (
+                        <div style={{ color: "#64748B", fontSize: "14px" }}>Nenhum estoque categorizado.</div>
+                    )}
+                </div>
             </div>
             {/* Filters */}
 
