@@ -155,6 +155,7 @@ const completeProductionOrder = async (orderId, establishmentId) => {
 
     // Tudo em uma única transação atômica
     await prisma.$transaction(async (tx) => {
+        let totalProductionCost = 0;
 
         // 1️⃣ Baixa de cada insumo proporcionalmente
         for (const item of recipe.items) {
@@ -173,15 +174,22 @@ const completeProductionOrder = async (orderId, establishmentId) => {
                 throw new Error(`Estoque insuficiente para: ${ingredient.name}. Disponível: ${current.quantity}, Necessário: ${needed}`);
             }
 
+            // Calcula o custo atual do ingrediente
+            const unitCost = await stockMovementService.getProductCost(ingredient.id, establishmentId, tx);
+            totalProductionCost += unitCost * needed;
+
             // Baixa no estoque do ingrediente
             await stockMovementService.consumeProduct({
                 productId: ingredient.id,
                 quantity: needed,
                 establishmentId,
                 reason: 'PRODUCTION',
-                reference
+                reference,
+                preloadedCost: unitCost
             }, tx);
         }
+
+        const productionUnitCost = totalProductionCost / qty;
 
         // 2️⃣ Entrada do produto produzido
         await stockMovementService.addStock({
@@ -190,7 +198,7 @@ const completeProductionOrder = async (orderId, establishmentId) => {
             establishmentId,
             reason: 'PRODUCTION_OUTPUT',
             reference,
-            unitCost: 0  // custo calculado pelo sistema conforme política de custo
+            unitCost: productionUnitCost  // custo real baseado nos insumos
         }, tx);
 
         // 3️⃣ Marca como concluída

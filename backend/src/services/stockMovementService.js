@@ -452,6 +452,7 @@ module.exports = {
     addStock,
     addBonus,
     getProductCostOutsideTx,
+    getProductCost,
     createEntry,
     getEntrySummary,
     ENTRY_TYPES
