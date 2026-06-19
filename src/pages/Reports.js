@@ -834,19 +834,61 @@ const Reports = () => {
             (acc, m) => acc + Number(m.quantity || 0), 0
         );
 
+        // ─ Drink em Dobro ─ agrupa por produto e converte em unidades de compra
         const doubleDrinkMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'DOUBLE_DRINK');
-        const doubleDrinkCount = doubleDrinkMovements.length;
         const doubleDrinkCost = doubleDrinkMovements.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
 
+        // Agrupa por produto e calcula unidades
+        const ddMap = {};
+        doubleDrinkMovements.forEach(m => {
+            const product = state.products?.find(p => p.id === m.productId);
+            const pack = Number(product?.packQuantity || 1);
+            const units = Number(m.quantity || 0) / pack;
+            if (!ddMap[m.productId]) {
+                ddMap[m.productId] = {
+                    name: m.productName,
+                    units: 0,
+                    cost: 0,
+                    purchaseUnit: product?.purchaseUnit || 'un'
+                };
+            }
+            ddMap[m.productId].units += units;
+            ddMap[m.productId].cost  += Number(m.totalCost || 0);
+        });
+        const doubleDrinkTable = Object.values(ddMap).sort((a, b) => b.units - a.units);
+        // Conta total de drinks como a máxima quantidade entre os ingredientes (o drink com maior unidade = número de drinks servidos)
+        const doubleDrinkCount = doubleDrinkTable.length > 0
+            ? Math.round(Math.max(...doubleDrinkTable.map(d => d.units)))
+            : 0;
+
+        // ─ Cortesia ─ mesma lógica
         const courtesyMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'COURTESY');
-        const courtesyCount = courtesyMovements.length;
         const courtesyCost = courtesyMovements.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+
+        const ctMap = {};
+        courtesyMovements.forEach(m => {
+            const product = state.products?.find(p => p.id === m.productId);
+            const pack = Number(product?.packQuantity || 1);
+            const units = Number(m.quantity || 0) / pack;
+            if (!ctMap[m.productId]) {
+                ctMap[m.productId] = {
+                    name: m.productName,
+                    units: 0,
+                    cost: 0,
+                    purchaseUnit: product?.purchaseUnit || 'un'
+                };
+            }
+            ctMap[m.productId].units += units;
+            ctMap[m.productId].cost  += Number(m.totalCost || 0);
+        });
+        const courtesyTable = Object.values(ctMap).sort((a, b) => b.units - a.units);
+        const courtesyCount = courtesyTable.reduce((s, d) => s + d.units, 0);
 
         return {
             totalSpent, orderCount: orders.length, bonusValue, lowStockCount,
             totalConsumptionCost, totalConsumptionQty,
-            doubleDrinkCount, doubleDrinkCost,
-            courtesyCount, courtesyCost
+            doubleDrinkCount, doubleDrinkCost, doubleDrinkTable,
+            courtesyCount, courtesyCost, courtesyTable
         };
     }, [state.purchaseOrders, state.stockMovements, state.products, dateFrom, dateTo]);
 
@@ -948,7 +990,7 @@ const Reports = () => {
             </KpiGrid>
 
             {/* 📊 KPI Cards — Consumo Operacional */}
-            <KpiGrid style={{ marginBottom: 24 }}>
+            <KpiGrid style={{ marginBottom: 16 }}>
                 <Card padding="20px" style={{ borderLeft: '3px solid #6366F1', background: 'linear-gradient(135deg, rgba(99,102,241,0.04), transparent)' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🧾 Consumo Total no Período</div>
                     <div style={{ fontSize: 22, fontWeight: 700, color: '#6366F1' }}>{formatCurrency(kpiData.totalConsumptionCost)}</div>
@@ -956,15 +998,95 @@ const Reports = () => {
                 </Card>
                 <Card padding="20px" style={{ borderLeft: '3px solid #8B5CF6', background: 'linear-gradient(135deg, rgba(139,92,246,0.04), transparent)' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🍹 Drink em Dobro</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: '#8B5CF6' }}>{kpiData.doubleDrinkCount}</div>
-                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>movimentos · custo: {formatCurrency(kpiData.doubleDrinkCost)}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#8B5CF6' }}>{kpiData.doubleDrinkCount} drinks</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>custo: {formatCurrency(kpiData.doubleDrinkCost)}</div>
                 </Card>
                 <Card padding="20px" style={{ borderLeft: '3px solid #EC4899', background: 'linear-gradient(135deg, rgba(236,72,153,0.04), transparent)' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🎁 Cortesia</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: '#EC4899' }}>{kpiData.courtesyCount}</div>
-                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>movimentos · custo: {formatCurrency(kpiData.courtesyCost)}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#EC4899' }}>{Number(kpiData.courtesyCount).toFixed(1)} un</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>custo: {formatCurrency(kpiData.courtesyCost)}</div>
                 </Card>
             </KpiGrid>
+
+            {/* 🍹 Tabelas de detalhe — Drink em Dobro + Cortesia */}
+            {(kpiData.doubleDrinkTable?.length > 0 || kpiData.courtesyTable?.length > 0) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+
+                    {/* Drink em Dobro */}
+                    {kpiData.doubleDrinkTable?.length > 0 && (
+                        <Card padding="0">
+                            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(135deg, rgba(139,92,246,0.06), transparent)' }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: '#8B5CF6' }}>🍹 Drink em Dobro — Detalhamento</div>
+                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Ingredientes consumidos no período</div>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc' }}>
+                                        <th style={{ textAlign: 'left', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Produto</th>
+                                        <th style={{ textAlign: 'right', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Qtd</th>
+                                        <th style={{ textAlign: 'right', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {kpiData.doubleDrinkTable.map((row, i) => (
+                                        <tr key={i} style={{ borderTop: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{row.name}</td>
+                                            <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', color: '#8B5CF6', fontWeight: 700 }}>
+                                                {row.units % 1 === 0 ? row.units : row.units.toFixed(2)} <span style={{ fontSize: 11, color: '#94a3b8' }}>{row.purchaseUnit}</span>
+                                            </td>
+                                            <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', color: '#059669', fontWeight: 600 }}>{formatCurrency(row.cost)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr style={{ borderTop: '2px solid #e2e8f0', background: 'rgba(139,92,246,0.05)' }}>
+                                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#8B5CF6' }}>Total</td>
+                                        <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', fontWeight: 700, color: '#8B5CF6' }}>{kpiData.doubleDrinkCount} drinks</td>
+                                        <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', fontWeight: 700, color: '#059669' }}>{formatCurrency(kpiData.doubleDrinkCost)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </Card>
+                    )}
+
+                    {/* Cortesia */}
+                    {kpiData.courtesyTable?.length > 0 && (
+                        <Card padding="0">
+                            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', background: 'linear-gradient(135deg, rgba(236,72,153,0.06), transparent)' }}>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: '#EC4899' }}>🎁 Cortesia — Detalhamento</div>
+                                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Itens dados como cortesia no período</div>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc' }}>
+                                        <th style={{ textAlign: 'left', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Produto</th>
+                                        <th style={{ textAlign: 'right', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Qtd</th>
+                                        <th style={{ textAlign: 'right', padding: '8px 14px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {kpiData.courtesyTable.map((row, i) => (
+                                        <tr key={i} style={{ borderTop: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{row.name}</td>
+                                            <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', color: '#EC4899', fontWeight: 700 }}>
+                                                {row.units % 1 === 0 ? row.units : row.units.toFixed(2)} <span style={{ fontSize: 11, color: '#94a3b8' }}>{row.purchaseUnit}</span>
+                                            </td>
+                                            <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', color: '#059669', fontWeight: 600 }}>{formatCurrency(row.cost)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr style={{ borderTop: '2px solid #e2e8f0', background: 'rgba(236,72,153,0.05)' }}>
+                                        <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#EC4899' }}>Total</td>
+                                        <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', fontWeight: 700, color: '#EC4899' }}>{Number(kpiData.courtesyCount).toFixed(1)} un</td>
+                                        <td style={{ padding: '10px 14px', fontSize: 13, textAlign: 'right', fontWeight: 700, color: '#059669' }}>{formatCurrency(kpiData.courtesyCost)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </Card>
+                    )}
+                </div>
+            )}
 
             {/* Tabs */}
             {purchaseInsight !== null && (
