@@ -842,24 +842,33 @@ const Reports = () => {
         const ddMap = {};
         doubleDrinkMovements.forEach(m => {
             const product = state.products?.find(p => p.id === m.productId);
-            const pack = Number(product?.packQuantity || 1);
+            const isProduction = product?.type === 'PRODUCTION';
+            // Produtos de PRODUCAO: quantity já é o número de drinks (Entries.js usa pack=1)
+            // Produtos de INVENTARIO: quantity está em unidade base (ml/g), converter por packQuantity
+            const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
             const units = Number(m.quantity || 0) / pack;
+            const pUnit = isProduction ? 'un' : (product?.purchaseUnit || 'un');
             if (!ddMap[m.productId]) {
                 ddMap[m.productId] = {
                     name: m.productName,
                     units: 0,
                     cost: 0,
-                    purchaseUnit: product?.purchaseUnit || 'un'
+                    purchaseUnit: pUnit,
+                    isProduction
                 };
             }
             ddMap[m.productId].units += units;
             ddMap[m.productId].cost  += Number(m.totalCost || 0);
         });
         const doubleDrinkTable = Object.values(ddMap).sort((a, b) => b.units - a.units);
-        // Conta total de drinks como a máxima quantidade entre os ingredientes (o drink com maior unidade = número de drinks servidos)
-        const doubleDrinkCount = doubleDrinkTable.length > 0
-            ? Math.round(Math.max(...doubleDrinkTable.map(d => d.units)))
-            : 0;
+        // Número de drinks = soma das quantidades dos produtos PRODUCTION
+        // Se não houver produto PRODUCTION, usa o maior valor entre os ingredientes
+        const productionDD = doubleDrinkTable.filter(d => d.isProduction);
+        const doubleDrinkCount = productionDD.length > 0
+            ? Math.round(productionDD.reduce((s, d) => s + d.units, 0))
+            : doubleDrinkTable.length > 0
+                ? Math.round(Math.max(...doubleDrinkTable.map(d => d.units)))
+                : 0;
 
         // ─ Cortesia ─ mesma lógica
         const courtesyMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'COURTESY');
@@ -868,21 +877,27 @@ const Reports = () => {
         const ctMap = {};
         courtesyMovements.forEach(m => {
             const product = state.products?.find(p => p.id === m.productId);
-            const pack = Number(product?.packQuantity || 1);
+            const isProduction = product?.type === 'PRODUCTION';
+            const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
             const units = Number(m.quantity || 0) / pack;
+            const pUnit = isProduction ? 'un' : (product?.purchaseUnit || 'un');
             if (!ctMap[m.productId]) {
                 ctMap[m.productId] = {
                     name: m.productName,
                     units: 0,
                     cost: 0,
-                    purchaseUnit: product?.purchaseUnit || 'un'
+                    purchaseUnit: pUnit,
+                    isProduction
                 };
             }
             ctMap[m.productId].units += units;
             ctMap[m.productId].cost  += Number(m.totalCost || 0);
         });
         const courtesyTable = Object.values(ctMap).sort((a, b) => b.units - a.units);
-        const courtesyCount = courtesyTable.reduce((s, d) => s + d.units, 0);
+        const productionCT = courtesyTable.filter(d => d.isProduction);
+        const courtesyCount = productionCT.length > 0
+            ? productionCT.reduce((s, d) => s + d.units, 0)
+            : courtesyTable.reduce((s, d) => s + d.units, 0);
 
         return {
             totalSpent, orderCount: orders.length, bonusValue, lowStockCount,
