@@ -196,6 +196,138 @@ const SupplierLink = styled.span`
   }
 `;
 
+// ─── PDF Generator ──────────────────────────────────
+function generateConsumptionPDF({ consumptionData, kpiData, products, dateFrom, dateTo, establishment }) {
+    const now = new Date().toLocaleString('pt-BR');
+    const periodLabel = dateFrom || dateTo
+        ? `${dateFrom ? new Date(dateFrom + 'T12:00:00').toLocaleDateString('pt-BR') : '...'} até ${dateTo ? new Date(dateTo + 'T12:00:00').toLocaleDateString('pt-BR') : '...'}`
+        : 'Todo o histórico';
+
+    const rows = consumptionData.map((item, idx) => {
+        const product = products?.find(p => p.id === item.productId);
+        const pack = Number(product?.packQuantity || 1);
+        const pUnit = product?.purchaseUnit || 'un';
+        const bUnit = product?.unit || '';
+        const convQty = (item.quantity / pack).toFixed(2);
+        const pct = kpiData.totalConsumptionCost > 0
+            ? ((item.totalCost / kpiData.totalConsumptionCost) * 100).toFixed(1)
+            : '0.0';
+        return `
+        <tr style="background:${idx % 2 === 0 ? '#fff' : '#f8fafc'}">
+            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;color:#1e293b">${item.name}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:right">
+                <strong>${convQty}</strong> <span style="color:#94a3b8;font-size:12px">${pUnit}</span>
+                <div style="font-size:11px;color:#94a3b8">(${item.quantity} ${bUnit})</div>
+            </td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:right;color:#059669;font-weight:700">
+                R$ ${item.totalCost.toFixed(2)}
+            </td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:right">
+                <span style="display:inline-block;background:#f1f5f9;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;color:#64748b">${pct}%</span>
+            </td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b;font-size:13px">
+                ${new Date(item.lastDate).toLocaleDateString('pt-BR')}
+            </td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Consumo</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; color:#1e293b; background:#fff; padding:32px; font-size:14px; }
+  @media print { body { padding:16px; } @page { margin: 1cm; } }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; padding-bottom:18px; border-bottom:3px solid #6366f1; }
+  .brand { font-size:26px; font-weight:900; color:#6366f1; }
+  .brand span { color:#8b5cf6; }
+  .doc-title { font-size:20px; font-weight:800; color:#1e293b; margin-bottom:4px; }
+  .doc-meta { font-size:12px; color:#64748b; }
+  .kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+  .kpi-card { border-radius:10px; padding:14px 16px; border-left:4px solid #6366f1; background:#f8fafc; }
+  .kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; font-weight:700; margin-bottom:4px; }
+  .kpi-value { font-size:22px; font-weight:900; color:#1e293b; }
+  .kpi-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+  .section-title { font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:#6366f1; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  table { width:100%; border-collapse:collapse; border-radius:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  thead { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+  thead th { padding:12px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  thead th:not(:first-child) { text-align:right; }
+  thead th:last-child { text-align:center; }
+  .total-row { display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.08)); border-radius:10px; padding:14px 18px; margin-top:18px; }
+  .footer { margin-top:32px; padding-top:14px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="brand">BDS<span>·</span>Controle</div>
+    <div style="font-size:12px;color:#94a3b8;margin-top:2px">${establishment || 'Relatório de Consumo'}</div>
+  </div>
+  <div style="text-align:right">
+    <div class="doc-title">📊 Relatório de Consumo</div>
+    <div class="doc-meta">Período: ${periodLabel}</div>
+    <div class="doc-meta">Gerado em: ${now}</div>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card" style="border-left-color:#6366f1">
+    <div class="kpi-label">🧾 Consumo Total</div>
+    <div class="kpi-value" style="color:#6366f1">R$ ${kpiData.totalConsumptionCost.toFixed(2)}</div>
+    <div class="kpi-sub">${consumptionData.length} produto(s) consumido(s)</div>
+  </div>
+  <div class="kpi-card" style="border-left-color:#8b5cf6">
+    <div class="kpi-label">🍹 Drink em Dobro</div>
+    <div class="kpi-value" style="color:#8b5cf6">${kpiData.doubleDrinkCount}</div>
+    <div class="kpi-sub">custo: R$ ${kpiData.doubleDrinkCost.toFixed(2)}</div>
+  </div>
+  <div class="kpi-card" style="border-left-color:#ec4899">
+    <div class="kpi-label">🎁 Cortesia</div>
+    <div class="kpi-value" style="color:#ec4899">${kpiData.courtesyCount}</div>
+    <div class="kpi-sub">custo: R$ ${kpiData.courtesyCost.toFixed(2)}</div>
+  </div>
+</div>
+
+<div class="section-title">📋 Produtos Consumidos no Período</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Produto</th>
+      <th style="text-align:right">Qtd Consumida</th>
+      <th style="text-align:right">Custo Total</th>
+      <th style="text-align:right">% do Total</th>
+      <th style="text-align:center">Último Consumo</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+  </tbody>
+</table>
+
+<div class="total-row">
+  <span style="font-size:14px;font-weight:700;color:#6366f1">💰 Custo Total do Período</span>
+  <span style="font-size:22px;font-weight:900;color:#6366f1">R$ ${kpiData.totalConsumptionCost.toFixed(2)}</span>
+</div>
+
+<div class="footer">
+  <span>Sistema BDS · Relatório de Consumo</span>
+  <span>Documento gerado em ${now}</span>
+</div>
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+}
+
 // ─── Component ──────────────────────────────────
 const Reports = () => {
     const { state } = useApp();
@@ -893,12 +1025,42 @@ const Reports = () => {
                 {/* CONSUMO */}
                 {activeTab === 'consumption' && (
                     <Card padding="0">
+                        {/* Cabeçalho com botão PDF */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #e2e8f0' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>Consumo por Produto</div>
+                                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{consumptionData.length} produto(s) no período selecionado</div>
+                            </div>
+                            <button
+                                id="btn-exportar-pdf-consumo"
+                                onClick={() => generateConsumptionPDF({
+                                    consumptionData,
+                                    kpiData,
+                                    products: state.products,
+                                    dateFrom,
+                                    dateTo,
+                                    establishment: state.establishment?.name
+                                })}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                                    padding: '9px 18px',
+                                    borderRadius: 8,
+                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    color: '#fff', border: 'none', fontSize: 13, fontWeight: 700,
+                                    cursor: 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <span style={{ fontSize: 16 }}>📄</span> Exportar PDF
+                            </button>
+                        </div>
                         <Table>
                             <thead>
                                 <tr>
                                     <Th>Produto</Th>
                                     <Th>Quantidade Consumida</Th>
                                     <Th>Custo Total</Th>
+                                    <Th>% do Total</Th>
                                     <Th>Último Consumo</Th>
                                 </tr>
                             </thead>
@@ -910,6 +1072,9 @@ const Reports = () => {
                                         const pUnit = product?.purchaseUnit || 'un';
                                         const bUnit = product?.unit || 'ml';
                                         const convQty = item.quantity / pack;
+                                        const pct = kpiData.totalConsumptionCost > 0
+                                            ? ((item.totalCost / kpiData.totalConsumptionCost) * 100).toFixed(1)
+                                            : '0.0';
 
                                         return (
                                             <Tr key={index}>
@@ -920,7 +1085,12 @@ const Reports = () => {
                                                         ({item.quantity} {bUnit})
                                                     </span>
                                                 </Td>
-                                                <Td>R$ {item.totalCost.toFixed(2)}</Td>
+                                                <Td style={{ fontWeight: 600, color: '#059669' }}>R$ {item.totalCost.toFixed(2)}</Td>
+                                                <Td>
+                                                    <span style={{ display: 'inline-block', background: '#f1f5f9', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+                                                        {pct}%
+                                                    </span>
+                                                </Td>
                                                 <Td>
                                                     {new Date(item.lastDate).toLocaleDateString('pt-BR')}
                                                 </Td>
