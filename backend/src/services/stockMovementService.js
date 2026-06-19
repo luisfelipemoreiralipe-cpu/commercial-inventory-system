@@ -367,9 +367,16 @@ const createEntry = async ({
     });
     if (openAudit) throw new Error("Operação bloqueada: Existe uma auditoria em andamento.");
 
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    const productName = product ? product.name : 'Produto Desconhecido';
+    
+    // Injeta a quantidade e o nome do produto raiz na referência para relatórios
+    // Isso é essencial porque produtos de PRODUÇÃO viram ingredientes no banco
+    const rootInfo = `[${quantity} ${productName.trim()}]`;
+
     const reference = notes
-        ? `${typeConfig.reference} — ${notes}`
-        : typeConfig.reference;
+        ? `${typeConfig.reference} ${rootInfo} — ${notes}`
+        : `${typeConfig.reference} ${rootInfo}`;
 
     return prisma.$transaction(async (tx) => {
         await consumeProduct({

@@ -834,76 +834,66 @@ const Reports = () => {
             (acc, m) => acc + Number(m.quantity || 0), 0
         );
 
-        // ─ Drink em Dobro ─ agrupa por produto e converte em unidades de compra
+        // ─ Função para agrupar e calcular marketing events (Drink em Dobro e Cortesia)
+        const buildMarketingData = (movementsArray) => {
+            const map = {}; 
+            const launchedEvents = new Set();
+
+            movementsArray.forEach(m => {
+                const match = m.reference?.match(/\[([\d.]+)\s+(.+?)\]/);
+                let productName = m.productName;
+                let unitsToAdd = 0;
+                let pUnit = 'un';
+
+                if (match) {
+                    productName = match[2].trim();
+                    // Como os ingredientes do mesmo lançamento têm a mesma data e referência,
+                    // garantimos que o número de drinks seja somado apenas uma vez.
+                    const eventKey = `${m.createdAt}-${m.reference}`;
+                    if (!launchedEvents.has(eventKey)) {
+                        unitsToAdd = Number(match[1]);
+                        launchedEvents.add(eventKey);
+                    }
+                } else {
+                    // Fallback para lançamentos antigos que não têm a tag [qty nome]
+                    const product = state.products?.find(p => p.id === m.productId);
+                    const isProduction = product?.type === 'PRODUCTION';
+                    const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
+                    unitsToAdd = Number(m.quantity || 0) / pack;
+                    pUnit = isProduction ? 'un' : (product?.purchaseUnit || 'un');
+                }
+
+                if (!map[productName]) {
+                    map[productName] = {
+                        name: productName,
+                        units: 0,
+                        cost: 0,
+                        purchaseUnit: pUnit
+                    };
+                }
+
+                map[productName].units += unitsToAdd;
+                map[productName].cost += Number(m.totalCost || 0);
+            });
+
+            const table = Object.values(map).sort((a, b) => b.units - a.units);
+            const cost = movementsArray.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+            const count = table.reduce((sum, item) => sum + item.units, 0);
+
+            return { table, count: Math.round(count), cost }; // Math.round para arredondar eventuais falhas decimais antigas
+        };
+
         const doubleDrinkMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'DOUBLE_DRINK');
-        const doubleDrinkCost = doubleDrinkMovements.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+        const ddData = buildMarketingData(doubleDrinkMovements);
 
-        // Agrupa por produto e calcula unidades
-        const ddMap = {};
-        doubleDrinkMovements.forEach(m => {
-            const product = state.products?.find(p => p.id === m.productId);
-            const isProduction = product?.type === 'PRODUCTION';
-            // Produtos de PRODUCAO: quantity já é o número de drinks (Entries.js usa pack=1)
-            // Produtos de INVENTARIO: quantity está em unidade base (ml/g), converter por packQuantity
-            const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
-            const units = Number(m.quantity || 0) / pack;
-            const pUnit = isProduction ? 'un' : (product?.purchaseUnit || 'un');
-            if (!ddMap[m.productId]) {
-                ddMap[m.productId] = {
-                    name: m.productName,
-                    units: 0,
-                    cost: 0,
-                    purchaseUnit: pUnit,
-                    isProduction
-                };
-            }
-            ddMap[m.productId].units += units;
-            ddMap[m.productId].cost  += Number(m.totalCost || 0);
-        });
-        const doubleDrinkTable = Object.values(ddMap).sort((a, b) => b.units - a.units);
-        // Número de drinks = soma das quantidades dos produtos PRODUCTION
-        // Se não houver produto PRODUCTION, usa o maior valor entre os ingredientes
-        const productionDD = doubleDrinkTable.filter(d => d.isProduction);
-        const doubleDrinkCount = productionDD.length > 0
-            ? Math.round(productionDD.reduce((s, d) => s + d.units, 0))
-            : doubleDrinkTable.length > 0
-                ? Math.round(Math.max(...doubleDrinkTable.map(d => d.units)))
-                : 0;
-
-        // ─ Cortesia ─ mesma lógica
         const courtesyMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'COURTESY');
-        const courtesyCost = courtesyMovements.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
-
-        const ctMap = {};
-        courtesyMovements.forEach(m => {
-            const product = state.products?.find(p => p.id === m.productId);
-            const isProduction = product?.type === 'PRODUCTION';
-            const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
-            const units = Number(m.quantity || 0) / pack;
-            const pUnit = isProduction ? 'un' : (product?.purchaseUnit || 'un');
-            if (!ctMap[m.productId]) {
-                ctMap[m.productId] = {
-                    name: m.productName,
-                    units: 0,
-                    cost: 0,
-                    purchaseUnit: pUnit,
-                    isProduction
-                };
-            }
-            ctMap[m.productId].units += units;
-            ctMap[m.productId].cost  += Number(m.totalCost || 0);
-        });
-        const courtesyTable = Object.values(ctMap).sort((a, b) => b.units - a.units);
-        const productionCT = courtesyTable.filter(d => d.isProduction);
-        const courtesyCount = productionCT.length > 0
-            ? productionCT.reduce((s, d) => s + d.units, 0)
-            : courtesyTable.reduce((s, d) => s + d.units, 0);
+        const ctData = buildMarketingData(courtesyMovements);
 
         return {
             totalSpent, orderCount: orders.length, bonusValue, lowStockCount,
             totalConsumptionCost, totalConsumptionQty,
-            doubleDrinkCount, doubleDrinkCost, doubleDrinkTable,
-            courtesyCount, courtesyCost, courtesyTable
+            doubleDrinkCount: ddData.count, doubleDrinkCost: ddData.cost, doubleDrinkTable: ddData.table,
+            courtesyCount: ctData.count, courtesyCost: ctData.cost, courtesyTable: ctData.table
         };
     }, [state.purchaseOrders, state.stockMovements, state.products, dateFrom, dateTo]);
 
