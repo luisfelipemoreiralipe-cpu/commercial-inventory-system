@@ -671,7 +671,32 @@ const Reports = () => {
             p => Number(p.quantity) < Number(p.minQuantity)
         ).length;
 
-        return { totalSpent, orderCount: orders.length, bonusValue, lowStockCount };
+        // ─── KPIs de Consumo Operacional ─────────────────────
+        const consumptionMovements = movements.filter(
+            m => m.type === 'OUT' && ['SALE', 'DOUBLE_DRINK', 'COURTESY', 'TASTING', 'PROMO', 'INTERNAL_USE', 'PRODUCTION'].includes(m.reason)
+        );
+
+        const totalConsumptionCost = consumptionMovements.reduce(
+            (acc, m) => acc + Number(m.totalCost || 0), 0
+        );
+        const totalConsumptionQty = consumptionMovements.reduce(
+            (acc, m) => acc + Number(m.quantity || 0), 0
+        );
+
+        const doubleDrinkMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'DOUBLE_DRINK');
+        const doubleDrinkCount = doubleDrinkMovements.length;
+        const doubleDrinkCost = doubleDrinkMovements.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+
+        const courtesyMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'COURTESY');
+        const courtesyCount = courtesyMovements.length;
+        const courtesyCost = courtesyMovements.reduce((acc, m) => acc + Number(m.totalCost || 0), 0);
+
+        return {
+            totalSpent, orderCount: orders.length, bonusValue, lowStockCount,
+            totalConsumptionCost, totalConsumptionQty,
+            doubleDrinkCount, doubleDrinkCost,
+            courtesyCount, courtesyCost
+        };
     }, [state.purchaseOrders, state.stockMovements, state.products, dateFrom, dateTo]);
 
     // ─── Monthly Purchases Chart Data ─────────────────────────
@@ -747,7 +772,7 @@ const Reports = () => {
                 </Button>
             </FiltersRow>
 
-            {/* 📊 KPI Cards */}
+            {/* 📊 KPI Cards — Compras */}
             <KpiGrid>
                 <Card padding="20px" style={{ borderLeft: '3px solid #3B82F6' }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Gasto em Compras</div>
@@ -768,6 +793,25 @@ const Reports = () => {
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Abaixo do Mínimo</div>
                     <div style={{ fontSize: 22, fontWeight: 700, color: kpiData.lowStockCount > 0 ? '#DC2626' : '#10B981' }}>{kpiData.lowStockCount}</div>
                     <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>{kpiData.lowStockCount === 0 ? 'Estoque saudável ✅' : 'produtos precisam de reposição'}</div>
+                </Card>
+            </KpiGrid>
+
+            {/* 📊 KPI Cards — Consumo Operacional */}
+            <KpiGrid style={{ marginBottom: 24 }}>
+                <Card padding="20px" style={{ borderLeft: '3px solid #6366F1', background: 'linear-gradient(135deg, rgba(99,102,241,0.04), transparent)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🧾 Consumo Total no Período</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#6366F1' }}>{formatCurrency(kpiData.totalConsumptionCost)}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>custo de tudo que saiu do estoque</div>
+                </Card>
+                <Card padding="20px" style={{ borderLeft: '3px solid #8B5CF6', background: 'linear-gradient(135deg, rgba(139,92,246,0.04), transparent)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🍹 Drink em Dobro</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#8B5CF6' }}>{kpiData.doubleDrinkCount}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>movimentos · custo: {formatCurrency(kpiData.doubleDrinkCost)}</div>
+                </Card>
+                <Card padding="20px" style={{ borderLeft: '3px solid #EC4899', background: 'linear-gradient(135deg, rgba(236,72,153,0.04), transparent)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🎁 Cortesia</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#EC4899' }}>{kpiData.courtesyCount}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>movimentos · custo: {formatCurrency(kpiData.courtesyCost)}</div>
                 </Card>
             </KpiGrid>
 
