@@ -322,10 +322,29 @@ function generateConsumptionPDF({ consumptionData, kpiData, products, dateFrom, 
 </body>
 </html>`;
 
-    const win = window.open('', '_blank');
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => win.print(), 500);
+    // Usa Blob URL — mais confiável que document.write (não é bloqueado por popup blockers)
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url, '_blank');
+
+    if (win) {
+        // Janela abriu: aguarda carregar e dispara o print
+        win.addEventListener('load', () => {
+            setTimeout(() => {
+                win.print();
+                URL.revokeObjectURL(url);
+            }, 400);
+        });
+    } else {
+        // Popup bloqueado: faz download direto do HTML (abrível no browser para imprimir)
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relatorio-consumo-${new Date().toISOString().slice(0, 10)}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 }
 
 // ─── Component ──────────────────────────────────
