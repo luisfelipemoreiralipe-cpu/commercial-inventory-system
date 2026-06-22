@@ -125,6 +125,27 @@ const getLastPurchasePrice = async (productId, establishmentId) => {
         return Number(supplier.price);
     }
 
+    // Tenta pegar o custo atual ou preço unitário do próprio produto
+    const product = await prisma.product.findFirst({
+        where: { 
+            id: productId,
+            establishmentId
+        },
+        select: {
+            currentCost: true,
+            unitPrice: true
+        }
+    });
+
+    if (product) {
+        if (product.currentCost && Number(product.currentCost) > 0) {
+            return Number(product.currentCost);
+        }
+        if (product.unitPrice && Number(product.unitPrice) > 0) {
+            return Number(product.unitPrice);
+        }
+    }
+
     return 0;
 };
 
