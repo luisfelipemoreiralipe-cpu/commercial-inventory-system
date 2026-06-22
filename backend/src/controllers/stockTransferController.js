@@ -5,12 +5,13 @@ const stockTransferService = require('../services/stockTransferService');
 // =============================
 const createTransfer = async (req, res) => {
     try {
-        const { productId, quantity, toEstablishmentId } = req.body;
+        const { productId, destinationProductId, quantity, toEstablishmentId } = req.body;
         const userId = req.user.userId;
         const establishmentId = req.user.establishmentId;
 
         const transfer = await stockTransferService.createTransfer({
             productId,
+            destinationProductId,
             quantity,
             fromEstablishmentId: establishmentId,
             toEstablishmentId,
