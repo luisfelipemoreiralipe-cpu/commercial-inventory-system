@@ -208,6 +208,7 @@ const PurchaseSuggestions = () => {
     const [targetDays, setTargetDays] = useState(7);
     const [ignoredProducts, setIgnoredProducts] = useState({});
     const [viewMode, setViewMode] = useState("active"); // active | ignored
+    const [filterCategory, setFilterCategory] = useState('');
     const theme = useTheme();
 
     const productsMap = useMemo(() => {
@@ -263,16 +264,24 @@ const PurchaseSuggestions = () => {
 
 
 
+    const filteredSuggestions = useMemo(() => {
+        if (!filterCategory) return suggestions;
+        return suggestions.filter(s => {
+            const p = productsMap[s.productId];
+            return p?.categoryId === filterCategory;
+        });
+    }, [suggestions, productsMap, filterCategory]);
+
     const newSuggestions = useMemo(() => {
-        return suggestions.filter(s =>
+        return filteredSuggestions.filter(s =>
             !s.hasOpenOrder &&
             !ignoredProducts[s.productId]
         );
-    }, [suggestions, ignoredProducts]);
+    }, [filteredSuggestions, ignoredProducts]);
 
     const ignoredSuggestions = useMemo(() => {
-        return suggestions.filter(s => ignoredProducts[s.productId]);
-    }, [suggestions, ignoredProducts]);
+        return filteredSuggestions.filter(s => ignoredProducts[s.productId]);
+    }, [filteredSuggestions, ignoredProducts]);
 
     const coverageStats = useMemo(() => {
 
@@ -492,19 +501,19 @@ const PurchaseSuggestions = () => {
         try {
 
             // 🔥 1. DEFINIR newSuggestions PRIMEIRO (ESSENCIAL)
-            const newSuggestions = suggestions.filter(s =>
+            const newSuggestionsForOrder = filteredSuggestions.filter(s =>
                 !s.hasOpenOrder &&
                 !ignoredProducts[s.productId]
             );
 
-            if (newSuggestions.length === 0) {
+            if (newSuggestionsForOrder.length === 0) {
                 alert("Nenhuma sugestão para gerar pedido.");
                 return;
             }
 
             const groupedBySupplier = {};
 
-            newSuggestions.forEach((s) => {
+            newSuggestionsForOrder.forEach((s) => {
 
                 const p = state.products.find(
                     prod => prod.id === s.productId
@@ -562,7 +571,7 @@ const PurchaseSuggestions = () => {
 
             // 🔥 6. MARCAR GERADOS (USA OS ANTIGOS)
             const generated = {};
-            newSuggestions.forEach((s) => {
+            newSuggestionsForOrder.forEach((s) => {
                 generated[s.productId] = true;
             });
 
@@ -588,7 +597,7 @@ const PurchaseSuggestions = () => {
 
         const groups = {};
 
-        (suggestions || []).forEach((s) => {
+        (filteredSuggestions || []).forEach((s) => {
 
             const p = productsMap[s.productId];
             const supplierId =
@@ -604,7 +613,7 @@ const PurchaseSuggestions = () => {
 
         return groups;
 
-    }, [suggestions, selectedSuppliers]);
+    }, [filteredSuggestions, selectedSuppliers]);
 
     // 👇 COLOCA EXATAMENTE AQUI
     const currentGroupedSuggestions =
@@ -713,7 +722,7 @@ const PurchaseSuggestions = () => {
 
             </div>
 
-            <div style={{ marginTop: 15, marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ marginTop: 15, marginBottom: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 500, fontSize: theme.fontSizes.sm, color: theme.colors.textSecondary }}>
                     Dias de estoque desejado:
                 </span>
@@ -724,6 +733,19 @@ const PurchaseSuggestions = () => {
                         size="sm"
                         value={targetDays}
                         onChange={(e) => setTargetDays(Number(e.target.value))}
+                    />
+                </div>
+                <span style={{ fontWeight: 500, fontSize: theme.fontSizes.sm, color: theme.colors.textSecondary, marginLeft: '10px' }}>
+                    Categoria:
+                </span>
+                <div style={{ minWidth: "200px" }}>
+                    <Select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        options={[
+                            { value: '', label: 'Todas as categorias' },
+                            ...(state.categories || []).map((c) => ({ value: c.id, label: c.name }))
+                        ]}
                     />
                 </div>
             </div>
