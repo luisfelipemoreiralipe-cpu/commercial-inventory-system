@@ -268,7 +268,7 @@ const PurchaseSuggestions = () => {
         if (!filterCategory) return suggestions;
         return suggestions.filter(s => {
             const p = productsMap[s.productId];
-            return p?.categoryId === filterCategory;
+            return String(p?.categoryId) === String(filterCategory);
         });
     }, [suggestions, productsMap, filterCategory]);
 
@@ -741,7 +741,7 @@ const PurchaseSuggestions = () => {
                 <div style={{ minWidth: "200px" }}>
                     <Select
                         value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
+                        onChange={setFilterCategory}
                         options={[
                             { value: '', label: 'Todas as categorias' },
                             ...(state.categories || []).map((c) => ({ value: c.id, label: c.name }))
