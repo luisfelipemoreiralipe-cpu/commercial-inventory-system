@@ -598,8 +598,7 @@ const Products = () => {
         const newRealQuantity = Number(qtyValue) * (Number(qtyModal.packQuantity) || 1);
 
         try {
-            await api.put(`/products/${qtyModal.id}`, {
-                ...qtyModal,
+            await api.patch(`/products/${qtyModal.id}/quantity`, {
                 quantity: newRealQuantity,
                 locationId: qtyLocationId || null
             });
@@ -1091,9 +1090,10 @@ const Products = () => {
                     />
 
                     <Input
-                        label={`Nova Quantidade (${qtyModal?.unit})`}
+                        label={`Nova Quantidade (${qtyModal?.purchaseUnit || qtyModal?.unit})`}
                         type="number"
                         min="0"
+                        step="any"
                         value={qtyValue}
                         onChange={(e) => setQtyValue(e.target.value)}
                         placeholder="Digite a nova quantidade"

@@ -10,14 +10,15 @@ const createProductSchema = z.object({
     minQuantity: z.number().min(0, 'Estoque mínimo deve ser ≥ 0').default(0),
     purchaseUnit: z.string().optional().nullable(),
     packQuantity: z.preprocess((val) => Number(val), z.number().min(0).optional().default(1)),
+    defaultLocationId: z.string().optional().nullable(),
 });
 
 const updateProductSchema = createProductSchema.partial();
 
 const updateQuantitySchema = z.object({
     quantity: z.number({ required_error: 'Quantidade é obrigatória' })
-        .int()
         .min(0, 'Quantidade deve ser ≥ 0'),
+    locationId: z.string().optional().nullable(),
 });
 
 module.exports = {
