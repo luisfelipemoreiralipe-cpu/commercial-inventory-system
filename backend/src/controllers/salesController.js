@@ -3,7 +3,7 @@ const prisma = require('../utils/prisma');
 const { consumeProduct } = require('../services/stockMovementService');
 const { convertToBaseUnit } = require('../utils/unitConverter');
 
-async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establishmentId, isRoot = true) {
+async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establishmentId, isRoot = true, parentLocationId = null) {
     let product;
     let recipe;
 
@@ -21,15 +21,18 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
         }
     }
 
+    const targetLocationId = parentLocationId || product.defaultLocationId;
+
     if (product.type === 'INVENTORY') {
-        if (!totalDemand[product.id]) {
-            totalDemand[product.id] = { id: product.id, name: product.name, qty: 0 };
+        const key = targetLocationId ? `${product.id}_${targetLocationId}` : product.id;
+        if (!totalDemand[key]) {
+            totalDemand[key] = { id: product.id, name: product.name, qty: 0, locationId: targetLocationId };
         }
         if (isRoot) {
             const packQty = Number(product.packQuantity || 1);
-            totalDemand[product.id].qty += saleQty * packQty;
+            totalDemand[key].qty += saleQty * packQty;
         } else {
-            totalDemand[product.id].qty += saleQty;
+            totalDemand[key].qty += saleQty;
         }
     } else if (product.type === 'PRODUCTION') {
         let neededQty = saleQty;
@@ -38,14 +41,17 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
             neededQty = saleQty * packQty;
         }
 
-        const currentDemand = totalDemand[product.id] ? totalDemand[product.id].qty : 0;
+        const currentDemand = Object.values(totalDemand)
+            .filter(d => d.id === product.id)
+            .reduce((sum, d) => sum + d.qty, 0);
 
         // Se temos estoque suficiente do produto de PRODUÇÃO, deduzimos diretamente em vez de explodir a ficha técnica
         if (Number(product.quantity) >= (currentDemand + neededQty)) {
-            if (!totalDemand[product.id]) {
-                totalDemand[product.id] = { id: product.id, name: product.name, qty: 0 };
+            const key = targetLocationId ? `${product.id}_${targetLocationId}` : product.id;
+            if (!totalDemand[key]) {
+                totalDemand[key] = { id: product.id, name: product.name, qty: 0, locationId: targetLocationId };
             }
-            totalDemand[product.id].qty += neededQty;
+            totalDemand[key].qty += neededQty;
             return; // Interrompe a recursão
         }
 
@@ -68,7 +74,7 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
                 ingredient.unit
             );
             
-            await explodeDemandRecursive(ingredient.id, neededBase, totalDemand, establishmentId, false);
+            await explodeDemandRecursive(ingredient, neededBase, totalDemand, establishmentId, false, targetLocationId);
         }
     }
 }
@@ -313,7 +319,7 @@ const importCSV = asyncHandler(async (req, res) => {
         for (const item of parsed) {
             const product = productMap.get(item.product);
             const saleQty = Number(item.quantity);
-            await explodeDemandRecursive(product, saleQty, totalDemand, establishmentId, true);
+            await explodeDemandRecursive(product, saleQty, totalDemand, establishmentId, true, locationId);
         }
         console.log("📊 DEMANDA TOTAL CALCULADA:", JSON.stringify(totalDemand, null, 2));
     } catch (err) {
@@ -327,11 +333,14 @@ const importCSV = asyncHandler(async (req, res) => {
     const preloadedCosts = {};
     
     await Promise.all(
-        Object.keys(totalDemand).map(async (productId) => {
-            try {
-                preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
-            } catch (e) {
-                preloadedCosts[productId] = 0;
+        Object.values(totalDemand).map(async (item) => {
+            const productId = item.id;
+            if (preloadedCosts[productId] === undefined) {
+                try {
+                    preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
+                } catch (e) {
+                    preloadedCosts[productId] = 0;
+                }
             }
         })
     );
@@ -340,17 +349,17 @@ const importCSV = asyncHandler(async (req, res) => {
     // 🚀 8. Execução Atômica com timeout estendido (60s para lotes grandes)
     console.log("🛠️ PASSO 8: Abrindo transação para baixar estoque...");
     await prisma.$transaction(async (tx) => {
-        for (const productId in totalDemand) {
-            const item = totalDemand[productId];
-            console.log(`[BAIXA] Consumindo: ${item.name} | Quantidade: ${item.qty}`);
+        for (const key in totalDemand) {
+            const demandItem = totalDemand[key];
+            console.log(`[BAIXA] Consumindo: ${demandItem.name} | Quantidade: ${demandItem.qty}`);
             await consumeProduct({
-                productId: item.id,
-                quantity: item.qty,
+                productId: demandItem.id,
+                quantity: demandItem.qty,
                 establishmentId,
                 reason: "SALE",
                 reference: "CSV_IMPORT_CONSOLIDATED",
-                preloadedCost: preloadedCosts[productId],
-                locationId: locationId || undefined // 🔥 Passa o local para o serviço de consumo
+                preloadedCost: preloadedCosts[demandItem.id],
+                locationId: demandItem.locationId || undefined // 🔥 Passa o local propagado
             }, tx);
         }
     }, { timeout: 60000 }); // 60 segundos para lotes grandes
@@ -440,7 +449,7 @@ const importManual = asyncHandler(async (req, res) => {
             const saleQty = Number(item.quantity);
 
             if (isNaN(saleQty) || saleQty <= 0) continue;
-            await explodeDemandRecursive(product, saleQty, totalDemand, establishmentId, true);
+            await explodeDemandRecursive(product, saleQty, totalDemand, establishmentId, true, locationId);
         }
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
@@ -451,27 +460,30 @@ const importManual = asyncHandler(async (req, res) => {
     const preloadedCosts = {};
 
     await Promise.all(
-        Object.keys(totalDemand).map(async (productId) => {
-            try {
-                preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
-            } catch (e) {
-                preloadedCosts[productId] = 0;
+        Object.values(totalDemand).map(async (item) => {
+            const productId = item.id;
+            if (preloadedCosts[productId] === undefined) {
+                try {
+                    preloadedCosts[productId] = await getProductCostOutsideTx(productId, establishmentId);
+                } catch (e) {
+                    preloadedCosts[productId] = 0;
+                }
             }
         })
     );
 
     // 🚀 Execução Atômica
     await prisma.$transaction(async (tx) => {
-        for (const productId in totalDemand) {
-            const demandItem = totalDemand[productId];
+        for (const key in totalDemand) {
+            const demandItem = totalDemand[key];
             await consumeProduct({
                 productId: demandItem.id,
                 quantity: demandItem.qty,
                 establishmentId,
                 reason: "SALE",
                 reference: "MANUAL_SALE",
-                preloadedCost: preloadedCosts[productId],
-                locationId: locationId || undefined // 🔥 Passa o local para o serviço de consumo
+                preloadedCost: preloadedCosts[demandItem.id],
+                locationId: demandItem.locationId || undefined // 🔥 Passa o local propagado
             }, tx);
         }
     }, { timeout: 60000 });
