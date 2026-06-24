@@ -28,13 +28,13 @@ const getById = asyncHandler(async (req, res) => {
 const create = asyncHandler(async (req, res) => {
     const {
         name, categoryId, unit, purchaseUnit, packQuantity,
-        type, unitPrice, quantity, minQuantity
+        type, unitPrice, quantity, minQuantity, defaultLocationId
     } = req.body;
 
     const data = await productService.createProduct(
         {
             name, categoryId, unit, purchaseUnit, packQuantity,
-            type, unitPrice, quantity, minQuantity
+            type, unitPrice, quantity, minQuantity, defaultLocationId
         },
         req.user.establishmentId
     );
@@ -45,14 +45,14 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
     const {
         name, categoryId, unit, purchaseUnit, packQuantity,
-        type, unitPrice, quantity, minQuantity
+        type, unitPrice, quantity, minQuantity, defaultLocationId
     } = req.body;
 
     const data = await productService.updateProduct(
         req.params.id,
         {
             name, categoryId, unit, purchaseUnit, packQuantity,
-            type, unitPrice, quantity, minQuantity
+            type, unitPrice, quantity, minQuantity, defaultLocationId
         },
         req.user.establishmentId
     );
