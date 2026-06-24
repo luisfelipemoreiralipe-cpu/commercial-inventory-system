@@ -8,6 +8,7 @@ import Select from "../components/Select";
 import Button from "../components/Button";
 import api from "../services/api";
 import { useApp } from "../context/AppContext";
+import { formatCurrency } from "../utils/formatCurrency";
 
 const Container = styled.div`
   padding: 30px;
@@ -183,6 +184,23 @@ export default function StockLocations() {
     }
   };
 
+  const locationsWithValues = locations.map(loc => {
+    let totalValue = 0;
+    state.products.forEach(p => {
+      const stock = p.productStocks?.find(s => s.locationId === loc.id);
+      if (stock) {
+        const qty = Number(stock.quantity);
+        if (qty > 0) {
+          const bestPriceOfProduct = p.productSuppliers && p.productSuppliers.length > 0
+            ? Math.min(...p.productSuppliers.map(s => Number(s.price)))
+            : Number(p.unitPrice || 0);
+          totalValue += (bestPriceOfProduct / (Number(p.packQuantity) || 1)) * qty;
+        }
+      }
+    });
+    return { ...loc, totalValue };
+  });
+
   return (
     <Container>
       <Header>
@@ -218,12 +236,13 @@ export default function StockLocations() {
         <thead>
           <tr>
             <th>Nome do Local</th>
+            <th>Valor em Estoque</th>
             <th>Status</th>
             <th style={{ width: "150px" }}>Ações</th>
           </tr>
         </thead>
         <tbody>
-          {locations.map(loc => (
+          {locationsWithValues.map(loc => (
             <tr key={loc.id}>
               <td>
                 {isEditing === loc.id ? (
@@ -236,6 +255,11 @@ export default function StockLocations() {
                 ) : (
                   <strong>{loc.name}</strong>
                 )}
+              </td>
+              <td>
+                <strong style={{ color: "var(--primary-color)" }}>
+                  {formatCurrency(loc.totalValue || 0)}
+                </strong>
               </td>
               <td>
                 {loc.isDefault ? <Badge>Local Padrão</Badge> : (
@@ -257,9 +281,9 @@ export default function StockLocations() {
               </td>
             </tr>
           ))}
-          {locations.length === 0 && !showAdd && (
+          {locationsWithValues.length === 0 && !showAdd && (
             <tr>
-              <td colSpan="3" style={{ textAlign: "center", color: "var(--text-muted)" }}>
+              <td colSpan="4" style={{ textAlign: "center", color: "var(--text-muted)" }}>
                 Nenhum local cadastrado.
               </td>
             </tr>
