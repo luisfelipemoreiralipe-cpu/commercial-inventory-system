@@ -88,7 +88,7 @@ const createProduct = async (data, establishmentId) => {
         categoryId: data.categoryId,
         type: data.type, // 🔥 ESSENCIAL
         unitPrice: data.unitPrice || 0,
-        quantity: data.quantity || 0,
+        quantity: 0, // Começa sempre com 0, vamos ajustar usando updateProductQuantity para logar correto
         minQuantity: data.minQuantity || 0,
         defaultLocationId: data.defaultLocationId || null,
         establishmentId,
@@ -103,7 +103,12 @@ const createProduct = async (data, establishmentId) => {
         )
     );
 
-    return product;
+    // Se tiver quantidade inicial, registra pelo fluxo correto de estoque
+    if (data.quantity && Number(data.quantity) > 0) {
+        await updateProductQuantity(product.id, Number(data.quantity), establishmentId, product.defaultLocationId);
+    }
+
+    return await getProductById(product.id, establishmentId); // Retorna com as relações e quantidade correta
 };
 
 // ─── UPDATE ─────────────────────────────────────────────────────────────
@@ -128,12 +133,14 @@ const updateProduct = async (id, data, establishmentId) => {
         }
     }
 
+    const { quantity, ...updateData } = data; // 🔥 NUNCA atualizamos a quantidade pelo update genérico
+
     const updated = await productRepo.updateByEstablishment(
         id,
         establishmentId,
         {
-            ...data,
-            defaultLocationId: data.defaultLocationId !== undefined ? data.defaultLocationId : existing.defaultLocationId
+            ...updateData,
+            defaultLocationId: updateData.defaultLocationId !== undefined ? updateData.defaultLocationId : existing.defaultLocationId
         }
     );
 
