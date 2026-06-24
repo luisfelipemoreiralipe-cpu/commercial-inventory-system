@@ -90,7 +90,8 @@ const consumeProduct = async ({
     establishmentId,
     reason,
     reference,
-    preloadedCost  // opcional: custo pré-calculado fora da transação
+    preloadedCost, // opcional: custo pré-calculado fora da transação
+    locationId // opcional: local de onde o estoque vai sair
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -100,27 +101,37 @@ const consumeProduct = async ({
     if (!product) throw new Error("Produto não encontrado ou acesso negado.");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
+    // Identificar o local de saída
+    let targetLocationId = locationId || product.defaultLocationId;
+    if (!targetLocationId) {
+        const defaultLoc = await tx.stockLocation.findFirst({ where: { establishmentId, isDefault: true }});
+        targetLocationId = defaultLoc ? defaultLoc.id : null;
+    }
+
+    if (!targetLocationId) throw new Error("Local de estoque não definido para este produto.");
+
     // 🟢 TENTA BAIXA DIRETA (INVENTORY ou PRODUCTION com estoque)
     try {
-        const updatedResult = await tx.product.updateMany({
-            where: {
-                id: product.id,
-                establishmentId,
-                quantity: { gte: quantity }
-            },
-            data: {
-                quantity: { decrement: quantity }
-            }
+        const stockRecord = await tx.productStock.findUnique({
+            where: { productId_locationId: { productId: product.id, locationId: targetLocationId } }
         });
 
-        if (updatedResult.count > 0) {
-            // Busca saldo atualizado para o log de movimentação (com filtro!)
-            const finalProduct = await tx.product.findFirst({ 
-                where: { id: product.id, establishmentId } 
+        if (stockRecord && Number(stockRecord.quantity) >= quantity) {
+            
+            // 1. Desconta do Estoque do Local
+            await tx.productStock.update({
+                where: { id: stockRecord.id },
+                data: { quantity: { decrement: quantity } }
             });
 
-            const previousQuantity = Number(finalProduct.quantity) + Number(quantity);
-            const newQuantity = Number(finalProduct.quantity);
+            // 2. Desconta do Total Global do Produto (Cache)
+            await tx.product.update({
+                where: { id: product.id },
+                data: { quantity: { decrement: quantity } }
+            });
+
+            const previousQuantity = Number(stockRecord.quantity);
+            const newQuantity = previousQuantity - quantity;
 
             // Usa custo pré-calculado se disponível (evita queries extras dentro da transação)
             const unitCost = preloadedCost !== undefined ? preloadedCost : await getProductCost(product.id, establishmentId, tx);
@@ -138,7 +149,8 @@ const consumeProduct = async ({
                     reason,
                     establishmentId,
                     unitCost,
-                    totalCost
+                    totalCost,
+                    locationId: targetLocationId
                 }
             });
 
@@ -179,28 +191,36 @@ const consumeProduct = async ({
             ingredient.unit
         );
 
+        // 1. localId (informado na venda) > 2. product.defaultLocation (do drink) > 3. ingrediente.defaultLocation
+        let ingTargetLoc = targetLocationId || ingredient.defaultLocationId;
+        if (!ingTargetLoc) {
+            const defaultLoc = await tx.stockLocation.findFirst({ where: { establishmentId, isDefault: true }});
+            ingTargetLoc = defaultLoc ? defaultLoc.id : null;
+        }
+
         try {
-            const updatedIngRes = await tx.product.updateMany({
-                where: {
-                    id: ingredient.id,
-                    establishmentId, // 🛡️ CRITICAL
-                    quantity: { gte: totalNeeded }
-                },
-                data: {
-                    quantity: { decrement: totalNeeded }
-                }
+            const ingStock = await tx.productStock.findUnique({
+                where: { productId_locationId: { productId: ingredient.id, locationId: ingTargetLoc } }
             });
 
-            if (updatedIngRes.count === 0) {
+            if (!ingStock || Number(ingStock.quantity) < totalNeeded) {
                 throw new Error(`Estoque insuficiente para ingrediente: ${ingredient.name}`);
             }
 
-            const finalIngredient = await tx.product.findFirst({ 
-                where: { id: ingredient.id, establishmentId } 
+            // Desconta do Local
+            await tx.productStock.update({
+                where: { id: ingStock.id },
+                data: { quantity: { decrement: totalNeeded } }
             });
 
-            const previousQuantity = Number(finalIngredient.quantity) + Number(totalNeeded);
-            const newQuantity = Number(finalIngredient.quantity);
+            // Desconta do Total
+            await tx.product.update({
+                where: { id: ingredient.id },
+                data: { quantity: { decrement: totalNeeded } }
+            });
+
+            const previousQuantity = Number(ingStock.quantity);
+            const newQuantity = previousQuantity - totalNeeded;
 
             const unitCost = await getProductCost(ingredient.id, establishmentId, tx);
 
@@ -216,7 +236,8 @@ const consumeProduct = async ({
                     reason,
                     establishmentId,
                     unitCost,
-                    totalCost: unitCost * Number(totalNeeded)
+                    totalCost: unitCost * Number(totalNeeded),
+                    locationId: ingTargetLoc
                 }
             });
         } catch (err) {
@@ -236,7 +257,8 @@ const addStock = async ({
     reason,
     reference,
     supplierId,
-    unitCost: manualUnitCost
+    unitCost: manualUnitCost,
+    locationId
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -246,16 +268,30 @@ const addStock = async ({
     if (!product) throw new Error("Produto não encontrado ou acesso negado.");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
-    const previousQuantity = Number(product.quantity);
-    const newQuantity = previousQuantity + Number(quantity);
+    let targetLocationId = locationId || product.defaultLocationId;
+    if (!targetLocationId) {
+        const defaultLoc = await tx.stockLocation.findFirst({ where: { establishmentId, isDefault: true }});
+        targetLocationId = defaultLoc ? defaultLoc.id : null;
+    }
+
+    if (!targetLocationId) throw new Error("Local de estoque não definido para este produto.");
+
+    const stockRecord = await tx.productStock.upsert({
+        where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
+        create: { productId: product.id, locationId: targetLocationId, quantity: Number(quantity) },
+        update: { quantity: { increment: quantity } }
+    });
+
+    const previousQuantity = Number(stockRecord.quantity) - Number(quantity);
+    const newQuantity = Number(stockRecord.quantity);
 
     const unitCost = manualUnitCost !== undefined ? manualUnitCost : await getProductCost(product.id, establishmentId, tx);
     const totalCost = unitCost * Number(quantity);
 
-    await tx.product.updateMany({
-        where: { id: product.id, establishmentId },
+    await tx.product.update({
+        where: { id: product.id },
         data: {
-            quantity: newQuantity,
+            quantity: { increment: quantity },
             currentCost: unitCost
         }
     });
@@ -287,7 +323,8 @@ const addStock = async ({
             establishmentId,
             unitCost,
             totalCost,
-            supplierId: finalSupplierId
+            supplierId: finalSupplierId,
+            locationId: targetLocationId
         }
     });
 };
@@ -355,7 +392,8 @@ const createEntry = async ({
     quantity,
     entryType,
     notes,
-    establishmentId
+    establishmentId,
+    locationId
 }) => {
     const typeConfig = ENTRY_TYPES[entryType];
     if (!typeConfig) throw new Error(`Tipo de lançamento inválido: ${entryType}`);
@@ -384,7 +422,8 @@ const createEntry = async ({
             quantity,
             establishmentId,
             reason: typeConfig.reason,
-            reference
+            reference,
+            locationId
         }, tx);
     });
 };

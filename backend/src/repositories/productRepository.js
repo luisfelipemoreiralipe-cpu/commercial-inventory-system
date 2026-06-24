@@ -6,6 +6,12 @@ const findAllByEstablishment = (establishmentId) => {
         include: {
             category: true,
             Recipe: true,
+            defaultLocation: true,
+            productStocks: {
+                include: {
+                    location: true
+                }
+            },
             productSuppliers: {
                 include: {
                     supplier: true
@@ -23,6 +29,12 @@ const findByIdAndEstablishment = (id, establishmentId) => {
         },
         include: {
             category: true,
+            defaultLocation: true,
+            productStocks: {
+                include: {
+                    location: true
+                }
+            },
             productSuppliers: {
                 include: {
                     supplier: true

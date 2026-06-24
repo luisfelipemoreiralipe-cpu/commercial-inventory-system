@@ -3,7 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 
 // 🎯 CRIAR LANÇAMENTO
 const create = asyncHandler(async (req, res) => {
-    const { productId, quantity, entryType, notes } = req.body;
+    const { productId, quantity, entryType, notes, locationId } = req.body;
     const establishmentId = req.user.establishmentId;
 
     await stockMovementService.createEntry({
@@ -11,7 +11,8 @@ const create = asyncHandler(async (req, res) => {
         quantity: Number(quantity),
         entryType,
         notes,
-        establishmentId
+        establishmentId,
+        locationId: locationId || undefined
     });
 
     res.json({

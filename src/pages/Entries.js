@@ -357,12 +357,26 @@ export default function Entries() {
     const [formProductId, setFormProductId] = useState('');
     const [formQuantity, setFormQuantity] = useState('');
     const [formNotes, setFormNotes] = useState('');
+    const [formLocationId, setFormLocationId] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     // Data
     const [entries, setEntries] = useState([]);
     const [summary, setSummary] = useState(null);
     const [loadingEntries, setLoadingEntries] = useState(true);
+    const [locations, setLocations] = useState([]);
+
+    React.useEffect(() => {
+        const loadLocs = async () => {
+            try {
+                const res = await api.get('/stock-locations');
+                setLocations(res);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        loadLocs();
+    }, []);
 
     const ENTRY_REASONS = useMemo(() =>
         Object.keys(ENTRY_TYPES), []);
@@ -462,13 +476,15 @@ export default function Entries() {
                 productId: formProductId,
                 quantity: moveQty,
                 entryType: formType,
-                notes: formNotes || undefined
+                notes: formNotes || undefined,
+                locationId: formLocationId || undefined
             });
             toast.success("Lançamento registrado com sucesso!");
             setShowModal(false);
             setFormProductId('');
             setFormQuantity('');
             setFormNotes('');
+            setFormLocationId('');
             await fetchAllData();
             await fetchEntries();
             await fetchSummary();
@@ -690,6 +706,17 @@ export default function Entries() {
                                             label: `${p.name} (Estoque: ${inUnits} ${p.purchaseUnit || 'un'})`,
                                         };
                                     })
+                            ]}
+                        />
+
+                        {/* Local */}
+                        <Select
+                            label="Local de Origem (Opcional)"
+                            value={formLocationId}
+                            onChange={(val) => setFormLocationId(val)}
+                            options={[
+                                { value: "", label: "Usar local padrão de cada produto" },
+                                ...locations.map(l => ({ value: l.id, label: l.name }))
                             ]}
                         />
 

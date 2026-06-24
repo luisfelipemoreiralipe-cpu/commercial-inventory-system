@@ -335,6 +335,7 @@ const FooterBrand = styled.span`
 
 const Main = styled.main`
   flex: 1;
+  min-width: 0;
   margin-left: ${({ $collapsed }) => ($collapsed ? '68px' : '252px')};
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg};
@@ -375,6 +376,7 @@ const NAV_GROUPS = [
     label: 'Gestão',
     items: [
       { to: '/select-establishment', label: 'Minhas Unidades', icon: <MdStore /> },
+      { to: '/stock-locations', label: 'Locais de Estoque', icon: <MdStore /> },
       { to: '/users/', label: 'Usuários', icon: <MdPeople /> },
     ],
   },

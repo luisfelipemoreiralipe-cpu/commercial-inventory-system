@@ -90,6 +90,7 @@ const createProduct = async (data, establishmentId) => {
         unitPrice: data.unitPrice || 0,
         quantity: data.quantity || 0,
         minQuantity: data.minQuantity || 0,
+        defaultLocationId: data.defaultLocationId || null,
         establishmentId,
     });
 
@@ -130,7 +131,10 @@ const updateProduct = async (id, data, establishmentId) => {
     const updated = await productRepo.updateByEstablishment(
         id,
         establishmentId,
-        data
+        {
+            ...data,
+            defaultLocationId: data.defaultLocationId !== undefined ? data.defaultLocationId : existing.defaultLocationId
+        }
     );
 
     if (!updated) {
@@ -184,15 +188,38 @@ const deleteProduct = async (id, establishmentId) => {
 };
 // ─── UPDATE STOCK ──────────────────────────────────────────────────────
 
-const updateProductQuantity = async (id, newQuantity, establishmentId) => {
+const updateProductQuantity = async (id, newQuantity, establishmentId, locationId) => {
 
     const product = await getProductById(id, establishmentId);
-    const prevQty = product.quantity;
+    
+    let targetLocationId = locationId || product.defaultLocationId;
+    if (!targetLocationId) {
+        const defaultLoc = await prisma.stockLocation.findFirst({ where: { establishmentId, isDefault: true }});
+        targetLocationId = defaultLoc ? defaultLoc.id : null;
+    }
 
+    if (!targetLocationId) throw new AppError("Local de estoque não definido para este produto.", 400);
+
+    const stockRecord = await prisma.productStock.upsert({
+        where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
+        create: { productId: product.id, locationId: targetLocationId, quantity: 0 },
+        update: {}
+    });
+
+    const prevQty = Number(stockRecord.quantity);
+    const difference = newQuantity - prevQty;
+
+    // Atualiza o local
+    await prisma.productStock.update({
+        where: { id: stockRecord.id },
+        data: { quantity: newQuantity }
+    });
+
+    // Atualiza o total global cacheado
     const updated = await productRepo.updateByEstablishment(
         id,
         establishmentId,
-        { quantity: newQuantity }
+        { quantity: Number(product.quantity) + difference }
     );
 
     if (!updated) {
@@ -210,6 +237,12 @@ const updateProductQuantity = async (id, newQuantity, establishmentId) => {
             establishmentId
         )
     );
+
+    // Ajusta o locationId do movement recém criado
+    await prisma.stockMovement.updateMany({
+        where: { productId: id, reference: 'Ajuste Manual', createdAt: { gte: new Date(Date.now() - 10000) } },
+        data: { locationId: targetLocationId }
+    });
 
     await auditLogRepo.create(
         mkAuditLog(

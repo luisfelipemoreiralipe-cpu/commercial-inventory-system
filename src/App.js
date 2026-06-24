@@ -21,6 +21,7 @@ import MarketingEvents from "./pages/MarketingEvents";
 import Production from "./pages/Production";
 import Patrimony from "./pages/Patrimony";
 import Entries from "./pages/Entries";
+import StockLocations from "./pages/StockLocations";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -87,6 +88,7 @@ function App() {
               <Route path="/stock-audits/:id" element={<StockAuditDetail />} />
 
               <Route path="/stock-transfers" element={<StockTransfers />} />
+              <Route path="/stock-locations" element={<StockLocations />} />
               <Route path="/marketing-events" element={<MarketingEvents />} />
               <Route path="/production" element={<Production />} />
               <Route path="/patrimony" element={<Patrimony />} />

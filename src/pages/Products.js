@@ -20,6 +20,7 @@ import {
     addProductSupplier,
     removeProductSupplier
 } from "../services/productSupplierService";
+import { getStockLocations } from "../services/stockLocationService";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const UNITS = ['unidade', 'kg', 'g', 'litro', 'ml', 'caixa', 'pacote', 'saco', 'rolo', 'metro', 'pç'];
@@ -34,6 +35,7 @@ const EMPTY_FORM = {
     quantity: '',
     minQuantity: '',
     supplierId: '',
+    defaultLocationId: '',
 };
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
@@ -137,7 +139,7 @@ const Table = styled.table`
 
 const Th = styled.th`
   text-align: left;
-  padding: 12px 16px;
+  padding: 10px 12px;
   font-size: ${({ theme }) => theme.fontSizes.xs};
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textMuted};
@@ -152,8 +154,8 @@ const Th = styled.th`
 `;
 
 const Td = styled.td`
-  padding: 14px 16px;
-  font-size: ${({ theme }) => theme.fontSizes.sm};
+  padding: 10px 12px;
+  font-size: 13px;
   color: ${({ theme }) => theme.colors.textPrimary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   vertical-align: middle;
@@ -210,6 +212,7 @@ const ActionRow = styled.div`
   display: flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
 `;
 
 const IconBtn = styled.button`
@@ -259,6 +262,8 @@ const DateMeta = styled.div`
 
 const TableOverflow = styled.div`
   overflow-x: auto;
+  width: 100%;
+  max-width: 100%;
 `;
 
 // ─── Page Component ─────────────────────────────────────────────────────────────
@@ -282,6 +287,8 @@ const Products = () => {
     const [recipeModal, setRecipeModal] = useState(null);
     const [filterType, setFilterType] = useState("ALL");
     const [form, setForm] = useState(EMPTY_FORM);
+    const [locations, setLocations] = useState([]);
+    const [qtyLocationId, setQtyLocationId] = useState('');
 
     // 🔥 FUNÇÃO FORA (CORRETO)
     const loadProducts = async () => {
@@ -326,10 +333,20 @@ const Products = () => {
         }
     };
 
+    const loadLocations = async () => {
+        try {
+            const data = await getStockLocations();
+            setLocations(data || []);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     // 🔥 USE EFFECT PRODUTOS
     useEffect(() => {
         loadProducts();
         loadCategories();
+        loadLocations();
     }, []);
 
 
@@ -472,6 +489,7 @@ const Products = () => {
             minQuantity: Number(p.minQuantity || 0) / Number(p.packQuantity || 1),
             supplierId: p.supplierId || '',
             type: p.type || 'INVENTORY',
+            defaultLocationId: p.defaultLocationId || '',
         });
         setErrors({});
         setModalOpen(true);
@@ -531,6 +549,7 @@ const Products = () => {
             unitPrice: Number(form.unitPrice || 0),
             quantity: Number(form.quantity || 0) * Number(form.packQuantity || 1),
             minQuantity: Number(form.minQuantity || 0) * Number(form.packQuantity || 1),
+            defaultLocationId: form.defaultLocationId || null,
         };
 
         try {
@@ -581,7 +600,8 @@ const Products = () => {
         try {
             await api.put(`/products/${qtyModal.id}`, {
                 ...qtyModal,
-                quantity: newRealQuantity
+                quantity: newRealQuantity,
+                locationId: qtyLocationId || null
             });
 
             await dispatch({
@@ -783,14 +803,10 @@ const Products = () => {
                                 <tr>
                                     <Th>Nome</Th>
                                     <Th>Categoria</Th>
-                                    <Th>Unidade</Th>
-                                    <Th>Custo Atual</Th>
-                                    <Th>Qtd.</Th>
-                                    <Th>Mín.</Th>
-                                    <Th>Fornec</Th>
-                                    <Th>Melhor Preço</Th>
+                                    <Th>Estoque</Th>
+                                    <Th>Fornecedor</Th>
+                                    <Th>Custo Un.</Th>
                                     <Th>Valor Total</Th>
-                                    <Th>Status</Th>
                                     <Th>Ações</Th>
                                 </tr>
                             </thead>
@@ -807,21 +823,37 @@ const Products = () => {
                                             <Td data-label="Nome">
                                                 <div style={{ fontWeight: 600 }}>{p.name}</div>
                                                 <DateMeta>
-                                                    Criado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}
+                                                    Cadastrado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}
                                                 </DateMeta>
                                             </Td>
-                                            <Td data-label="Categoria">{p.category?.name || 'N/A'}</Td>
-                                            <Td data-label="Unidade">{p.unit}</Td>
-                                            <Td data-label="Custo Atual">{bestPrice || p.unitPrice ? formatCurrency(bestPrice || Number(p.unitPrice)) : "-"}</Td>
-                                            <Td data-label="Qtd." style={{ color: isLow ? '#413232ff' : 'inherit', fontWeight: isLow ? 700 : 400 }}>
-                                                {p.quantity} {p.unit} ({(Number(p.quantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
+                                            <Td data-label="Categoria">{p.category?.name || '-'}</Td>
+                                            <Td data-label="Estoque" style={{ color: isLow ? '#dc2626' : 'inherit' }}>
+                                                <div style={{ fontWeight: isLow ? 700 : 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    {p.quantity} {p.unit} 
+                                                    <span style={{ fontSize: '11px', color: isLow ? '#ef4444' : '#64748b', fontWeight: 400 }}>
+                                                        ({(Number(p.quantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
+                                                    </span>
+                                                    {isLow && <Badge variant="danger" style={{ padding: '2px 4px', fontSize: '10px' }}>BAIXO</Badge>}
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                                    Mínimo: {p.minQuantity} {p.unit}
+                                                </div>
+                                                
+                                                {/* 🔥 Breakdown de estoque por local */}
+                                                {p.productStocks && p.productStocks.length > 0 && (
+                                                    <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(0,0,0,0.02)', padding: '4px', borderRadius: '4px' }}>
+                                                        {p.productStocks.filter(ps => ps.quantity > 0).map(ps => (
+                                                            <div key={ps.id} style={{ fontSize: '11px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                                                                <span>{ps.location?.name || 'Desconhecido'}:</span>
+                                                                <span style={{ fontWeight: 600 }}>{ps.quantity} {p.unit}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </Td>
-                                            <Td data-label="Mín.">
-                                                {p.minQuantity} {p.unit} ({(Number(p.minQuantity) / (Number(p.packQuantity) || 1)).toFixed(2)} {p.purchaseUnit || 'un'})
-                                            </Td>
-                                            <Td data-label="Fornec">
+                                            <Td data-label="Fornecedor">
                                                 {p.suppliers?.length ? (
-                                                    <div style={{ fontSize: '13px', fontWeight: 500 }}>
+                                                    <div style={{ fontSize: '12px', fontWeight: 500 }}>
                                                         {p.suppliers[0]?.name}
                                                         {p.suppliers.length > 1 && (
                                                             <span style={{ fontSize: '11px', color: '#64748B', marginLeft: '4px' }}>
@@ -830,27 +862,17 @@ const Products = () => {
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <Badge variant="warning">
-                                                        <MdWarning style={{ marginRight: 4 }} />
-                                                        Sem fornecedor
+                                                    <Badge variant="warning" style={{ fontSize: '10px', padding: '2px 4px' }}>
+                                                        Sem fornec
                                                     </Badge>
                                                 )}
                                             </Td>
-                                            <Td data-label="Melhor Preço">
-                                                {p.productSuppliers && p.productSuppliers.length > 0
-                                                    ? formatCurrency(bestPrice)
-                                                    : "-"}
+                                            <Td data-label="Custo Un.">
+                                                {bestPrice || p.unitPrice ? formatCurrency(bestPrice || Number(p.unitPrice)) : "-"}
                                             </Td>
-                                            <Td data-label="Valor Total">
+                                            <Td data-label="Valor Total" style={{ fontWeight: 600 }}>
                                                 {formatCurrency(
                                                     ((bestPrice || Number(p.unitPrice) || 0) / (Number(p.packQuantity) || 1)) * Number(p.quantity)
-                                                )}
-                                            </Td>
-                                            <Td data-label="Status">
-                                                {isLow ? (
-                                                    <Badge variant="danger">Baixo</Badge>
-                                                ) : (
-                                                    <Badge variant="success">OK</Badge>
                                                 )}
                                             </Td>
                                             <Td data-label="Ações">
@@ -1027,6 +1049,21 @@ const Products = () => {
                         </>
                     )}
 
+                    <FormFull>
+                        <Select 
+                            label="Local Padrão de Baixa (Opcional)" 
+                            value={form.defaultLocationId}
+                            onChange={(val) => setForm((f) => ({ ...f, defaultLocationId: val }))}
+                            options={[
+                                { value: "", label: "-- Automático (Principal/Estoque Fechado) --" },
+                                ...locations.map((loc) => ({ value: loc.id, label: loc.name }))
+                            ]}
+                        />
+                        <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>
+                          Ao vender ou produzir, o estoque será descontado automaticamente deste local (ou sobrescrito pelo local da venda).
+                        </span>
+                    </FormFull>
+
                 </FormGrid>
             </Modal>
 
@@ -1042,14 +1079,26 @@ const Products = () => {
                     </>
                 }
             >
-                <Input
-                    label={`Nova Quantidade (${qtyModal?.unit})`}
-                    type="number"
-                    min="0"
-                    value={qtyValue}
-                    onChange={(e) => setQtyValue(e.target.value)}
-                    placeholder="Digite a nova quantidade"
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <Select 
+                        label="Local de Estoque (De onde o saldo será ajustado?)" 
+                        value={qtyLocationId}
+                        onChange={(val) => setQtyLocationId(val)}
+                        options={[
+                            { value: "", label: "-- Automático (Padrão do Produto) --" },
+                            ...locations.map((loc) => ({ value: loc.id, label: loc.name }))
+                        ]}
+                    />
+
+                    <Input
+                        label={`Nova Quantidade (${qtyModal?.unit})`}
+                        type="number"
+                        min="0"
+                        value={qtyValue}
+                        onChange={(e) => setQtyValue(e.target.value)}
+                        placeholder="Digite a nova quantidade"
+                    />
+                </div>
             </Modal>
 
             {/* Delete Confirm Modal */}

@@ -144,6 +144,7 @@ const importCSV = asyncHandler(async (req, res) => {
     }
 
     const establishmentId = req.user.establishmentId;
+    const locationId = req.body.locationId || null; // 🔥 Recebe o local opcional da venda
     console.log("🛠️ PASSO 1: Verificando se existe auditoria aberta...");
 
     // 🔒 2. Bloquear se auditoria aberta
@@ -348,7 +349,8 @@ const importCSV = asyncHandler(async (req, res) => {
                 establishmentId,
                 reason: "SALE",
                 reference: "CSV_IMPORT_CONSOLIDATED",
-                preloadedCost: preloadedCosts[productId]
+                preloadedCost: preloadedCosts[productId],
+                locationId: locationId || undefined // 🔥 Passa o local para o serviço de consumo
             }, tx);
         }
     }, { timeout: 60000 }); // 60 segundos para lotes grandes
@@ -363,7 +365,7 @@ const importCSV = asyncHandler(async (req, res) => {
 });
 
 const importManual = asyncHandler(async (req, res) => {
-    const { items } = req.body; // Array de { productId, quantity }
+    const { items, locationId } = req.body; // Array de { productId, quantity } e locationId (opcional)
 
     if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'Nenhum item informado para venda manual' });
@@ -468,7 +470,8 @@ const importManual = asyncHandler(async (req, res) => {
                 establishmentId,
                 reason: "SALE",
                 reference: "MANUAL_SALE",
-                preloadedCost: preloadedCosts[productId]
+                preloadedCost: preloadedCosts[productId],
+                locationId: locationId || undefined // 🔥 Passa o local para o serviço de consumo
             }, tx);
         }
     }, { timeout: 60000 });

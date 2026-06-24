@@ -112,6 +112,20 @@ export default function StockMovement() {
     const [loadingImport, setLoadingImport] = useState(false);
     const [manualSales, setManualSales] = useState({});
     const [searchTerm, setSearchTerm] = useState("");
+    const [locationId, setLocationId] = useState("");
+    const [locations, setLocations] = useState([]);
+
+    React.useEffect(() => {
+        const loadLocations = async () => {
+            try {
+                const data = await api.get('/stock-locations');
+                setLocations(data);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        loadLocations();
+    }, []);
 
     const selectedProduct = state.products.find((p) => p.id === productId);
     const parsedQuantity = Number(quantity || 0);
@@ -134,9 +148,10 @@ export default function StockMovement() {
 
         setLoading(true);
         try {
-            await api.post("/sales/manual", { items });
+            await api.post("/sales/manual", { items, locationId: locationId || undefined });
             toast.success("Vendas lançadas com sucesso");
             setManualSales({});
+            setLocationId("");
             await fetchAllData();
         } catch (error) {
             console.error(error);
@@ -202,6 +217,7 @@ export default function StockMovement() {
 
         const formData = new FormData();
         formData.append("file", file);
+        if (locationId) formData.append("locationId", locationId);
 
         setLoadingImport(true);
         try {
@@ -267,11 +283,21 @@ export default function StockMovement() {
 
             {mode === "MANUAL_SALE" ? (
                 <Card>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <Select
+                            label="Local de Origem (Opcional)"
+                            value={locationId}
+                            onChange={(val) => setLocationId(val)}
+                            options={[
+                                { value: "", label: "Usar local padrão de cada produto" },
+                                ...locations.map(l => ({ value: l.id, label: l.name }))
+                            ]}
+                        />
                         <SearchInput 
                             placeholder="Buscar produto por nome..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{ marginBottom: 0 }}
                         />
                         <div style={{ overflowX: 'auto' }}>
                             <Table>
@@ -399,6 +425,15 @@ export default function StockMovement() {
             ) : (
                 <Card title="Importação de Vendas">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <Select
+                            label="Local de Origem (Opcional)"
+                            value={locationId}
+                            onChange={(val) => setLocationId(val)}
+                            options={[
+                                { value: "", label: "Usar local padrão de cada produto" },
+                                ...locations.map(l => ({ value: l.id, label: l.name }))
+                            ]}
+                        />
                         <Input
                             label="Arquivo CSV"
                             type="file"
