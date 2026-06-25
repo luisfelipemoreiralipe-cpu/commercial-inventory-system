@@ -96,7 +96,7 @@ export default function StockLocations() {
 
   // Transfer state
   const [showTransfer, setShowTransfer] = useState(false);
-  const [transferForm, setTransferForm] = useState({ productId: "", fromLocationId: "", toLocationId: "", quantity: "" });
+  const [transferForm, setTransferForm] = useState({ productId: "", fromLocationId: "", toLocationId: "", quantity: "", unitType: "purchase" });
 
   useEffect(() => {
     fetchLocations();
@@ -172,12 +172,18 @@ export default function StockLocations() {
     try {
       const selectedProduct = state.products.find(p => p.id === transferForm.productId);
       const pack = Number(selectedProduct?.packQuantity || 1);
-      const moveQty = Number(transferForm.quantity) * pack;
+      
+      let moveQty;
+      if (transferForm.unitType === "base") {
+         moveQty = Number(transferForm.quantity);
+      } else {
+         moveQty = Number(transferForm.quantity) * pack;
+      }
 
       await internalTransfer({ ...transferForm, quantity: moveQty });
       toast.success("Transferência realizada com sucesso!");
       setShowTransfer(false);
-      setTransferForm({ productId: "", fromLocationId: "", toLocationId: "", quantity: "" });
+      setTransferForm({ productId: "", fromLocationId: "", toLocationId: "", quantity: "", unitType: "purchase" });
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.error || "Erro ao transferir");
@@ -344,35 +350,71 @@ export default function StockLocations() {
             
             return (
               <div style={{ padding: '10px', background: 'var(--bg-hover)', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Saldo neste local: <strong style={{ color: 'var(--primary-color)' }}>{inUnits} {pUnit}</strong> ({stockQty.toFixed(2)} {bUnit})
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Saldo neste local: <strong style={{ color: 'var(--primary-color)' }}>{inUnits} {pUnit}</strong> ({stockQty.toFixed(2)} {bUnit})</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setTransferForm({ ...transferForm, quantity: stockQty, unitType: 'base' })}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary-color)', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    Mover tudo
+                  </button>
+                </div>
               </div>
             );
           })()}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600 }}>
-              Quantidade ({(() => {
-                const p = state.products?.find(p => p.id === transferForm.productId);
-                return p?.purchaseUnit || 'un';
-              })()})
-            </span>
-            <Input 
-              type="number" 
-              min="0.01" 
-              step="any"
-              value={transferForm.quantity}
-              onChange={e => setTransferForm({ ...transferForm, quantity: e.target.value })}
-              placeholder="Ex: 5"
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600 }}>Quantidade a transferir:</span>
+            
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Input 
+                type="number" 
+                min="0.0001" 
+                step="any"
+                value={transferForm.quantity}
+                onChange={e => setTransferForm({ ...transferForm, quantity: e.target.value })}
+                placeholder="Ex: 5"
+                style={{ flex: 1 }}
+              />
+              <Select 
+                value={transferForm.unitType}
+                onChange={val => setTransferForm({ ...transferForm, unitType: val })}
+                options={[
+                  { value: 'purchase', label: (() => {
+                    const p = state.products?.find(p => p.id === transferForm.productId);
+                    return p?.purchaseUnit || 'un';
+                  })() },
+                  { value: 'base', label: (() => {
+                    const p = state.products?.find(p => p.id === transferForm.productId);
+                    return p?.unit || 'ml';
+                  })() }
+                ]}
+                style={{ width: '120px' }}
+              />
+            </div>
+
             {transferForm.productId && transferForm.quantity !== "" && (() => {
                const p = state.products?.find(p => p.id === transferForm.productId);
                if(!p) return null;
                const pack = Number(p.packQuantity || 1);
                const bUnit = p.unit || 'ml';
-               const total = Number(transferForm.quantity) * pack;
+               const pUnit = p.purchaseUnit || 'un';
+               
+               let totalBase = 0;
+               let totalPurchase = 0;
+               
+               if (transferForm.unitType === 'base') {
+                 totalBase = Number(transferForm.quantity);
+                 totalPurchase = totalBase / pack;
+               } else {
+                 totalBase = Number(transferForm.quantity) * pack;
+                 totalPurchase = Number(transferForm.quantity);
+               }
+
                return (
                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                   Equivale a: <strong>{total.toFixed(0)} {bUnit}</strong> no total
+                   Equivale a: <strong>{totalPurchase.toFixed(2)} {pUnit}</strong> ({totalBase.toFixed(2)} {bUnit})
                  </span>
                );
             })()}
