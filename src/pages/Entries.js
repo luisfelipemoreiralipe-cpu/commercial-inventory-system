@@ -693,7 +693,14 @@ export default function Entries() {
                         <Select
                             label="Produto"
                             value={formProductId}
-                            onChange={(val) => setFormProductId(val)}
+                            onChange={(val) => {
+                                setFormProductId(val);
+                                const prod = state.products?.find(p => p.id === val);
+                                if (prod) {
+                                    const defaultLocId = prod.defaultLocationId || (locations.find(l => l.isDefault)?.id) || '';
+                                    setFormLocationId(defaultLocId);
+                                }
+                            }}
                             options={[
                                 { value: '', label: 'Selecione um produto...' },
                                 ...(state.products || [])
@@ -741,7 +748,11 @@ export default function Entries() {
                         {selectedProduct && formQuantity && Number(formQuantity) > 0 && (() => {
                             const pack = selectedProduct.type === 'PRODUCTION' ? 1 : Number(selectedProduct.packQuantity || 1);
                             const moveAmount = Number(formQuantity) * pack;
-                            const prevQty = Number(selectedProduct.quantity || 0);
+                            
+                            const targetLocId = formLocationId || selectedProduct.defaultLocationId || (locations.find(l => l.isDefault)?.id);
+                            const stockObj = selectedProduct.productStocks?.find(s => s.locationId === targetLocId);
+                            const prevQty = stockObj ? Number(stockObj.quantity) : 0;
+                            
                             const newQty = prevQty - moveAmount;
                             const inUnits = (newQty / pack).toFixed(2);
 

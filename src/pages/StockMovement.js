@@ -189,11 +189,13 @@ export default function StockMovement() {
                     productId: String(productId),
                     quantity: moveQty,
                     reason: "BONUS",
+                    locationId: locationId || undefined
                 });
             } else if (mode === "INTERNAL_USE") {
                 await api.post("/stock-movements/internal-use", {
                     productId: String(productId),
                     quantity: moveQty,
+                    locationId: locationId || undefined
                 });
             }
 
@@ -254,14 +256,14 @@ export default function StockMovement() {
             <ButtonGroup>
                 <Button
                     variant={mode === "BONUS" ? "primary" : "secondary"}
-                    onClick={() => { setMode("BONUS"); setProductId(""); setSearchTerm(""); }}
+                    onClick={() => { setMode("BONUS"); setProductId(""); setSearchTerm(""); setLocationId(""); }}
                 >
                     <MdAddCircle /> Bonificação
                 </Button>
 
                 <Button
                     variant={mode === "INTERNAL_USE" ? "primary" : "secondary"}
-                    onClick={() => { setMode("INTERNAL_USE"); setProductId(""); setSearchTerm(""); }}
+                    onClick={() => { setMode("INTERNAL_USE"); setProductId(""); setSearchTerm(""); setLocationId(""); }}
                 >
                     <MdRemoveCircle /> Consumo Interno
                 </Button>
@@ -354,7 +356,14 @@ export default function StockMovement() {
                         <Select
                             label="Produto para Movimentar"
                             value={productId}
-                            onChange={(val) => setProductId(val)}
+                            onChange={(val) => {
+                                setProductId(val);
+                                const prod = state.products?.find(p => p.id === val);
+                                if (prod) {
+                                    const defaultLocId = prod.defaultLocationId || (locations.find(l => l.isDefault)?.id) || '';
+                                    setLocationId(defaultLocId);
+                                }
+                            }}
                             options={[
                                 ...(state.products || [])
                                     .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
@@ -363,9 +372,19 @@ export default function StockMovement() {
                                         const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
                                         return {
                                             value: p.id,
-                                            label: `${p.name} (Atual: ${inUnits} ${p.purchaseUnit || 'un'})`,
+                                            label: `${p.name} (Global: ${inUnits} ${p.purchaseUnit || 'un'})`,
                                         };
                                     })
+                            ]}
+                        />
+
+                        <Select
+                            label="Local de Estoque (Opcional)"
+                            value={locationId}
+                            onChange={(val) => setLocationId(val)}
+                            options={[
+                                { value: "", label: "Usar local padrão de cada produto" },
+                                ...locations.map(l => ({ value: l.id, label: l.name }))
                             ]}
                         />
 
@@ -388,7 +407,11 @@ export default function StockMovement() {
                         {selectedProduct && quantity !== "" && (() => {
                             const pack = Number(selectedProduct.packQuantity || 1);
                             const moveAmount = Number(quantity) * pack;
-                            const prevQty = Number(selectedProduct.quantity || 0);
+                            
+                            const targetLocId = locationId || selectedProduct.defaultLocationId || (locations.find(l => l.isDefault)?.id);
+                            const stockObj = selectedProduct.productStocks?.find(s => s.locationId === targetLocId);
+                            const prevQty = stockObj ? Number(stockObj.quantity) : 0;
+                            
                             const newQty = mode === "BONUS" ? prevQty + moveAmount : prevQty - moveAmount;
 
                             const inUnits = (newQty / pack).toFixed(2);

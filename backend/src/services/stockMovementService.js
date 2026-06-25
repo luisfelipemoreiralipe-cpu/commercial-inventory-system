@@ -334,7 +334,8 @@ const addBonus = async ({
     productId,
     quantity,
     establishmentId,
-    supplierId
+    supplierId,
+    locationId
 }) => {
     if (!productId) throw new Error("Produto é obrigatório");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
@@ -346,7 +347,8 @@ const addBonus = async ({
             establishmentId,
             reason: "BONUS",
             reference: "BONIFICAÇÃO",
-            supplierId
+            supplierId,
+            locationId
         }, tx);
     });
 };
@@ -355,7 +357,8 @@ const addBonus = async ({
 const createInternalUse = async ({
     productId,
     quantity,
-    establishmentId
+    establishmentId,
+    locationId
 }) => {
     const openAudit = await prisma.stockAudit.findFirst({
         where: { establishmentId, status: "OPEN" }
@@ -372,7 +375,8 @@ const createInternalUse = async ({
             quantity,
             establishmentId,
             reason: "INTERNAL_USE",
-            reference: "CONSUMO INTERNO"
+            reference: "CONSUMO INTERNO",
+            locationId
         }, tx);
     });
 };
