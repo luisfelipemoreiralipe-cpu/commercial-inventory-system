@@ -894,7 +894,11 @@ const Products = () => {
                                                         color="warning"
                                                         onClick={() => { 
                                                             setQtyModal(p); 
-                                                            setQtyValue(String(Number(p.quantity) / (Number(p.packQuantity) || 1))); 
+                                                            const locId = p.defaultLocationId || (locations.find(l => l.isDefault)?.id) || (locations[0]?.id) || '';
+                                                            setQtyLocationId(locId);
+                                                            const stock = p.productStocks?.find(s => s.locationId === locId);
+                                                            const currentQty = stock ? Number(stock.quantity) : 0;
+                                                            setQtyValue(String(currentQty / (Number(p.packQuantity) || 1)));
                                                         }}
                                                     >
                                                         <MdQty />
@@ -1082,11 +1086,13 @@ const Products = () => {
                     <Select 
                         label="Local de Estoque (De onde o saldo será ajustado?)" 
                         value={qtyLocationId}
-                        onChange={(val) => setQtyLocationId(val)}
-                        options={[
-                            { value: "", label: "-- Automático (Padrão do Produto) --" },
-                            ...locations.map((loc) => ({ value: loc.id, label: loc.name }))
-                        ]}
+                        onChange={(val) => {
+                            setQtyLocationId(val);
+                            const stock = qtyModal?.productStocks?.find(s => s.locationId === val);
+                            const currentQty = stock ? Number(stock.quantity) : 0;
+                            setQtyValue(String(currentQty / (Number(qtyModal?.packQuantity) || 1)));
+                        }}
+                        options={locations.map((loc) => ({ value: loc.id, label: loc.name }))}
                     />
 
                     <Input
