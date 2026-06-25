@@ -72,7 +72,8 @@ const updateQuantity = asyncHandler(async (req, res) => {
     const data = await productService.updateProductQuantity(
         req.params.id,
         req.body.quantity,
-        req.user.establishmentId
+        req.user.establishmentId,
+        req.body.locationId
     );
     res.json({ success: true, data });
 });

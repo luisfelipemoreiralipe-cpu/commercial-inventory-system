@@ -1092,7 +1092,16 @@ const Products = () => {
                             const currentQty = stock ? Number(stock.quantity) : 0;
                             setQtyValue(String(currentQty / (Number(qtyModal?.packQuantity) || 1)));
                         }}
-                        options={locations.map((loc) => ({ value: loc.id, label: loc.name }))}
+                        options={locations.map((loc) => {
+                            const stock = qtyModal?.productStocks?.find(s => s.locationId === loc.id);
+                            const currentQty = stock ? Number(stock.quantity) : 0;
+                            const pack = Number(qtyModal?.packQuantity) || 1;
+                            const inUnits = currentQty / pack;
+                            return { 
+                                value: loc.id, 
+                                label: `${loc.name} (Atual: ${inUnits.toFixed(2)} ${qtyModal?.purchaseUnit || 'un'})` 
+                            };
+                        })}
                     />
 
                     <Input
