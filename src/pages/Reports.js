@@ -847,18 +847,19 @@ const Reports = () => {
 
                 if (match) {
                     productName = match[2].trim();
-                    // Como os ingredientes do mesmo lançamento têm datas com milissegundos diferentes,
-                    // truncamos a data para o minuto para agrupar os ingredientes da mesma transação.
                     const dateObj = new Date(m.createdAt);
                     const timeKey = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}-${dateObj.getHours()}-${dateObj.getMinutes()}`;
                     const eventKey = `${timeKey}-${m.reference}`;
                     
                     if (!launchedEvents.has(eventKey)) {
-                        unitsToAdd = Number(match[1]);
+                        const product = state.products?.find(p => p.name.trim().toLowerCase() === productName.toLowerCase());
+                        const isProduction = product?.type === 'PRODUCTION';
+                        const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
+                        unitsToAdd = Number(match[1]) / pack;
+                        pUnit = isProduction ? 'un' : (product?.purchaseUnit || 'un');
                         launchedEvents.add(eventKey);
                     }
                 } else {
-                    // Fallback para lançamentos antigos que não têm a tag [qty nome]
                     const product = state.products?.find(p => p.id === m.productId);
                     const isProduction = product?.type === 'PRODUCTION';
                     const pack = isProduction ? 1 : Number(product?.packQuantity || 1);
