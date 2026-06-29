@@ -94,6 +94,10 @@ model Product {
   consumptionEventItems  ConsumptionEventItem[]
   productionOrders       ProductionOrder[]
   productStocks          ProductStock[]
+  portioningRecipesAsSource   PortioningRecipe?      @relation("PortioningSourceProduct")
+  portioningRecipeItems       PortioningRecipeItem[] @relation("PortioningTargetProduct")
+  portioningOrdersAsSource    PortioningOrder[]      @relation("PortioningOrderSourceProduct")
+  portioningOrderItems        PortioningOrderItem[]  @relation("PortioningOrderTargetProduct")
 
   @@map("products")
 }
@@ -214,6 +218,8 @@ model establishments {
   consumptionEvents ConsumptionEvent[]
   productionOrders  ProductionOrder[]
   stockLocations    StockLocation[]
+  portioningRecipes  PortioningRecipe[]
+  portioningOrders   PortioningOrder[]
 }
 
 model users {
@@ -228,6 +234,7 @@ model users {
   stockAudits      StockAudit[]
   purchase_orders  PurchaseOrder[]
   productionOrders ProductionOrder[]
+  portioningOrders PortioningOrder[]
 }
 
 model ProductSupplier {
@@ -500,4 +507,88 @@ model ProductStock {
 
   @@unique([productId, locationId])
   @@map("product_stocks")
+}
+
+////////////////////////////////////////////////////////////
+//////////////////// PORTIONING / DESOSSA //////////////////
+////////////////////////////////////////////////////////////
+
+model PortioningRecipe {
+  id String @id @default(uuid()) @db.Uuid
+
+  sourceProductId String  @unique @db.Uuid
+  sourceProduct   Product @relation("PortioningSourceProduct", fields: [sourceProductId], references: [id])
+
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
+
+  items PortioningRecipeItem[]
+
+  createdAt DateTime @default(now())
+
+  @@map("portioning_recipes")
+}
+
+model PortioningRecipeItem {
+  id String @id @default(uuid()) @db.Uuid
+
+  portioningRecipeId String           @db.Uuid
+  portioningRecipe   PortioningRecipe @relation(fields: [portioningRecipeId], references: [id], onDelete: Cascade)
+
+  targetProductId String  @db.Uuid
+  targetProduct   Product @relation("PortioningTargetProduct", fields: [targetProductId], references: [id])
+
+  costAllocationPercentage Decimal @default(0) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([portioningRecipeId, targetProductId])
+  @@map("portioning_recipe_items")
+}
+
+model PortioningOrder {
+  id String @id @default(uuid()) @db.Uuid
+
+  sourceProductId String  @db.Uuid
+  sourceProduct   Product @relation("PortioningOrderSourceProduct", fields: [sourceProductId], references: [id])
+
+  sourceQuantity Decimal @db.Decimal(12, 3)
+
+  status ProductionStatus @default(PENDING)
+
+  notes String?
+
+  establishmentId String         @db.Uuid
+  establishment   establishments @relation(fields: [establishmentId], references: [id])
+
+  createdBy String @db.Uuid
+  user      users  @relation(fields: [createdBy], references: [id])
+
+  items PortioningOrderItem[]
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([establishmentId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("portioning_orders")
+}
+
+model PortioningOrderItem {
+  id String @id @default(uuid()) @db.Uuid
+
+  portioningOrderId String          @db.Uuid
+  portioningOrder   PortioningOrder @relation(fields: [portioningOrderId], references: [id], onDelete: Cascade)
+
+  targetProductId String  @db.Uuid
+  targetProduct   Product @relation("PortioningOrderTargetProduct", fields: [targetProductId], references: [id])
+
+  quantity Decimal @db.Decimal(12, 3)
+
+  costAllocationPercentage Decimal @default(0) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+
+  @@map("portioning_order_items")
 }

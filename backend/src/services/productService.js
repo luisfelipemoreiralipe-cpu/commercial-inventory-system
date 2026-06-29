@@ -166,31 +166,47 @@ const deleteProduct = async (id, establishmentId) => {
 
     const product = await getProductById(id, establishmentId);
 
+    // 1. Verificações de bloqueio absoluto (Ficha Técnica)
     const recipeItem = await prisma.recipeItem.findFirst({
-        where: {
-            productId: id,
-            recipe: {
-                establishmentId
-            }
-        }
+        where: { productId: id, recipe: { establishmentId } }
     });
-
     if (recipeItem) {
+        throw new AppError('Este produto está sendo utilizado como ingrediente em uma ficha técnica e não pode ser excluído.', 400);
+    }
+    const portioningItem = await prisma.portioningRecipeItem.findFirst({
+        where: { targetProductId: id, portioningRecipe: { establishmentId } }
+    });
+    if (portioningItem) {
+        throw new AppError('Este produto é gerado em uma Ficha de Porcionamento e não pode ser excluído.', 400);
+    }
+
+    // 2. Verificações de Histórico Financeiro/Estoque (Se tiver, não pode apagar, apenas inativar)
+    const hasMovements = await prisma.stockMovement.findFirst({ where: { productId: id, establishmentId } });
+    const hasPurchases = await prisma.purchaseOrderItem.findFirst({ where: { productId: id, purchaseOrder: { establishmentId } } });
+    const hasAudits = await prisma.stockAuditItem.findFirst({ where: { productId: id, audit: { establishmentId } } });
+    const hasProduction = await prisma.productionOrder.findFirst({ where: { productId: id, establishmentId } });
+
+    if (hasMovements || hasPurchases || hasAudits || hasProduction) {
         throw new AppError(
-            'Este produto está sendo utilizado em uma ficha técnica e não pode ser excluído.',
+            'Este produto já possui histórico financeiro ou de movimentações (compras, produções, estoques). Para não quebrar seus relatórios, você não pode apagá-lo. Recomendamos que você edite o produto e o marque como Inativo.',
             400
         );
     }
 
-    await productRepo.removeByEstablishment(id, establishmentId);
+    // 3. Se chegou aqui, o produto é "novo" ou "vazio" e pode ser apagado em segurança.
+    // Vamos limpar as tabelas filhas inofensivas antes de apagar a tabela pai para não dar erro de Foreign Key.
+    await prisma.$transaction(async (tx) => {
+        await tx.supplierPriceHistory.deleteMany({ where: { productId: id } });
+        await tx.productSupplier.deleteMany({ where: { productId: id } });
+        await tx.productStock.deleteMany({ where: { productId: id } });
+        await tx.recipe.deleteMany({ where: { productId: id } });
+        await tx.portioningRecipe.deleteMany({ where: { sourceProductId: id } });
+        
+        await tx.product.delete({ where: { id } });
+    });
 
     await auditLogRepo.create(
-        mkAuditLog(
-            'DELETE',
-            id,
-            `Produto "${product.name}" excluído.`,
-            establishmentId
-        )
+        mkAuditLog('DELETE', id, `Produto "${product.name}" excluído definitivamente.`, establishmentId)
     );
 };
 // ─── UPDATE STOCK ──────────────────────────────────────────────────────

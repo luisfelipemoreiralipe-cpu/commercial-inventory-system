@@ -36,6 +36,7 @@ const EMPTY_FORM = {
     minQuantity: '',
     supplierId: '',
     defaultLocationId: '',
+    isActive: true,
 };
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
@@ -490,6 +491,7 @@ const Products = () => {
             supplierId: p.supplierId || '',
             type: p.type || 'INVENTORY',
             defaultLocationId: p.defaultLocationId || '',
+            isActive: p.isActive !== false,
         });
         setErrors({});
         setModalOpen(true);
@@ -550,6 +552,7 @@ const Products = () => {
             quantity: Number(form.quantity || 0) * Number(form.packQuantity || 1),
             minQuantity: Number(form.minQuantity || 0) * Number(form.packQuantity || 1),
             defaultLocationId: form.defaultLocationId || null,
+            isActive: form.isActive !== false,
         };
 
         try {
@@ -820,7 +823,12 @@ const Products = () => {
                                     return (
                                         <Tr key={p.id} lowStock={isLow}>
                                             <Td data-label="Nome">
-                                                <div style={{ fontWeight: 600 }}>{p.name}</div>
+                                                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ textDecoration: p.isActive === false ? 'line-through' : 'none', color: p.isActive === false ? '#94a3b8' : 'inherit' }}>
+                                                        {p.name}
+                                                    </span>
+                                                    {p.isActive === false && <Badge variant="danger" style={{ padding: '2px 4px', fontSize: '10px' }}>INATIVO</Badge>}
+                                                </div>
                                                 <DateMeta>
                                                     Cadastrado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}
                                                 </DateMeta>
@@ -1066,6 +1074,25 @@ const Products = () => {
                           Ao vender ou produzir, o estoque será descontado automaticamente deste local (ou sobrescrito pelo local da venda).
                         </span>
                     </FormFull>
+
+                    {editTarget && (
+                        <FormFull>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '8px' }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={form.isActive} 
+                                    onChange={(e) => setForm(f => ({ ...f, isActive: e.target.checked }))} 
+                                    style={{ width: '16px', height: '16px', accentColor: form.isActive ? '#10b981' : '#ef4444' }}
+                                />
+                                <span style={{ fontSize: '14px', fontWeight: '500', color: form.isActive ? '#10b981' : '#ef4444' }}>
+                                    {form.isActive ? 'Produto Ativo' : 'Produto Inativo'}
+                                </span>
+                            </label>
+                            <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '4px' }}>
+                                Desmarque para inativar o produto. Ele não aparecerá mais em listas de compras e produções.
+                            </span>
+                        </FormFull>
+                    )}
 
                 </FormGrid>
             </Modal>

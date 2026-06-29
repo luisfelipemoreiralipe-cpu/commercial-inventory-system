@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import styled, { keyframes } from "styled-components";
 import { useApp } from "../context/AppContext";
 import api from "../services/api";
@@ -8,7 +8,13 @@ import {
     MdAdd, MdClose, MdCheckCircle, MdCancel, MdPendingActions,
     MdFactory, MdPictureAsPdf, MdSearch, MdRefresh, MdWarning, MdInfo
 } from "react-icons/md";
-
+import Card from '../components/Card';
+import Button from '../components/Button';
+import Badge from '../components/Badge';
+import Modal from '../components/Modal';
+import { Input } from '../components/FormFields';
+import Select from '../components/Select';
+import EmptyState from '../components/EmptyState';
 // ─── Animations ─────────────────────────────────────────────────────────────
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); }`;
 const spin = keyframes`from { transform: rotate(0deg); } to { transform: rotate(360deg); }`;
@@ -110,12 +116,6 @@ const Tab = styled.button`
 `;
 
 // ─── Table ────────────────────────────────────────────────────────────────────
-const Card = styled.div`
-  background: ${({ theme }) => theme.colors.bgCard};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  box-shadow: ${({ theme }) => theme.shadows.card};
-  overflow: hidden;
-`;
 
 const TableHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
@@ -170,21 +170,12 @@ const Tr = styled.tr`
   &:last-child td { border-bottom: none; }
 `;
 
-// ─── Status Badges ────────────────────────────────────────────────────────────
+// ─── Status Config ────────────────────────────────────────────────────────────
 const statusConfig = {
-    PENDING:   { label: 'Pendente',  color: '#f59e0b', bg: '#fef3c7', icon: <MdPendingActions /> },
-    COMPLETED: { label: 'Concluída', color: '#10b981', bg: '#d1fae5', icon: <MdCheckCircle /> },
-    CANCELLED: { label: 'Cancelada', color: '#ef4444', bg: '#fee2e2', icon: <MdCancel /> },
+    PENDING:   { label: 'Pendente',  variant: 'warning', icon: <MdPendingActions /> },
+    COMPLETED: { label: 'Concluída', variant: 'success', icon: <MdCheckCircle /> },
+    CANCELLED: { label: 'Cancelada', variant: 'danger', icon: <MdCancel /> },
 };
-
-const StatusBadge = styled.span`
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px; font-weight: 700;
-  background: ${({ $bg }) => $bg};
-  color: ${({ $color }) => $color};
-`;
 
 // ─── Action Buttons ───────────────────────────────────────────────────────────
 const ActionRow = styled.div`display: flex; gap: 6px; align-items: center;`;
@@ -203,25 +194,6 @@ const IconBtn = styled.button`
   &:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 `;
 
-const PrimaryBtn = styled.button`
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 10px 20px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff; border: none; font-size: 14px; font-weight: 700;
-  cursor: pointer; box-shadow: 0 4px 12px rgba(99,102,241,0.3);
-  transition: all 0.2s;
-  &:hover { opacity: 0.9; transform: translateY(-1px); }
-`;
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-const EmptyState = styled.div`
-  padding: 60px 20px; text-align: center;
-  color: ${({ theme }) => theme.colors.textMuted};
-`;
-
-const EmptyIcon = styled.div`font-size: 3rem; margin-bottom: 12px; opacity: 0.35;`;
-
 // ─── Spinner ──────────────────────────────────────────────────────────────────
 const Spinner = styled.div`
   width: 18px; height: 18px;
@@ -231,82 +203,7 @@ const Spinner = styled.div`
   animation: ${spin} 0.7s linear infinite;
 `;
 
-// ─── MODAL ────────────────────────────────────────────────────────────────────
-const Overlay = styled.div`
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.5);
-  display: flex; align-items: center; justify-content: center;
-  animation: ${fadeIn} 0.2s ease;
-`;
 
-const ModalBox = styled.div`
-  background: ${({ theme }) => theme.colors.bgCard};
-  border-radius: ${({ theme }) => theme.radii.xl || '16px'};
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  width: 100%; max-width: 640px; max-height: 90vh;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-`;
-
-const ModalHead = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-`;
-
-const ModalTitle = styled.h2`
-  font-size: 18px; font-weight: 700;
-  color: ${({ theme }) => theme.colors.textPrimary};
-`;
-
-const CloseBtn = styled.button`
-  background: none; border: none;
-  color: ${({ theme }) => theme.colors.textMuted};
-  font-size: 22px; cursor: pointer;
-  display: flex; align-items: center;
-  border-radius: 6px; padding: 4px;
-  transition: 0.2s;
-  &:hover { background: ${({ theme }) => theme.colors.bgHover}; color: ${({ theme }) => theme.colors.textPrimary}; }
-`;
-
-const ModalBody = styled.div`
-  padding: 24px; overflow-y: auto; flex: 1;
-  display: flex; flex-direction: column; gap: 20px;
-`;
-
-const ModalFooter = styled.div`
-  padding: 16px 24px;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
-  display: flex; justify-content: flex-end; gap: 10px;
-`;
-
-// ─── Form Fields ──────────────────────────────────────────────────────────────
-const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-
-const Label = styled.label`
-  font-size: 13px; font-weight: 700;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`;
-
-const StyledSelect = styled.select`
-  padding: 10px 12px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bgInput || theme.colors.bg};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 14px;
-  &:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
-`;
-
-const StyledInput = styled.input`
-  padding: 10px 12px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bgInput || theme.colors.bg};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 14px;
-  &:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
-`;
 
 const StyledTextarea = styled.textarea`
   padding: 10px 12px;
@@ -538,7 +435,9 @@ export default function Production() {
     const { state } = useApp();
     const { products = [], establishment } = state;
 
-    const productionProducts = products.filter(p => p.type === 'PRODUCTION' && p.isActive !== false);
+    const productionProducts = useMemo(() => {
+        return products.filter(p => p.type === 'PRODUCTION' && p.isActive !== false);
+    }, [products]);
 
     const [tab, setTab] = useState('orders');
     const [orders, setOrders] = useState([]);
@@ -719,9 +618,9 @@ export default function Production() {
                         <PageSubtitle>Gerencie ordens de produção e fichas técnicas</PageSubtitle>
                     </div>
                 </TitleBlock>
-                <PrimaryBtn onClick={openModal} id="btn-nova-producao">
+                <Button variant="primary" onClick={openModal} id="btn-nova-producao">
                     <MdAdd /> Nova Produção
-                </PrimaryBtn>
+                </Button>
             </PageHeader>
 
             {/* ── KPIs ─────────────────────────────────────────────────────── */}
@@ -797,11 +696,10 @@ export default function Production() {
                             ) : filtered.length === 0 ? (
                                 <tr>
                                     <Td colSpan={7}>
-                                        <EmptyState>
-                                            <EmptyIcon><MdFactory /></EmptyIcon>
-                                            <p style={{ fontWeight: 700, marginBottom: 4 }}>Nenhuma ordem encontrada</p>
-                                            <p>Clique em "Nova Produção" para começar</p>
-                                        </EmptyState>
+                                        <EmptyState
+                                            title="Nenhuma ordem encontrada"
+                                            subtitle="Clique em 'Nova Produção' para começar"
+                                        />
                                     </Td>
                                 </tr>
                             ) : filtered.map(order => {
@@ -818,9 +716,11 @@ export default function Production() {
                                             {formatQty(order.quantity, order.product?.unit)}
                                         </Td>
                                         <Td>
-                                            <StatusBadge $color={s.color} $bg={s.bg}>
-                                                {s.icon} {s.label}
-                                            </StatusBadge>
+                                            <Badge variant={s.variant}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    {s.icon} {s.label}
+                                                </div>
+                                            </Badge>
                                         </Td>
                                         <Td>{order.user?.name || '-'}</Td>
                                         <Td style={{ color: '#94a3b8', fontSize: 12 }}>
@@ -892,11 +792,10 @@ export default function Production() {
                     {loadingRecipes ? (
                         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando fichas técnicas...</div>
                     ) : recipes.length === 0 ? (
-                        <EmptyState>
-                            <EmptyIcon><MdFactory /></EmptyIcon>
-                            <p style={{ fontWeight: 700, marginBottom: 4 }}>Nenhum produto de produção cadastrado</p>
-                            <p>Cadastre produtos com tipo "Produção" na tela de Produtos</p>
-                        </EmptyState>
+                        <EmptyState
+                            title="Nenhum produto de produção cadastrado"
+                            subtitle="Cadastre produtos com tipo 'Produção' na tela de Produtos"
+                        />
                     ) : (
                         <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {recipes.map(({ product, recipe }) => {
@@ -1044,219 +943,205 @@ export default function Production() {
             {/* ═══════════════════════════════════════════════════════════════
                 MODAL — NOVA PRODUÇÃO
             ════════════════════════════════════════════════════════════════ */}
-            {showModal && (
-                <Overlay onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-                    <ModalBox>
-                        <ModalHead>
-                            <ModalTitle>🏭 Nova Ordem de Produção</ModalTitle>
-                            <CloseBtn onClick={() => setShowModal(false)}><MdClose /></CloseBtn>
-                        </ModalHead>
+            {/* ═══════════════════════════════════════════════════════════════
+                MODAL — NOVA PRODUÇÃO
+            ════════════════════════════════════════════════════════════════ */}
+            <Modal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                title="🏭 Nova Ordem de Produção"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowModal(false)}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            id="btn-confirmar-producao"
+                            variant="primary"
+                            onClick={handleCreate}
+                            disabled={submitting || !modalProductId || !modalQty}
+                        >
+                            {submitting ? <><Spinner style={{ display: 'inline-block', width: 14, height: 14, marginRight: 6 }} /> Criando...</> : <><MdAdd /> Criar Ordem</>}
+                        </Button>
+                    </>
+                }
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {/* Produto */}
+                    <Select
+                        label="Produto a Produzir *"
+                        id="select-produto-producao"
+                        value={modalProductId}
+                        onChange={val => { setModalProductId(val); setPreview(null); }}
+                        options={[
+                            { value: "", label: "-- Selecione um produto de produção --" },
+                            ...productionProducts.map(p => ({ value: p.id, label: `${p.name} (${p.unit})` }))
+                        ]}
+                    />
+                    {productionProducts.length === 0 && (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: '#f59e0b', background: '#fef3c720', padding: '8px 12px', borderRadius: 8 }}>
+                            <MdInfo /> Nenhum produto do tipo "Produção" encontrado. Cadastre produtos com tipo "Produção" na tela de Produtos.
+                        </div>
+                    )}
 
-                        <ModalBody>
-                            {/* Produto */}
-                            <Field>
-                                <Label>Produto a Produzir *</Label>
-                                <StyledSelect
-                                    id="select-produto-producao"
-                                    value={modalProductId}
-                                    onChange={e => { setModalProductId(e.target.value); setPreview(null); }}
+                    {/* Quantidade */}
+                    <Input
+                        label={`Quantidade a Produzir *${modalProductId ? ` (${productionProducts.find(p => p.id === modalProductId)?.unit || ''})` : ''}`}
+                        id="input-quantidade-producao"
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        placeholder="Ex: 10"
+                        value={modalQty}
+                        onChange={e => setModalQty(e.target.value)}
+                    />
+
+                    {/* Preview de ingredientes */}
+                    {loadingPreview && (
+                        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>
+                            ⏳ Calculando ingredientes...
+                        </div>
+                    )}
+
+                    {preview && !loadingPreview && (
+                        <PreviewBox $hasIssue={!preview.canProduce}>
+                            <PreviewTitle $hasIssue={!preview.canProduce}>
+                                {preview.canProduce ? <MdCheckCircle /> : <MdWarning />}
+                                Insumos Necessários para {Number(preview.quantity).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {preview.productUnit}
+                            </PreviewTitle>
+
+                            {!preview.canProduce && (
+                                <InsufficientAlert>
+                                    <MdWarning style={{ flexShrink: 0, fontSize: 18 }} />
+                                    <span>Estoque insuficiente para um ou mais ingredientes. Você pode criar a ordem, mas não conseguirá concluir a produção.</span>
+                                </InsufficientAlert>
+                            )}
+
+                            {/* Header da tabela de ingredientes */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 80px', gap: 8, padding: '4px 12px' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8' }}>Ingrediente</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', textAlign: 'right' }}>Por unid.</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', textAlign: 'right' }}>Necessário</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', textAlign: 'right' }}>Disponível</span>
+                            </div>
+
+                            {preview.ingredients.map(ing => (
+                                <IngredientRow key={ing.productId} $insufficient={!ing.sufficient}>
+                                    <IngName>{ing.name}</IngName>
+                                    <IngLabel style={{ textAlign: 'right' }}>
+                                        {Number(ing.quantityPerUnit).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {ing.unit}
+                                    </IngLabel>
+                                    <IngValue $ok={ing.sufficient}>
+                                        {Number(ing.quantityNeeded).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {ing.unit}
+                                    </IngValue>
+                                    <IngValue $ok={ing.sufficient}>
+                                        {Number(ing.quantityAvailable).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {ing.unit}
+                                        {!ing.sufficient && <span style={{ fontSize: 10 }}> ⚠</span>}
+                                    </IngValue>
+                                </IngredientRow>
+                            ))}
+
+                            <TotalCostBox>
+                                <span style={{ color: '#6366f1' }}>💰 Custo Estimado</span>
+                                <span style={{ color: '#6366f1', fontSize: 18 }}>{formatCurrency(preview.estimatedTotalCost)}</span>
+                            </TotalCostBox>
+
+                            {/* Botão PDF da prévia */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => generateProductionPDF({
+                                        preview,
+                                        order: null,
+                                        establishment: establishment?.name,
+                                        notes: modalNotes
+                                    })}
+                                    id="btn-pdf-preview"
                                 >
-                                    <option value="">-- Selecione um produto de produção --</option>
-                                    {productionProducts.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
-                                    ))}
-                                </StyledSelect>
-                                {productionProducts.length === 0 && (
-                                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: '#f59e0b', background: '#fef3c720', padding: '8px 12px', borderRadius: 8 }}>
-                                        <MdInfo /> Nenhum produto do tipo "Produção" encontrado. Cadastre produtos com tipo "Produção" na tela de Produtos.
-                                    </div>
-                                )}
-                            </Field>
+                                    <MdPictureAsPdf /> Exportar Prévia em PDF
+                                </Button>
+                            </div>
+                        </PreviewBox>
+                    )}
 
-                            {/* Quantidade */}
-                            <Field>
-                                <Label>
-                                    Quantidade a Produzir *
-                                    {modalProductId && ` (${productionProducts.find(p => p.id === modalProductId)?.unit || ''})`}
-                                </Label>
-                                <StyledInput
-                                    id="input-quantidade-producao"
-                                    type="number"
-                                    min="0.001"
-                                    step="0.001"
-                                    placeholder="Ex: 10"
-                                    value={modalQty}
-                                    onChange={e => setModalQty(e.target.value)}
-                                />
-                            </Field>
-
-                            {/* Preview de ingredientes */}
-                            {loadingPreview && (
-                                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>
-                                    ⏳ Calculando ingredientes...
-                                </div>
-                            )}
-
-                            {preview && !loadingPreview && (
-                                <PreviewBox $hasIssue={!preview.canProduce}>
-                                    <PreviewTitle $hasIssue={!preview.canProduce}>
-                                        {preview.canProduce ? <MdCheckCircle /> : <MdWarning />}
-                                        Insumos Necessários para {Number(preview.quantity).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {preview.productUnit}
-                                    </PreviewTitle>
-
-                                    {!preview.canProduce && (
-                                        <InsufficientAlert>
-                                            <MdWarning style={{ flexShrink: 0, fontSize: 18 }} />
-                                            <span>Estoque insuficiente para um ou mais ingredientes. Você pode criar a ordem, mas não conseguirá concluir a produção.</span>
-                                        </InsufficientAlert>
-                                    )}
-
-                                    {/* Header da tabela de ingredientes */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 80px', gap: 8, padding: '4px 12px' }}>
-                                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8' }}>Ingrediente</span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', textAlign: 'right' }}>Por unid.</span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', textAlign: 'right' }}>Necessário</span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', textAlign: 'right' }}>Disponível</span>
-                                    </div>
-
-                                    {preview.ingredients.map(ing => (
-                                        <IngredientRow key={ing.productId} $insufficient={!ing.sufficient}>
-                                            <IngName>{ing.name}</IngName>
-                                            <IngLabel style={{ textAlign: 'right' }}>
-                                                {Number(ing.quantityPerUnit).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {ing.unit}
-                                            </IngLabel>
-                                            <IngValue $ok={ing.sufficient}>
-                                                {Number(ing.quantityNeeded).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {ing.unit}
-                                            </IngValue>
-                                            <IngValue $ok={ing.sufficient}>
-                                                {Number(ing.quantityAvailable).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} {ing.unit}
-                                                {!ing.sufficient && <span style={{ fontSize: 10 }}> ⚠</span>}
-                                            </IngValue>
-                                        </IngredientRow>
-                                    ))}
-
-                                    <TotalCostBox>
-                                        <span style={{ color: '#6366f1' }}>💰 Custo Estimado</span>
-                                        <span style={{ color: '#6366f1', fontSize: 18 }}>{formatCurrency(preview.estimatedTotalCost)}</span>
-                                    </TotalCostBox>
-
-                                    {/* Botão PDF da prévia */}
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                        <IconBtn
-                                            $variant="pdf"
-                                            onClick={() => generateProductionPDF({
-                                                preview,
-                                                order: null,
-                                                establishment: establishment?.name,
-                                                notes: modalNotes
-                                            })}
-                                            id="btn-pdf-preview"
-                                        >
-                                            <MdPictureAsPdf /> Exportar Prévia em PDF
-                                        </IconBtn>
-                                    </div>
-                                </PreviewBox>
-                            )}
-
-                            {/* Observações */}
-                            <Field>
-                                <Label>Observações (opcional)</Label>
-                                <StyledTextarea
-                                    id="textarea-notas-producao"
-                                    placeholder="Ex: Lote especial para evento de sábado"
-                                    value={modalNotes}
-                                    onChange={e => setModalNotes(e.target.value)}
-                                />
-                            </Field>
-                        </ModalBody>
-
-                        <ModalFooter>
-                            <IconBtn $variant="default" onClick={() => setShowModal(false)}>
-                                Cancelar
-                            </IconBtn>
-                            <PrimaryBtn
-                                id="btn-confirmar-producao"
-                                onClick={handleCreate}
-                                disabled={submitting || !modalProductId || !modalQty}
-                            >
-                                {submitting ? <><Spinner /> Criando...</> : <><MdAdd /> Criar Ordem</>}
-                            </PrimaryBtn>
-                        </ModalFooter>
-                    </ModalBox>
-                </Overlay>
-            )}
+                    {/* Observações */}
+                    <Input
+                        label="Observações (opcional)"
+                        id="textarea-notas-producao"
+                        placeholder="Ex: Lote especial para evento de sábado"
+                        value={modalNotes}
+                        onChange={e => setModalNotes(e.target.value)}
+                    />
+                </div>
+            </Modal>
 
             {/* ═══════════════════════════════════════════════════════════════
                 MODAL — CONFIRMAR CONCLUSÃO
             ════════════════════════════════════════════════════════════════ */}
-            {completeTarget && (
-                <Overlay onClick={e => e.target === e.currentTarget && !processing && setCompleteTarget(null)}>
-                    <ModalBox style={{ maxWidth: 440 }}>
-                        <ModalHead>
-                            <ModalTitle>✅ Confirmar Produção</ModalTitle>
-                            <CloseBtn onClick={() => !processing && setCompleteTarget(null)}><MdClose /></CloseBtn>
-                        </ModalHead>
-                        <ConfirmBox>
-                            <div style={{ fontSize: 48 }}>🏭</div>
-                            <div>
-                                <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-                                    Confirmar conclusão da produção?
-                                </p>
-                                <p style={{ color: '#64748b', fontSize: 14 }}>
-                                    Serão dadas baixas nos insumos e entrada de{' '}
-                                    <strong>{formatQty(completeTarget.quantity, completeTarget.product?.unit)}</strong> de{' '}
-                                    <strong>{completeTarget.product?.name}</strong> no estoque.
-                                </p>
-                                <p style={{ color: '#ef4444', fontSize: 12, marginTop: 10, fontWeight: 600 }}>
-                                    ⚠ Esta ação não pode ser desfeita.
-                                </p>
-                            </div>
-                        </ConfirmBox>
-                        <ModalFooter>
-                            <IconBtn $variant="default" onClick={() => !processing && setCompleteTarget(null)} disabled={processing}>
-                                Cancelar
-                            </IconBtn>
-                            <IconBtn $variant="success" onClick={handleComplete} disabled={processing} id="btn-confirmar-conclusao">
-                                {processing ? <><Spinner /> Processando...</> : <><MdCheckCircle /> Confirmar Produção</>}
-                            </IconBtn>
-                        </ModalFooter>
-                    </ModalBox>
-                </Overlay>
-            )}
+            <Modal
+                isOpen={!!completeTarget}
+                onClose={() => !processing && setCompleteTarget(null)}
+                title="✅ Confirmar Produção"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => !processing && setCompleteTarget(null)} disabled={processing}>
+                            Cancelar
+                        </Button>
+                        <Button variant="primary" onClick={handleComplete} disabled={processing} id="btn-confirmar-conclusao">
+                            {processing ? <><Spinner style={{ display: 'inline-block', width: 14, height: 14, marginRight: 6 }} /> Processando...</> : <><MdCheckCircle /> Confirmar Produção</>}
+                        </Button>
+                    </>
+                }
+            >
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 48 }}>🏭</div>
+                    <div>
+                        <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+                            Confirmar conclusão da produção?
+                        </p>
+                        <p style={{ color: '#64748b', fontSize: 14 }}>
+                            Serão dadas baixas nos insumos e entrada de{' '}
+                            <strong>{formatQty(completeTarget?.quantity, completeTarget?.product?.unit)}</strong> de{' '}
+                            <strong>{completeTarget?.product?.name}</strong> no estoque.
+                        </p>
+                        <p style={{ color: '#ef4444', fontSize: 12, marginTop: 10, fontWeight: 600 }}>
+                            ⚠ Esta ação não pode ser desfeita.
+                        </p>
+                    </div>
+                </div>
+            </Modal>
 
             {/* ═══════════════════════════════════════════════════════════════
                 MODAL — CONFIRMAR CANCELAMENTO
             ════════════════════════════════════════════════════════════════ */}
-            {cancelTarget && (
-                <Overlay onClick={e => e.target === e.currentTarget && !processing && setCancelTarget(null)}>
-                    <ModalBox style={{ maxWidth: 420 }}>
-                        <ModalHead>
-                            <ModalTitle>❌ Cancelar Ordem</ModalTitle>
-                            <CloseBtn onClick={() => !processing && setCancelTarget(null)}><MdClose /></CloseBtn>
-                        </ModalHead>
-                        <ConfirmBox>
-                            <div style={{ fontSize: 48 }}>🗑</div>
-                            <div>
-                                <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-                                    Cancelar esta ordem de produção?
-                                </p>
-                                <p style={{ color: '#64748b', fontSize: 14 }}>
-                                    A ordem <strong>#{cancelTarget.id.slice(0, 8).toUpperCase()}</strong> será cancelada.
-                                    Nenhum estoque será alterado.
-                                </p>
-                            </div>
-                        </ConfirmBox>
-                        <ModalFooter>
-                            <IconBtn $variant="default" onClick={() => !processing && setCancelTarget(null)} disabled={processing}>
-                                Voltar
-                            </IconBtn>
-                            <IconBtn $variant="danger" onClick={handleCancel} disabled={processing} id="btn-confirmar-cancelamento">
-                                {processing ? <><Spinner /> Cancelando...</> : <><MdCancel /> Cancelar Ordem</>}
-                            </IconBtn>
-                        </ModalFooter>
-                    </ModalBox>
-                </Overlay>
-            )}
+            <Modal
+                isOpen={!!cancelTarget}
+                onClose={() => !processing && setCancelTarget(null)}
+                title="❌ Cancelar Ordem"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => !processing && setCancelTarget(null)} disabled={processing}>
+                            Voltar
+                        </Button>
+                        <Button variant="danger" onClick={handleCancel} disabled={processing} id="btn-confirmar-cancelamento">
+                            {processing ? <><Spinner style={{ display: 'inline-block', width: 14, height: 14, marginRight: 6 }} /> Cancelando...</> : <><MdCancel /> Cancelar Ordem</>}
+                        </Button>
+                    </>
+                }
+            >
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 48 }}>🗑</div>
+                    <div>
+                        <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+                            Cancelar esta ordem de produção?
+                        </p>
+                        <p style={{ color: '#64748b', fontSize: 14 }}>
+                            A ordem <strong>#{cancelTarget?.id?.slice(0, 8).toUpperCase()}</strong> será cancelada.
+                            Nenhum estoque será alterado.
+                        </p>
+                    </div>
+                </div>
+            </Modal>
         </Container>
     );
 }

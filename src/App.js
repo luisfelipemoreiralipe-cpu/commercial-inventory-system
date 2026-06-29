@@ -19,6 +19,7 @@ import StockAuditDetail from "./pages/StockAuditDetail";
 import Reports from "./pages/Reports";
 import MarketingEvents from "./pages/MarketingEvents";
 import Production from "./pages/Production";
+import Portioning from "./pages/Portioning";
 import Patrimony from "./pages/Patrimony";
 import Entries from "./pages/Entries";
 import StockLocations from "./pages/StockLocations";
@@ -91,6 +92,7 @@ function App() {
               <Route path="/stock-locations" element={<StockLocations />} />
               <Route path="/marketing-events" element={<MarketingEvents />} />
               <Route path="/production" element={<Production />} />
+              <Route path="/portioning" element={<Portioning />} />
               <Route path="/patrimony" element={<Patrimony />} />
               <Route path="/entries" element={<Entries />} />
 

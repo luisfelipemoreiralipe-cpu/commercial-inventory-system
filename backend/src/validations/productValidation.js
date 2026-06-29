@@ -11,6 +11,7 @@ const createProductSchema = z.object({
     purchaseUnit: z.string().optional().nullable(),
     packQuantity: z.preprocess((val) => Number(val), z.number().min(0).optional().default(1)),
     defaultLocationId: z.string().optional().nullable(),
+    isActive: z.boolean().optional(),
 });
 
 const updateProductSchema = createProductSchema.partial();

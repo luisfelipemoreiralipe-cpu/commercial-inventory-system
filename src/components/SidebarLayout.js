@@ -17,7 +17,8 @@ import {
   MdNightlightRound,
   MdLogout,
   MdStore,
-  MdFactory
+  MdFactory,
+  MdContentCut
 } from 'react-icons/md';
 import { MdReceiptLong } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
@@ -361,6 +362,7 @@ const NAV_GROUPS = [
       { to: '/patrimony', label: 'Patrimônio', icon: <MdStore /> },
       { to: '/suppliers', label: 'Fornecedores', icon: <MdPeople /> },
       { to: '/production', label: 'Produção', icon: <MdFactory /> },
+      { to: '/portioning', label: 'Desossa (Porcionamento)', icon: <MdContentCut /> },
       { to: '/purchase-orders', label: 'Ordens de Compra', icon: <MdShoppingCart /> },
       { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
       { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
