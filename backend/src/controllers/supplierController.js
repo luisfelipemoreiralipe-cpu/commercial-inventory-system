@@ -19,6 +19,10 @@ const getAll = asyncHandler(async (req, res) => {
 const create = asyncHandler(async (req, res) => {
 
     const establishmentId = req.user.establishmentId;
+    
+    if (req.body && req.body.name) {
+        req.body.name = req.body.name.trim();
+    }
 
     const data = await supplierService.createSupplier(
         req.body,
@@ -35,6 +39,10 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
 
     const establishmentId = req.user.establishmentId;
+    
+    if (req.body && req.body.name) {
+        req.body.name = req.body.name.trim();
+    }
 
     const data = await supplierService.updateSupplier(
         req.params.id,

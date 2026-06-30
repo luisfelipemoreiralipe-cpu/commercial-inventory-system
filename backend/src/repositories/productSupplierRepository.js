@@ -20,6 +20,31 @@ const addSupplierToProduct = (productId, supplierId, price) =>
         }
     });
 
+const upsertSupplierToProduct = (productId, supplierId, price) =>
+    prisma.productSupplier.upsert({
+        where: {
+            productId_supplierId: {
+                productId,
+                supplierId
+            }
+        },
+        update: {
+            price: Number(price)
+        },
+        create: {
+            product: { connect: { id: productId } },
+            supplier: { connect: { id: supplierId } },
+            price: Number(price)
+        },
+        include: {
+            supplier: {
+                select: {
+                    id: true,
+                    name: true
+                }
+            }
+        }
+    });
 
 // ─── READ ───────────────────────────────────────────
 
@@ -50,6 +75,7 @@ const removeSupplierFromProduct = (productId, supplierId) =>
 
 module.exports = {
     addSupplierToProduct,
+    upsertSupplierToProduct,
     getSuppliersByProduct,
     removeSupplierFromProduct
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore, MdWarning } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore, MdWarning, MdPictureAsPdf } from 'react-icons/md';
 import { useApp, ACTIONS } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
@@ -12,6 +12,8 @@ import EmptyState from '../components/EmptyState';
 import api from "../services/api";
 import RecipeModal from "../components/RecipeModal";
 import { Input } from '../components/FormFields';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import Select from "../components/Select";
 import { useLocation } from "react-router-dom";
 import { MdMenuBook } from "react-icons/md";
@@ -285,6 +287,7 @@ const Products = () => {
     const [productSuppliers, setProductSuppliers] = useState([]);
     const [selectedSupplier, setSelectedSupplier] = useState("");
     const [supplierPrice, setSupplierPrice] = useState("");
+    const [syncNetwork, setSyncNetwork] = useState(true);
     const [recipeModal, setRecipeModal] = useState(null);
     const [filterType, setFilterType] = useState("ALL");
     const [form, setForm] = useState(EMPTY_FORM);
@@ -511,7 +514,8 @@ const Products = () => {
             await addProductSupplier(
                 supplierModal.id,
                 selectedSupplier,
-                Number(supplierPrice)
+                Number(supplierPrice),
+                syncNetwork
             );
 
             const updated = await getProductSuppliers(
@@ -643,6 +647,52 @@ const Products = () => {
 
     };
 
+    const exportQuotationPDF = () => {
+        if (filtered.length === 0) {
+            toast.error("Nenhum produto filtrado para exportar.");
+            return;
+        }
+        
+        const doc = new jsPDF();
+        
+        doc.setFontSize(18);
+        doc.text("Lista de Cotação de Preços", 14, 22);
+        
+        doc.setFontSize(11);
+        doc.setTextColor(100);
+        doc.text(`Categoria/Filtro atual | Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 30);
+        
+        const tableColumn = ["Produto", "Unidade", "Cotação Fornecedor (Preencher)"];
+        const tableRows = [];
+
+        filtered.forEach(p => {
+            if (p.isActive) {
+                const productData = [
+                    p.name,
+                    p.purchaseUnit || p.unit,
+                    "" // empty for supplier to fill
+                ];
+                tableRows.push(productData);
+            }
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 35,
+            styles: { fontSize: 10 },
+            headStyles: { fillColor: [41, 128, 185] },
+            columnStyles: {
+                0: { cellWidth: 90 },
+                1: { cellWidth: 40 },
+                2: { cellWidth: 60 }
+            }
+        });
+
+        doc.save(`cotacao_${new Date().getTime()}.pdf`);
+        toast.success("PDF de cotação gerado com sucesso!");
+    };
+
     const field = (key) => ({
         value: form[key],
         onChange: (e) => setForm((f) => ({ ...f, [key]: e.target.value })),
@@ -656,9 +706,14 @@ const Products = () => {
                     <PageTitle>Produtos</PageTitle>
                     <PageSubtitle>{state.products.length} produto(s) cadastrado(s)</PageSubtitle>
                 </TitleBlock>
-                <Button onClick={openAdd}>
-                    <MdAdd /> Novo Produto
-                </Button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <Button variant="secondary" onClick={exportQuotationPDF}>
+                        <MdPictureAsPdf /> Exportar Cotação
+                    </Button>
+                    <Button onClick={openAdd}>
+                        <MdAdd /> Novo Produto
+                    </Button>
+                </div>
             </PageHeader>
             <div
                 style={{
@@ -1232,8 +1287,20 @@ const Products = () => {
                     onChange={(e) => setSupplierPrice(e.target.value)}
                 />
 
+                <div style={{ marginTop: 15, display: "flex", alignItems: "center", gap: 8 }}>
+                    <input 
+                        type="checkbox" 
+                        checked={syncNetwork}
+                        onChange={(e) => setSyncNetwork(e.target.checked)}
+                        style={{ cursor: "pointer", width: 16, height: 16, accentColor: '#10b981' }}
+                    />
+                    <label style={{ fontSize: 14, color: "#4B5563", cursor: "pointer" }} onClick={() => setSyncNetwork(!syncNetwork)}>
+                        Sincronizar preço em toda a rede (outras lojas)
+                    </label>
+                </div>
+
                 <Button
-                    style={{ marginTop: 10 }}
+                    style={{ marginTop: 15 }}
                     onClick={handleAddSupplier}
                     disabled={!selectedSupplier || !supplierPrice}
                 >

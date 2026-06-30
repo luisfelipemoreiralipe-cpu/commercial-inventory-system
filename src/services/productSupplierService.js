@@ -7,10 +7,11 @@ export const getProductSuppliers = async (productId) => {
     return api.get(`/products/${productId}/suppliers`);
 };
 
-export const addProductSupplier = async (productId, supplierId, price) => {
+export const addProductSupplier = async (productId, supplierId, price, syncNetwork = true) => {
     return api.post(`/products/${productId}/suppliers`, {
         supplierId,
-        price
+        price,
+        syncNetwork
     });
 };
 

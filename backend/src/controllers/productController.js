@@ -30,10 +30,13 @@ const create = asyncHandler(async (req, res) => {
         name, categoryId, unit, purchaseUnit, packQuantity,
         type, unitPrice, quantity, minQuantity, defaultLocationId, isActive
     } = req.body;
+    
+    const trimmedName = name ? name.trim() : name;
+
 
     const data = await productService.createProduct(
         {
-            name, categoryId, unit, purchaseUnit, packQuantity,
+            name: trimmedName, categoryId, unit, purchaseUnit, packQuantity,
             type, unitPrice, quantity, minQuantity, defaultLocationId, isActive
         },
         req.user.establishmentId
@@ -47,11 +50,14 @@ const update = asyncHandler(async (req, res) => {
         name, categoryId, unit, purchaseUnit, packQuantity,
         type, unitPrice, quantity, minQuantity, defaultLocationId, isActive
     } = req.body;
+    
+    const trimmedName = name ? name.trim() : name;
+
 
     const data = await productService.updateProduct(
         req.params.id,
         {
-            name, categoryId, unit, purchaseUnit, packQuantity,
+            name: trimmedName, categoryId, unit, purchaseUnit, packQuantity,
             type, unitPrice, quantity, minQuantity, defaultLocationId, isActive
         },
         req.user.establishmentId
@@ -126,13 +132,14 @@ const getSupplierComparison = asyncHandler(async (req, res) => {
 
 const addSupplier = asyncHandler(async (req, res) => {
 
-    const { supplierId, price } = req.body;
+    const { supplierId, price, syncNetwork } = req.body;
 
     const data = await productSupplierService.addSupplierToProduct(
         req.params.id,
         supplierId,
         price,
-        req.user.establishmentId
+        req.user.establishmentId,
+        syncNetwork
     );
 
     res.status(201).json({ success: true, data });
