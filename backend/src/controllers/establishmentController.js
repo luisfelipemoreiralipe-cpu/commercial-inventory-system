@@ -128,14 +128,30 @@ const create = asyncHandler(async (req, res) => {
             }))
         });
 
-        // 5. Dá acesso administrativo ao usuário criador na nova unidade
-        await tx.userEstablishment.create({
-            data: {
-                userId,
-                establishmentId: newEstablishment.id,
-                role: 'ADMIN' // Quem cria é Admin por padrão
-            }
+        // 5. Vincula TODOS os usuários da organização ao novo estabelecimento
+        const orgEstablishments = await tx.establishments.findMany({
+            where: { organizationId: orgId },
+            select: { id: true }
         });
+
+        const orgEstIds = orgEstablishments.map(e => e.id).filter(id => id !== newEstablishment.id);
+
+        const existingUsers = await tx.userEstablishment.findMany({
+            where: { establishmentId: { in: orgEstIds } },
+            select: { userId: true, role: true },
+            distinct: ['userId']
+        });
+
+        if (existingUsers.length > 0) {
+            await tx.userEstablishment.createMany({
+                data: existingUsers.map(ue => ({
+                    userId: ue.userId,
+                    establishmentId: newEstablishment.id,
+                    role: ue.role
+                })),
+                skipDuplicates: true
+            });
+        }
 
         return newEstablishment;
     });

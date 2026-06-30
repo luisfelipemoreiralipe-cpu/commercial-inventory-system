@@ -11,25 +11,46 @@ const create = async ({ name, email, password, role, establishmentIds }) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await prisma.users.create({
-        data: {
-            name,
-            email,
-            password: hashedPassword
-        }
-    });
+    const user = await prisma.$transaction(async (tx) => {
 
-    if (establishmentIds && establishmentIds.length > 0) {
-        const relations = establishmentIds.map(establishmentId => ({
-            userId: user.id,
-            establishmentId,
-            role
-        }));
-
-        await prisma.userEstablishment.createMany({
-            data: relations
+        const newUser = await tx.users.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword
+            }
         });
-    }
+
+        // Descobre todos os estabelecimentos da mesma organização
+        let allEstablishmentIds = establishmentIds || [];
+
+        if (allEstablishmentIds.length > 0) {
+            const sourceEst = await tx.establishments.findUnique({
+                where: { id: allEstablishmentIds[0] }
+            });
+
+            if (sourceEst && sourceEst.organizationId) {
+                const orgEstablishments = await tx.establishments.findMany({
+                    where: { organizationId: sourceEst.organizationId },
+                    select: { id: true }
+                });
+                allEstablishmentIds = orgEstablishments.map(e => e.id);
+            }
+        }
+
+        if (allEstablishmentIds.length > 0) {
+            await tx.userEstablishment.createMany({
+                data: allEstablishmentIds.map(establishmentId => ({
+                    userId: newUser.id,
+                    establishmentId,
+                    role
+                })),
+                skipDuplicates: true
+            });
+        }
+
+        return newUser;
+    });
 
     return user;
 };
