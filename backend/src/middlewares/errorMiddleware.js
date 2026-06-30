@@ -42,7 +42,29 @@ const errorMiddleware = (err, req, res, next) => {
         });
     }
 
-    // 5. Unknown error — log but do NOT expose details to client
+    // 5. Prisma — database connection errors
+    const dbConnectionCodes = ['P1001', 'P1002', 'P1008', 'P1017'];
+    const isDbConnectionError = dbConnectionCodes.includes(err.code) ||
+        err.message?.includes('enetunreach') ||
+        err.message?.includes('Server has closed the connection') ||
+        err.message?.includes('Can\'t reach database server') ||
+        err.message?.includes('Connection refused');
+
+    if (isDbConnectionError) {
+        console.error('[DATABASE CONNECTION ERROR]', {
+            code: err.code,
+            message: err.message?.substring(0, 200),
+            path: req.path,
+            method: req.method,
+        });
+
+        return res.status(503).json({
+            success: false,
+            message: 'Serviço temporariamente indisponível. Tente novamente em alguns segundos.',
+        });
+    }
+
+    // 6. Unknown error — log but do NOT expose details to client
     console.error('[UNHANDLED ERROR]', {
         message: err.message,
         stack: err.stack,
