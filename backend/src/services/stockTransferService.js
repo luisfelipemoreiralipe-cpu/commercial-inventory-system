@@ -309,11 +309,16 @@ const getTransferSummary = async (establishmentId, { startDate, endDate }) => {
         orderBy: { approvedAt: "desc" }
     });
 
-    // Calcula custo unitário base (por ml/g) de um produto
+    // Calcula custo unitário base de um produto
     const getUnitCost = (product) => {
-        const cost = Number(product.currentCost || product.unitPrice || 0);
-        const pack = product.packQuantity || 1;
-        return cost / pack;
+        if (product.currentCost && Number(product.currentCost) > 0) {
+            return Number(product.currentCost);
+        }
+        if (product.unitPrice && Number(product.unitPrice) > 0) {
+            const pack = product.packQuantity || 1;
+            return Number(product.unitPrice) / pack;
+        }
+        return 0;
     };
 
     // Agrupa ENVIADAS por estabelecimento destino

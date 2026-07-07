@@ -116,24 +116,34 @@ const consumeProduct = async ({
             where: { productId_locationId: { productId: product.id, locationId: targetLocationId } }
         });
 
-        if (stockRecord && Number(stockRecord.quantity) >= quantity) {
+        const isAudit = reference === "STOCK_AUDIT";
+        const currentQty = stockRecord ? Number(stockRecord.quantity) : 0;
+
+        // Se tiver saldo suficiente OU for auditoria (que permite zerar sem dar erro)
+        if (currentQty >= quantity || isAudit) {
             
-            // 1. Desconta do Estoque do Local
-            await tx.productStock.update({
-                where: { id: stockRecord.id },
-                data: { quantity: { decrement: quantity } }
-            });
+            // Quantidade real que vamos deduzir do registro físico (productStock) para não negativar
+            const deductAmount = Math.min(currentQty, quantity);
+            
+            // 1. Desconta do Estoque do Local (apenas o que tem, não negativa)
+            if (stockRecord && deductAmount > 0) {
+                await tx.productStock.update({
+                    where: { id: stockRecord.id },
+                    data: { quantity: { decrement: deductAmount } }
+                });
+            }
 
             // 2. Desconta do Total Global do Produto (Cache)
+            // Na auditoria, baixamos a quantidade total pedida para o global refletir a contagem.
             await tx.product.update({
                 where: { id: product.id },
                 data: { quantity: { decrement: quantity } }
             });
 
-            const previousQuantity = Number(stockRecord.quantity);
-            const newQuantity = previousQuantity - quantity;
+            const previousQuantity = currentQty;
+            const newQuantity = currentQty - deductAmount;
 
-            // Usa custo pré-calculado se disponível (evita queries extras dentro da transação)
+            // Usa custo pré-calculado se disponível
             const unitCost = preloadedCost !== undefined ? preloadedCost : await getProductCost(product.id, establishmentId, tx);
             const totalCost = unitCost * Number(quantity);
 

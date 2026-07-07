@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import styled from 'styled-components';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useApp } from '../context/AppContext';
 import Card from '../components/Card';
 import { Input } from '../components/FormFields';
@@ -347,6 +349,72 @@ function generateConsumptionPDF({ consumptionData, kpiData, products, dateFrom, 
     }
 }
 
+function downloadConsumptionPDF({ consumptionData, kpiData, products, dateFrom, dateTo, establishment }) {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('Relatório de Consumo', 14, 22);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    const periodLabel = dateFrom || dateTo
+        ? `Período: ${dateFrom ? new Date(dateFrom + 'T12:00:00').toLocaleDateString('pt-BR') : 'Início'} até ${dateTo ? new Date(dateTo + 'T12:00:00').toLocaleDateString('pt-BR') : 'Hoje'}`
+        : 'Período: Todo o histórico';
+    doc.text(periodLabel, 14, 30);
+    doc.text(`Unidade: ${establishment || 'Geral'}`, 14, 36);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text(`Consumo Total: R$ ${kpiData.totalConsumptionCost.toFixed(2)} (${consumptionData.length} produtos)`, 14, 46);
+    doc.text(`Drink em Dobro: ${kpiData.doubleDrinkCount} (Custo: R$ ${kpiData.doubleDrinkCost.toFixed(2)})`, 14, 52);
+    doc.text(`Cortesia: ${kpiData.courtesyCount} (Custo: R$ ${kpiData.courtesyCost.toFixed(2)})`, 14, 58);
+    
+    const tableColumn = ["Produto", "Qtd Consumida", "Custo Total", "% do Total", "Último Consumo"];
+    const tableRows = [];
+    
+    consumptionData.forEach(item => {
+        const product = products?.find(p => p.id === item.productId);
+        const pack = Number(product?.packQuantity || 1);
+        const pUnit = product?.purchaseUnit || 'un';
+        const bUnit = product?.unit || '';
+        const convQty = (item.quantity / pack).toFixed(2);
+        const pct = kpiData.totalConsumptionCost > 0
+            ? ((item.totalCost / kpiData.totalConsumptionCost) * 100).toFixed(1)
+            : '0.0';
+            
+        tableRows.push([
+            item.name,
+            `${convQty} ${pUnit} (${item.quantity} ${bUnit})`,
+            `R$ ${item.totalCost.toFixed(2)}`,
+            `${pct}%`,
+            new Date(item.lastDate).toLocaleDateString('pt-BR')
+        ]);
+    });
+    
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 66,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [99, 102, 241], textColor: 255 },
+        columnStyles: {
+            1: { halign: 'right' },
+            2: { halign: 'right', textColor: [5, 150, 105], fontStyle: 'bold' },
+            3: { halign: 'right' },
+            4: { halign: 'center' }
+        }
+    });
+    
+    const finalY = doc.lastAutoTable.finalY || 66;
+    doc.setFontSize(12);
+    doc.setTextColor(99, 102, 241);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Custo Total do Período: R$ ${kpiData.totalConsumptionCost.toFixed(2)}`, 14, finalY + 10);
+    
+    doc.save(`relatorio_consumo_${new Date().getTime()}.pdf`);
+}
+
 // ─── Component ──────────────────────────────────
 const Reports = () => {
     const { state } = useApp();
@@ -442,7 +510,7 @@ const Reports = () => {
 
         const map = {};
         movements.forEach((m) => {
-            if ((m.type === 'OUT' && m.reason !== 'LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
+            if ((m.type === 'OUT' && m.reason !== 'LOSS' && m.reason !== 'OPERATIONAL_LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!map[m.productId]) {
                     map[m.productId] = {
                         productId: m.productId,
@@ -619,7 +687,7 @@ const Reports = () => {
 
         // 🟢 CONSUMO (Saídas gerais e CSV, ignora perdas mas abate devoluções)
         movements.forEach((m) => {
-            if ((m.type === 'OUT' && m.reason !== 'LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
+            if ((m.type === 'OUT' && m.reason !== 'LOSS' && m.reason !== 'OPERATIONAL_LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!map[m.productId]) {
                     map[m.productId] = { 
                         productId: m.productId,
@@ -746,8 +814,9 @@ const Reports = () => {
         const consumptionMap = {};
 
         // 🔵 CONSUMO (base para %)
+        const LOSS_REASONS = ['LOSS', 'OPERATIONAL_LOSS'];
         movements.forEach((m) => {
-            if ((m.type === 'OUT' && m.reason !== 'LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
+            if ((m.type === 'OUT' && !LOSS_REASONS.includes(m.reason)) || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!consumptionMap[m.productId]) {
                     consumptionMap[m.productId] = 0;
                 }
@@ -760,29 +829,37 @@ const Reports = () => {
             }
         });
 
-        // 🔴 PERDAS
+        // 🔴 PERDAS (Auditoria = LOSS + Operacional = OPERATIONAL_LOSS)
         movements
-            .filter((m) => m.type === 'OUT' && m.reason === 'LOSS')
+            .filter((m) => m.type === 'OUT' && LOSS_REASONS.includes(m.reason))
             .forEach((m) => {
                 if (!map[m.productId]) {
                     map[m.productId] = {
-                        productId: m.productId, // IMPORTANTE
+                        productId: m.productId,
                         name: m.productName,
                         quantity: 0,
-                        value: 0
+                        value: 0,
+                        hasAudit: false,
+                        hasOperational: false
                     };
                 }
 
                 map[m.productId].quantity += Math.abs(Number(m.quantity || 0));
                 map[m.productId].value += Number(m.totalCost || 0);
+                if (m.reason === 'LOSS') map[m.productId].hasAudit = true;
+                if (m.reason === 'OPERATIONAL_LOSS') map[m.productId].hasOperational = true;
             });
 
         return Object.values(map)
             .map((item) => {
                 const totalConsumed = consumptionMap[item.productId] || 0;
+                let origin = 'Auditoria';
+                if (item.hasAudit && item.hasOperational) origin = 'Ambos';
+                else if (item.hasOperational) origin = 'Operacional';
 
                 return {
                     ...item,
+                    origin,
                     percent:
                         totalConsumed > 0
                             ? (item.quantity / totalConsumed) * 100
@@ -893,9 +970,21 @@ const Reports = () => {
         const courtesyMovements = movements.filter(m => m.type === 'OUT' && m.reason === 'COURTESY');
         const ctData = buildMarketingData(courtesyMovements);
 
+        // ─── KPIs de Perdas (LOSS + OPERATIONAL_LOSS) ───────────
+        const lossMovements = movements.filter(
+            m => m.type === 'OUT' && (m.reason === 'LOSS' || m.reason === 'OPERATIONAL_LOSS')
+        );
+        const totalLossCost = lossMovements.reduce(
+            (acc, m) => acc + Number(m.totalCost || 0), 0
+        );
+        const totalLossQty = lossMovements.reduce(
+            (acc, m) => acc + Math.abs(Number(m.quantity || 0)), 0
+        );
+
         return {
             totalSpent, orderCount: orders.length, bonusValue, lowStockCount,
             totalConsumptionCost, totalConsumptionQty,
+            totalLossCost, totalLossQty,
             doubleDrinkCount: ddData.count, doubleDrinkCost: ddData.cost, doubleDrinkTable: ddData.table,
             courtesyCount: ctData.count, courtesyCost: ctData.cost, courtesyTable: ctData.table
         };
@@ -995,6 +1084,11 @@ const Reports = () => {
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Abaixo do Mínimo</div>
                     <div style={{ fontSize: 22, fontWeight: 700, color: kpiData.lowStockCount > 0 ? '#DC2626' : '#10B981' }}>{kpiData.lowStockCount}</div>
                     <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>{kpiData.lowStockCount === 0 ? 'Estoque saudável ✅' : 'produtos precisam de reposição'}</div>
+                </Card>
+                <Card padding="20px" style={{ borderLeft: '3px solid #DC2626', background: 'linear-gradient(135deg, rgba(220,38,38,0.04), transparent)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>🔴 Total de Perdas</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: '#DC2626' }}>{formatCurrency(kpiData.totalLossCost)}</div>
+                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>auditoria + operacional no período</div>
                 </Card>
             </KpiGrid>
 
@@ -1181,28 +1275,51 @@ const Reports = () => {
                                 <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>Consumo por Produto</div>
                                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{consumptionData.length} produto(s) no período selecionado</div>
                             </div>
-                            <button
-                                id="btn-exportar-pdf-consumo"
-                                onClick={() => generateConsumptionPDF({
-                                    consumptionData,
-                                    kpiData,
-                                    products: state.products,
-                                    dateFrom,
-                                    dateTo,
-                                    establishment: state.establishment?.name
-                                })}
-                                style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                                    padding: '9px 18px',
-                                    borderRadius: 8,
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                    color: '#fff', border: 'none', fontSize: 13, fontWeight: 700,
-                                    cursor: 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <span style={{ fontSize: 16 }}>📄</span> Exportar PDF
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={() => generateConsumptionPDF({
+                                        consumptionData,
+                                        kpiData,
+                                        products: state.products,
+                                        dateFrom,
+                                        dateTo,
+                                        establishment: state.establishment?.name
+                                    })}
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                                        padding: '9px 18px',
+                                        borderRadius: 8,
+                                        background: '#f1f5f9',
+                                        color: '#475569', border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 700,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <span style={{ fontSize: 16 }}>🖨️</span> Imprimir
+                                </button>
+                                <button
+                                    id="btn-exportar-pdf-consumo"
+                                    onClick={() => downloadConsumptionPDF({
+                                        consumptionData,
+                                        kpiData,
+                                        products: state.products,
+                                        dateFrom,
+                                        dateTo,
+                                        establishment: state.establishment?.name
+                                    })}
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                                        padding: '9px 18px',
+                                        borderRadius: 8,
+                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                        color: '#fff', border: 'none', fontSize: 13, fontWeight: 700,
+                                        cursor: 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <span style={{ fontSize: 16 }}>📄</span> Baixar PDF
+                                </button>
+                            </div>
                         </div>
                         <Table>
                             <thead>
@@ -1446,15 +1563,34 @@ const Reports = () => {
                     </Card>
                 )}
                 {activeTab === 'loss' && (
+                    <>
+                    {/* KPI resumo de perdas */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
+                        <Card padding="16px" style={{ borderLeft: '3px solid #DC2626', background: 'linear-gradient(135deg, rgba(220,38,38,0.04), transparent)' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Custo Total em Perdas</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: '#DC2626' }}>{formatCurrency(lossData.reduce((s, i) => s + i.value, 0))}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{lossData.length} produto(s) com perda</div>
+                        </Card>
+                        <Card padding="16px" style={{ borderLeft: '3px solid #F59E0B' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Perdas Operacionais</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: '#F59E0B' }}>{lossData.filter(i => i.origin === 'Operacional' || i.origin === 'Ambos').length} produto(s)</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>derramou, quebrou, descartou</div>
+                        </Card>
+                        <Card padding="16px" style={{ borderLeft: '3px solid #8B5CF6' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Perdas de Auditoria</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: '#8B5CF6' }}>{lossData.filter(i => i.origin === 'Auditoria' || i.origin === 'Ambos').length} produto(s)</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>diferença na contagem de estoque</div>
+                        </Card>
+                    </div>
                     <Card padding="0">
                         <Table>
                             <thead>
                                 <tr>
                                     <Th>Produto</Th>
+                                    <Th>Origem</Th>
                                     <Th>Quantidade Perdida</Th>
                                     <Th>Valor Perdido</Th>
                                     <Th>% Perda</Th>
-
                                 </tr>
                             </thead>
 
@@ -1462,6 +1598,24 @@ const Reports = () => {
                                 {lossData.map((item, index) => (
                                     <Tr key={index}>
                                         <Td style={{ fontWeight: 600 }}>{item.name}</Td>
+
+                                        <Td>
+                                            <span style={{
+                                                display: 'inline-block',
+                                                padding: '3px 10px',
+                                                borderRadius: 20,
+                                                fontSize: 11,
+                                                fontWeight: 700,
+                                                background: item.origin === 'Operacional' ? 'rgba(245,158,11,0.12)'
+                                                    : item.origin === 'Ambos' ? 'rgba(99,102,241,0.12)'
+                                                    : 'rgba(139,92,246,0.12)',
+                                                color: item.origin === 'Operacional' ? '#D97706'
+                                                    : item.origin === 'Ambos' ? '#4F46E5'
+                                                    : '#7C3AED'
+                                            }}>
+                                                {item.origin}
+                                            </span>
+                                        </Td>
 
                                         <Td style={{ color: '#DC2626', fontWeight: 600 }}>
                                             {item.quantity}
@@ -1478,6 +1632,7 @@ const Reports = () => {
                             </tbody>
                         </Table>
                     </Card>
+                    </>
                 )}
 
                 {activeTab === 'metrics' && (
@@ -1552,6 +1707,61 @@ const Reports = () => {
                                         </BarChart>
                                     </ResponsiveContainer>
                                 )}
+                            </div>
+                        </Card>
+
+                        {/* 🔴 Evolução Mensal de Perdas */}
+                        <Card padding="24px" style={{ marginTop: 20 }}>
+                            <div style={{ marginBottom: 20 }}>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1E293B', marginBottom: 4 }}>
+                                    Evolução Mensal de Perdas
+                                </h3>
+                                <p style={{ color: '#64748B', fontSize: '0.875rem' }}>
+                                    Perdas de auditoria + operacionais ({dateFrom || dateTo ? 'período filtrado' : 'últimos 6 meses'}).
+                                </p>
+                            </div>
+                            <div style={{ height: 300, width: '100%' }}>
+                                {(() => {
+                                    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                                    let lossMvs = (state.stockMovements || []).filter(
+                                        m => m.type === 'OUT' && (m.reason === 'LOSS' || m.reason === 'OPERATIONAL_LOSS')
+                                    );
+                                    if (dateFrom) lossMvs = lossMvs.filter(m => new Date(m.createdAt) >= new Date(dateFrom));
+                                    if (dateTo) lossMvs = lossMvs.filter(m => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59'));
+                                    if (!dateFrom && !dateTo) {
+                                        const sixAgo = new Date(); sixAgo.setMonth(sixAgo.getMonth() - 5); sixAgo.setDate(1); sixAgo.setHours(0,0,0,0);
+                                        lossMvs = lossMvs.filter(m => new Date(m.createdAt) >= sixAgo);
+                                    }
+                                    const lmap = {};
+                                    lossMvs.forEach(m => {
+                                        const d = new Date(m.createdAt);
+                                        const k = `${d.getFullYear()}-${d.getMonth()}`;
+                                        if (!lmap[k]) lmap[k] = { month: `${monthNames[d.getMonth()]}/${d.getFullYear().toString().slice(-2)}`, total: 0, sortKey: d.getTime() };
+                                        lmap[k].total += Number(m.totalCost || 0);
+                                    });
+                                    const chartData = Object.values(lmap).sort((a,b) => a.sortKey - b.sortKey);
+
+                                    return chartData.length === 0 ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B', background: '#F8FAFC', borderRadius: 12 }}>
+                                            Nenhuma perda registrada neste período.
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} tickFormatter={(v) => `R$ ${v >= 1000 ? (v/1000).toFixed(0) + 'k' : v}`} />
+                                                <Tooltip
+                                                    cursor={{ fill: '#FEF2F2', radius: 4 }}
+                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px', background: '#FFF' }}
+                                                    formatter={(value) => [formatCurrency(value), 'Perdas no Mês']}
+                                                    labelStyle={{ fontWeight: 600, color: '#1E293B', marginBottom: 4 }}
+                                                />
+                                                <Bar dataKey="total" fill="#DC2626" radius={[6, 6, 0, 0]} barSize={32} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    );
+                                })()}
                             </div>
                         </Card>
                     </>

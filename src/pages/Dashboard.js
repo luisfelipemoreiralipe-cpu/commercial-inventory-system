@@ -343,7 +343,7 @@ const Dashboard = () => {
     if (!filteredMovements?.length) return 0;
 
     const outValue = filteredMovements
-      .filter(m => m.type === "OUT" && m.reason !== "LOSS")
+      .filter(m => m.type === "OUT" && m.reason !== "LOSS" && m.reason !== "OPERATIONAL_LOSS")
       .reduce((sum, m) => sum + Number(m.totalCost || 0), 0);
 
     const inValue = filteredMovements
@@ -385,7 +385,7 @@ const Dashboard = () => {
     const map = {};
 
     filteredMovements
-      .filter(m => m.reason === "LOSS")
+      .filter(m => m.reason === "LOSS" || m.reason === "OPERATIONAL_LOSS")
       .forEach(m => {
         if (!map[m.productId]) {
           map[m.productId] = {

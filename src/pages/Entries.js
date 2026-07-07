@@ -8,8 +8,11 @@ import {
     MdBrokenImage,
     MdFilterList,
     MdAdd,
-    MdReceiptLong
+    MdReceiptLong,
+    MdPictureAsPdf
 } from 'react-icons/md';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
@@ -498,6 +501,88 @@ export default function Entries() {
     const selectedProduct = state.products.find(p => p.id === formProductId);
     const hasFilters = filterType || dateFrom || dateTo;
 
+    // ─── Export PDF ─────────────────────────────────────────────────────────
+    const exportToPDF = () => {
+        const doc = new jsPDF('landscape');
+        
+        doc.setFontSize(18);
+        doc.text('Relatório de Lançamentos', 14, 22);
+        
+        doc.setFontSize(11);
+        doc.setTextColor(100);
+        
+        const periodText = (dateFrom || dateTo) 
+            ? `Período: ${dateFrom ? new Date(dateFrom).toLocaleDateString('pt-BR') : 'Início'} até ${dateTo ? new Date(dateTo + 'T23:59:59').toLocaleDateString('pt-BR') : 'Hoje'}`
+            : 'Período: Todos os lançamentos';
+            
+        doc.text(periodText, 14, 30);
+        
+        if (filterType && ENTRY_TYPES[filterType]) {
+            doc.text(`Filtro: ${ENTRY_TYPES[filterType].label}`, 14, 36);
+        }
+
+        const tableColumn = ["Data/Hora", "Produto", "Tipo", "Quantidade", "Custo", "Referência"];
+        const tableRows = [];
+
+        displayEntries.forEach(m => {
+            const config = ENTRY_TYPES[m.reason] || { label: m.reason };
+            const product = state.products?.find(p => p.id === m.productId);
+            const pack = Number(product?.packQuantity || 1);
+            const pUnit = product?.purchaseUnit || 'un';
+            const bUnit = product?.unit || 'ml';
+            const qty = Math.abs(Number(m.quantity || 0));
+            const qtyInUnits = (qty / pack).toFixed(2);
+            
+            const dateStr = `${new Date(m.createdAt).toLocaleDateString('pt-BR')} ${new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+            
+            const rowData = [
+                dateStr,
+                m.productName || '-',
+                config.label,
+                `${qtyInUnits} ${pUnit} (${qty.toFixed(0)} ${bUnit})`,
+                formatCurrency(Number(m.totalCost || 0)),
+                m.reference || '-'
+            ];
+            
+            tableRows.push(rowData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: filterType ? 42 : 36,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+        });
+        
+        let currentY = doc.lastAutoTable.finalY + 10 || 52;
+        
+        doc.setFontSize(11);
+        doc.setTextColor(0);
+        doc.setFont(undefined, 'bold');
+        doc.text('Resumo (KPIs):', 14, currentY);
+        currentY += 6;
+        
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        
+        Object.entries(ENTRY_TYPES).forEach(([key, config]) => {
+            const kpi = kpis[key];
+            if (kpi && kpi.count > 0) {
+                doc.text(`- ${config.label}: ${kpi.count} lançamento(s) | Custo: ${formatCurrency(kpi.totalCost)}`, 14, currentY);
+                currentY += 6;
+            }
+        });
+        
+        currentY += 2;
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.text(`Custo Total Geral: ${formatCurrency(kpis.totalCost || 0)}`, 14, currentY);
+
+        doc.save('lancamentos.pdf');
+    };
+
     return (
         <>
             <PageHeader>
@@ -507,9 +592,14 @@ export default function Entries() {
                         Registre e acompanhe cortesias, drinks em dobro, promoções e perdas operacionais
                     </PageSubtitle>
                 </div>
-                <Button onClick={() => setShowModal(true)} size="md">
-                    <MdAdd /> Novo Lançamento
-                </Button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <Button onClick={exportToPDF} size="md" variant="secondary">
+                        <MdPictureAsPdf style={{ color: '#EF4444' }} /> Exportar PDF
+                    </Button>
+                    <Button onClick={() => setShowModal(true)} size="md">
+                        <MdAdd /> Novo Lançamento
+                    </Button>
+                </div>
             </PageHeader>
 
             {/* ─── KPI Cards ─────────────────────────────────────────────────────── */}
