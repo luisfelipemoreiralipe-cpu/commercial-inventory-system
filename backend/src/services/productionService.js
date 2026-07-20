@@ -170,9 +170,6 @@ const completeProductionOrder = async (orderId, establishmentId) => {
             });
 
             if (!current) throw new Error(`Ingrediente ${ingredient.name} não encontrado.`);
-            if (Number(current.quantity) < needed) {
-                throw new Error(`Estoque insuficiente para: ${ingredient.name}. Disponível: ${current.quantity}, Necessário: ${needed}`);
-            }
 
             // Calcula o custo atual do ingrediente
             const unitCost = await stockMovementService.getProductCost(ingredient.id, establishmentId, tx);

@@ -13,16 +13,6 @@ const createTransfer = async ({
     toEstablishmentId,
     userId
 }) => {
-    const hasOpenAudit = await prisma.stockAudit.findFirst({
-        where: {
-            establishmentId: fromEstablishmentId,
-            status: "OPEN"
-        }
-    });
-
-    if (hasOpenAudit) {
-        throw new Error("Existe uma auditoria em andamento. Não é possível transferir estoque.");
-    }
 
     if (!productId) {
         throw new Error("Produto é obrigatório");
@@ -61,9 +51,6 @@ const createTransfer = async ({
         throw new Error("Produto não encontrado ou não pertence ao seu estabelecimento.");
     }
 
-    if (Number(product.quantity) < Number(quantity)) {
-        throw new Error("Estoque insuficiente para transferência");
-    }
 
     const transfer = await prisma.stockTransfer.create({
         data: {
@@ -79,6 +66,79 @@ const createTransfer = async ({
 
     return transfer;
 };
+
+/**
+ * 🔐 CRIAR TRANSFERÊNCIAS EM LOTE (MÚLTIPLOS ITENS)
+ */
+const createBulkTransfers = async ({
+    items,
+    fromEstablishmentId,
+    toEstablishmentId,
+    userId
+}) => {
+
+    if (!items || items.length === 0) {
+        throw new Error("Nenhum item informado para transferência.");
+    }
+
+    if (fromEstablishmentId === toEstablishmentId) {
+        throw new Error("Não é possível transferir para o mesmo estabelecimento");
+    }
+
+    const [fromEst, toEst] = await Promise.all([
+        prisma.establishments.findUnique({ where: { id: fromEstablishmentId } }),
+        prisma.establishments.findUnique({ where: { id: toEstablishmentId } })
+    ]);
+
+    if (!fromEst || !toEst) {
+        throw new Error("Estabelecimento de origem ou destino não encontrado.");
+    }
+
+    if (fromEst.organizationId !== toEst.organizationId) {
+        throw new Error("Não é permitido transferir estoque entre organizações diferentes.");
+    }
+
+    const transfers = [];
+
+    await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+            const { productId, quantity, destinationProductId } = item;
+
+            if (!productId || !quantity || quantity <= 0) {
+                throw new Error("Item com produto ou quantidade inválida.");
+            }
+
+            const product = await tx.product.findFirst({
+                where: {
+                    id: productId,
+                    establishmentId: fromEstablishmentId
+                }
+            });
+
+            if (!product) {
+                throw new Error(`Produto não encontrado na origem.`);
+            }
+
+
+            const transfer = await tx.stockTransfer.create({
+                data: {
+                    productId,
+                    destinationProductId: destinationProductId || null,
+                    quantity: Number(quantity),
+                    fromEstablishmentId,
+                    toEstablishmentId,
+                    createdBy: userId,
+                    status: "PENDING"
+                }
+            });
+
+            transfers.push(transfer);
+        }
+    });
+
+    return transfers;
+};
+
 
 /**
  * 🔐 LISTAR ENVIADAS
@@ -168,9 +228,6 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
             throw new Error("Produto de origem não encontrado.");
         }
 
-        if (Number(product.quantity) < Number(quantity)) {
-            throw new Error("Estoque insuficiente na origem.");
-        }
 
         // 3️⃣ Buscar ou criar produto no destino
         let destinationProduct = null;
@@ -226,7 +283,7 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
                 destinationProductId: destinationProduct.id // Garante que o ID final fique salvo
             }
         });
-    });
+    }, { maxWait: 15000, timeout: 60000 });
 };
 
 /**
@@ -435,6 +492,7 @@ const getDestinationProducts = async (establishmentId) => {
 
 module.exports = {
     createTransfer,
+    createBulkTransfers,
     approveTransfer,
     rejectTransfer,
     getSentTransfers,

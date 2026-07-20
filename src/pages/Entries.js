@@ -9,7 +9,8 @@ import {
     MdFilterList,
     MdAdd,
     MdReceiptLong,
-    MdPictureAsPdf
+    MdPictureAsPdf,
+    MdRemoveCircleOutline
 } from 'react-icons/md';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -345,6 +346,41 @@ const ResultBox = styled.div`
   border: 1px dashed ${({ theme }) => theme.colors.border};
 `;
 
+const ManualItemCard = styled.div`
+  background: ${({ theme }) => theme.colors.bgHover};
+  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  padding: 16px;
+  margin-bottom: 12px;
+  position: relative;
+`;
+
+const ManualItemHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+`;
+
+const ManualItemNumber = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primaryGlow};
+  padding: 2px 10px;
+  border-radius: 999px;
+`;
+
+const ManualGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+  @media (max-width: 540px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Entries() {
     const { state, fetchAllData } = useApp();
@@ -357,11 +393,40 @@ export default function Entries() {
     // Modal
     const [showModal, setShowModal] = useState(false);
     const [formType, setFormType] = useState('DOUBLE_DRINK');
-    const [formProductId, setFormProductId] = useState('');
-    const [formQuantity, setFormQuantity] = useState('');
     const [formNotes, setFormNotes] = useState('');
-    const [formLocationId, setFormLocationId] = useState('');
     const [submitting, setSubmitting] = useState(false);
+
+    const EMPTY_ITEM = () => ({
+        _key: Math.random().toString(36).slice(2),
+        productId: "",
+        quantity: "",
+        locationId: ""
+    });
+    const [items, setItems] = useState([EMPTY_ITEM()]);
+    
+    const updateItem = (key, field, value) => {
+        setItems(prev => prev.map(item => {
+            if (item._key !== key) return item;
+            
+            const newItem = { ...item, [field]: value };
+            
+            if (field === "productId") {
+                const prod = state.products?.find(p => p.id === value);
+                if (prod) {
+                    const defaultLocId = prod.defaultLocationId || (locations.find(l => l.isDefault)?.id) || '';
+                    newItem.locationId = defaultLocId;
+                }
+            }
+            return newItem;
+        }));
+    };
+
+    const addItem = () => setItems(prev => [...prev, EMPTY_ITEM()]);
+    
+    const removeItem = (key) => {
+        if (items.length === 1) return;
+        setItems(prev => prev.filter(i => i._key !== key));
+    };
 
     // Data
     const [entries, setEntries] = useState([]);
@@ -466,33 +531,38 @@ export default function Entries() {
 
     // ─── Submit ─────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
-        if (!formProductId) return toast.error("Selecione um produto");
-        if (!formQuantity || Number(formQuantity) <= 0) return toast.error("Informe uma quantidade válida");
+        for (const item of items) {
+            if (!item.productId) return toast.error("Selecione um produto em todos os itens");
+            if (!item.quantity || Number(item.quantity) <= 0) return toast.error("Informe uma quantidade válida em todos os itens");
+        }
 
-        const selectedProduct = state.products.find(p => p.id === formProductId);
-        const pack = selectedProduct?.type === 'PRODUCTION' ? 1 : Number(selectedProduct?.packQuantity || 1);
-        const moveQty = Number(formQuantity) * pack;
+        const payloadItems = items.map(item => {
+            const selectedProduct = state.products.find(p => p.id === item.productId);
+            const pack = selectedProduct?.type === 'PRODUCTION' ? 1 : Number(selectedProduct?.packQuantity || 1);
+            return {
+                productId: item.productId,
+                quantity: Number(item.quantity) * pack,
+                locationId: item.locationId || undefined
+            };
+        });
 
         setSubmitting(true);
         try {
             await api.post('/entries', {
-                productId: formProductId,
-                quantity: moveQty,
                 entryType: formType,
                 notes: formNotes || undefined,
-                locationId: formLocationId || undefined
+                items: payloadItems
             });
-            toast.success("Lançamento registrado com sucesso!");
+            toast.success("Lançamento(s) registrado(s) com sucesso!");
             setShowModal(false);
-            setFormProductId('');
-            setFormQuantity('');
+            setItems([EMPTY_ITEM()]);
             setFormNotes('');
-            setFormLocationId('');
             await fetchAllData();
             await fetchEntries();
             await fetchSummary();
         } catch (err) {
             console.error(err);
+            toast.error(err.response?.data?.message || "Erro ao registrar lançamento");
         } finally {
             setSubmitting(false);
         }
@@ -779,91 +849,120 @@ export default function Entries() {
                             )}
                         </div>
 
-                        {/* Produto */}
-                        <Select
-                            label="Produto"
-                            value={formProductId}
-                            onChange={(val) => {
-                                setFormProductId(val);
-                                const prod = state.products?.find(p => p.id === val);
-                                if (prod) {
-                                    const defaultLocId = prod.defaultLocationId || (locations.find(l => l.isDefault)?.id) || '';
-                                    setFormLocationId(defaultLocId);
-                                }
-                            }}
-                            options={[
-                                { value: '', label: 'Selecione um produto...' },
-                                ...(state.products || [])
-                                    .filter(p => p.isActive !== false)
-                                    .map((p) => {
-                                        const pack = Number(p.packQuantity || 1);
-                                        const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
-                                        return {
-                                            value: p.id,
-                                            label: `${p.name} (Estoque: ${inUnits} ${p.purchaseUnit || 'un'})`,
-                                        };
-                                    })
-                            ]}
-                        />
-
-                        {/* Local */}
-                        <Select
-                            label="Local de Origem (Opcional)"
-                            value={formLocationId}
-                            onChange={(val) => setFormLocationId(val)}
-                            options={[
-                                { value: "", label: "Usar local padrão de cada produto" },
-                                ...locations.map(l => ({ value: l.id, label: l.name }))
-                            ]}
-                        />
-
-                        {/* Quantidade */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <Input
-                                label={`Quantidade (em ${selectedProduct?.purchaseUnit || 'unidades'})`}
-                                type="number"
-                                inputMode="decimal"
-                                placeholder="0"
-                                value={formQuantity}
-                                onChange={(e) => setFormQuantity(e.target.value)}
-                            />
-                            {selectedProduct && formQuantity !== '' && (
-                                <span style={{ fontSize: '12px', color: '#64748B', marginLeft: '4px' }}>
-                                    Total base: <strong>{(Number(formQuantity) * (selectedProduct.packQuantity || 1)).toFixed(0)} {selectedProduct.unit || 'ml'}</strong>
-                                </span>
-                            )}
-                        </div>
-
-                        {/* Preview */}
-                        {selectedProduct && formQuantity && Number(formQuantity) > 0 && (() => {
-                            const pack = selectedProduct.type === 'PRODUCTION' ? 1 : Number(selectedProduct.packQuantity || 1);
-                            const moveAmount = Number(formQuantity) * pack;
-                            
-                            const targetLocId = formLocationId || selectedProduct.defaultLocationId || (locations.find(l => l.isDefault)?.id);
-                            const stockObj = selectedProduct.productStocks?.find(s => s.locationId === targetLocId);
-                            const prevQty = stockObj ? Number(stockObj.quantity) : 0;
-                            
-                            const newQty = prevQty - moveAmount;
-                            const inUnits = (newQty / pack).toFixed(2);
-
+                        {items.map((item, idx) => {
+                            const selectedProduct = state.products?.find(p => p.id === item.productId);
                             return (
-                                <ResultBox>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <span>Estoque atual:</span>
-                                        <strong>{(prevQty / pack).toFixed(2)} {selectedProduct.purchaseUnit}</strong>
+                                <ManualItemCard key={item._key}>
+                                    <ManualItemHeader>
+                                        <ManualItemNumber>Item {idx + 1}</ManualItemNumber>
+                                        {items.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeItem(item._key)}
+                                                style={{ 
+                                                    background: 'transparent', border: 'none', color: '#EF4444', 
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center' 
+                                                }}
+                                            >
+                                                <MdRemoveCircleOutline size={20} />
+                                            </button>
+                                        )}
+                                    </ManualItemHeader>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {/* Produto */}
+                                        <Select
+                                            label="Produto"
+                                            value={item.productId}
+                                            onChange={(val) => updateItem(item._key, "productId", val)}
+                                            options={[
+                                                { value: '', label: 'Selecione um produto...' },
+                                                ...(state.products || [])
+                                                    .filter(p => p.isActive !== false)
+                                                    .map((p) => {
+                                                        const pack = Number(p.packQuantity || 1);
+                                                        const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);
+                                                        return {
+                                                            value: p.id,
+                                                            label: `${p.name} (Estoque: ${inUnits} ${p.purchaseUnit || 'un'})`,
+                                                        };
+                                                    })
+                                            ]}
+                                        />
+
+                                        <ManualGrid>
+                                            {/* Local */}
+                                            <Select
+                                                label="Local (Opcional)"
+                                                value={item.locationId}
+                                                onChange={(val) => updateItem(item._key, "locationId", val)}
+                                                options={[
+                                                    { value: "", label: "Local padrão" },
+                                                    ...locations.map(l => ({ value: l.id, label: l.name }))
+                                                ]}
+                                            />
+
+                                            {/* Quantidade */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <Input
+                                                    label={`Quantidade (${selectedProduct?.purchaseUnit || 'unidades'})`}
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    placeholder="0"
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateItem(item._key, "quantity", e.target.value)}
+                                                />
+                                            </div>
+                                        </ManualGrid>
+
+                                        {/* Preview */}
+                                        {selectedProduct && item.quantity && Number(item.quantity) > 0 && (() => {
+                                            const pack = selectedProduct.type === 'PRODUCTION' ? 1 : Number(selectedProduct.packQuantity || 1);
+                                            const moveAmount = Number(item.quantity) * pack;
+                                            
+                                            const targetLocId = item.locationId || selectedProduct.defaultLocationId || (locations.find(l => l.isDefault)?.id);
+                                            const stockObj = selectedProduct.productStocks?.find(s => s.locationId === targetLocId);
+                                            const prevQty = stockObj ? Number(stockObj.quantity) : 0;
+                                            
+                                            const newQty = prevQty - moveAmount;
+                                            const inUnits = (newQty / pack).toFixed(2);
+
+                                            return (
+                                                <ResultBox>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                        <span>Estoque base: {(Number(item.quantity) * pack).toFixed(0)} {selectedProduct.unit || 'ml'}</span>
+                                                        <strong>Atual: {(prevQty / pack).toFixed(2)} {selectedProduct.purchaseUnit}</strong>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <span>Após lançamento:</span>
+                                                        <strong style={{
+                                                            color: newQty < 0 ? "#DC2626" : "#059669",
+                                                            fontSize: '15px'
+                                                        }}>
+                                                            {inUnits} {selectedProduct.purchaseUnit}
+                                                        </strong>
+                                                    </div>
+                                                </ResultBox>
+                                            );
+                                        })()}
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>Após lançamento:</span>
-                                        <strong style={{
-                                            color: newQty < 0 ? "#DC2626" : "#059669",
-                                            fontSize: '16px'
-                                        }}>
-                                            {inUnits} {selectedProduct.purchaseUnit}
-                                        </strong>
-                                    </div>
-                                </ResultBox>
+                                </ManualItemCard>
                             );
-                        })()}
+                        })}
+
+                        <button
+                            type="button"
+                            onClick={addItem}
+                            style={{ 
+                                width: "100%", padding: "10px", marginBottom: "8px", 
+                                border: "1.5px dashed #CBD5E1", borderRadius: "10px",
+                                background: "transparent", color: "#475569", fontWeight: 600,
+                                cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px"
+                            }}
+                        >
+                            <MdAdd size={18} />
+                            Adicionar outro produto
+                        </button>
 
                         {/* Observação */}
                         <div>

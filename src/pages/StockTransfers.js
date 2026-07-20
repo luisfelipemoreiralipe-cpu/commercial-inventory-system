@@ -6,7 +6,7 @@ import Badge from "../components/Badge";
 import Select from "../components/Select";
 import toast from "react-hot-toast"
 import Button from "../components/Button";
-
+import { MdRemoveCircleOutline, MdAdd } from "react-icons/md";
 
 const Container = styled.div`
   padding: ${({ theme }) => theme.spacing.lg};
@@ -119,69 +119,7 @@ const Tr = styled.tr`
   }
 `;
 
-const TransferLayout = styled.div`
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: ${({ theme }) => theme.spacing.lg};
-  align-items: flex-start;
 
-  @media (max-width: 800px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const Form = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing.md};
-`;
-
-const MappingPanel = styled.div`
-  background: ${({ theme }) => theme.colors.bgHover};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  padding: ${({ theme }) => theme.spacing.lg};
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing.md};
-  min-height: 200px;
-`;
-
-const MappingTitle = styled.div`
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  font-weight: ${({ theme }) => theme.fontWeights.bold};
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  padding-bottom: ${({ theme }) => theme.spacing.sm};
-`;
-
-const MappingHint = styled.div`
-  font-size: ${({ theme }) => theme.fontSizes.xs};
-  color: ${({ theme }) => theme.colors.textMuted};
-  line-height: 1.5;
-`;
-
-const MappingSelectWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
-
-const MappingBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: ${({ theme }) => theme.fontSizes.xs};
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: ${({ $color }) => $color || '#3b82f620'};
-  color: ${({ $textColor }) => $textColor || '#3b82f6'};
-  font-weight: 600;
-  width: fit-content;
-`;
 
 const Field = styled.div`
   display: flex;
@@ -319,25 +257,66 @@ const EmptyState = styled.div`
   font-size: ${({ theme }) => theme.fontSizes.sm};
 `;
 
+const ManualItemCard = styled.div`
+  background: ${({ theme }) => theme.colors.bgHover};
+  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  padding: 16px;
+  margin-bottom: 12px;
+  position: relative;
+`;
+
+const ManualItemHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+`;
+
+const ManualItemNumber = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primaryGlow};
+  padding: 2px 10px;
+  border-radius: 999px;
+`;
+
+const ManualGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+  @media (max-width: 540px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+
 export default function StockTransfers() {
 
     const { state } = useApp();
     const { products } = state;
 
 
+    const EMPTY_ITEM = () => ({
+        _key: Math.random().toString(36).slice(2),
+        productId: "",
+        quantity: "",
+        destinationProductId: ""
+    });
+
     const [tab, setTab] = useState("create");
     const [sentTransfers, setSentTransfers] = useState([]);
     const [receivedTransfers, setReceivedTransfers] = useState([]);
     const [establishments, setEstablishments] = useState([]);
-    const [productId, setProductId] = useState("");
-    const [quantity, setQuantity] = useState("");
+    const [items, setItems] = useState([EMPTY_ITEM()]);
     const [destinationId, setDestinationId] = useState("");
     const [loading, setLoading] = useState(false);
     const [processingId, setProcessingId] = useState(null);
 
     // Mapeamento de produto no destino
     const [destinationProducts, setDestinationProducts] = useState([]);
-    const [destinationProductId, setDestinationProductId] = useState("");
     const [loadingDestProducts, setLoadingDestProducts] = useState(false);
 
     // Summary state
@@ -354,7 +333,53 @@ export default function StockTransfers() {
     const topProduct = getTopTransferredProduct();
 
     // 🔹 Criar transferência
+    const updateItem = (key, field, value) => {
+        setItems(prev => prev.map(item => {
+            if (item._key !== key) return item;
+            
+            const newItem = { ...item, [field]: value };
+            
+            if (field === "productId" && destinationProducts.length > 0) {
+                const sourceProduct = products.find(p => p.id === value);
+                if (sourceProduct) {
+                    const sourceName = sourceProduct.name.toLowerCase();
+                    const match = destinationProducts.find(p => {
+                        const n = p.name.toLowerCase();
+                        return n === sourceName || n.includes(sourceName) || sourceName.includes(n);
+                    });
+                    newItem.destinationProductId = match ? match.id : "";
+                }
+            }
+            
+            return newItem;
+        }));
+    };
 
+    const addItem = () => setItems(prev => [...prev, EMPTY_ITEM()]);
+    
+    const removeItem = (key) => {
+        if (items.length === 1) return;
+        setItems(prev => prev.filter(i => i._key !== key));
+    };
+
+    useEffect(() => {
+        if (destinationProducts.length > 0) {
+            setItems(prev => prev.map(item => {
+                if (item.productId && !item.destinationProductId) {
+                    const sourceProduct = products.find(p => p.id === item.productId);
+                    if (sourceProduct) {
+                        const sourceName = sourceProduct.name.toLowerCase();
+                        const match = destinationProducts.find(p => {
+                            const n = p.name.toLowerCase();
+                            return n === sourceName || n.includes(sourceName) || sourceName.includes(n);
+                        });
+                        if (match) return { ...item, destinationProductId: match.id };
+                    }
+                }
+                return item;
+            }));
+        }
+    }, [destinationProducts, products]);
 
     function getTopTransferredProduct() {
 
@@ -454,16 +479,21 @@ export default function StockTransfers() {
     }
 
     async function handleTransfer() {
-
-        if (!productId || !quantity || !destinationId) {
-            toast.error("Preencha todos os campos");
+        if (!destinationId) {
+            toast.error("Selecione o estabelecimento de destino");
             return;
         }
 
-        const selectedProduct = products.find(p => p.id === productId);
-        if (selectedProduct && Number(quantity) > Number(selectedProduct.quantity)) {
-            toast.error(`Estoque insuficiente no estabelecimento de origem. Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}`);
-            return;
+        for (const item of items) {
+            if (!item.productId || !item.quantity) {
+                toast.error("Preencha produto e quantidade em todos os itens");
+                return;
+            }
+            const selectedProduct = products.find(p => p.id === item.productId);
+            if (selectedProduct && Number(item.quantity) > Number(selectedProduct.quantity)) {
+                toast.error(`Estoque insuficiente no estabelecimento de origem para: ${selectedProduct.name}`);
+                return;
+            }
         }
 
         try {
@@ -471,18 +501,17 @@ export default function StockTransfers() {
             setLoading(true);
 
             await api.post("/stock-transfers", {
-                productId,
-                quantity: Number(quantity),
                 toEstablishmentId: destinationId,
-                destinationProductId: destinationProductId || null
+                items: items.map(item => ({
+                    productId: item.productId,
+                    quantity: Number(item.quantity),
+                    destinationProductId: item.destinationProductId || null
+                }))
             });
 
             toast.success("Transferência criada com sucesso");
-
-            setProductId("");
-            setQuantity("");
+            setItems([EMPTY_ITEM()]);
             setDestinationId("");
-            setDestinationProductId("");
             setDestinationProducts([]);
 
         } catch (err) {
@@ -507,25 +536,12 @@ export default function StockTransfers() {
     async function loadDestinationProducts(estId) {
         if (!estId) {
             setDestinationProducts([]);
-            setDestinationProductId("");
             return;
         }
         try {
             setLoadingDestProducts(true);
             const res = await api.get(`/stock-transfers/destination-products/${estId}`);
             setDestinationProducts(res);
-            // Autoselect por similaridade de nome
-            const sourceProduct = products.find(p => p.id === productId);
-            if (sourceProduct) {
-                const sourceName = sourceProduct.name.toLowerCase();
-                const match = res.find(p => {
-                    const n = p.name.toLowerCase();
-                    return n === sourceName || n.includes(sourceName) || sourceName.includes(n);
-                });
-                setDestinationProductId(match ? match.id : "");
-            } else {
-                setDestinationProductId("");
-            }
         } catch (err) {
             console.error(err);
             toast.error("Erro ao carregar produtos do destino");
@@ -687,52 +703,8 @@ export default function StockTransfers() {
                 )}
 
                 {tab === "create" && (
-
-                    <TransferLayout>
-
-                        {/* COLUNA ESQUERDA: Formulário */}
-                        <Form>
-                            <Field>
-                                <Select
-                                    label="Produto (Origem)"
-                                    value={productId}
-                                    onChange={(val) => {
-                                        setProductId(val);
-                                        if (destinationId) loadDestinationProducts(destinationId);
-                                    }}
-                                    options={[
-                                        { value: "", label: "-- Selecione um produto --" },
-                                        ...products.map((product) => ({
-                                            value: product.id,
-                                            label: `${product.name} (Estoque: ${product.quantity || 0} ${product.unit || 'ml'})`,
-                                        }))
-                                    ]}
-                                />
-                            </Field>
-
-                            <Field>
-                                <Label>Quantidade ({products.find(p => p.id === productId)?.unit || 'ml'})</Label>
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    placeholder="Quantidade"
-                                    value={quantity}
-                                    onChange={(e) => setQuantity(e.target.value)}
-                                />
-                                {(() => {
-                                    const selectedProduct = products.find(p => p.id === productId);
-                                    const q = Number(quantity);
-                                    if (!selectedProduct || q <= 0) return null;
-                                    const units = (q / (selectedProduct.packQuantity || 1)).toFixed(2);
-                                    const isExceeded = q > Number(selectedProduct.quantity);
-                                    return (
-                                        <div style={{ fontSize: '0.8rem', color: isExceeded ? '#ef4444' : '#64748b', marginTop: '4px', fontWeight: isExceeded ? 600 : 400 }}>
-                                            {isExceeded ? `⚠️ Estoque insuficiente! Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}` : `Equivale a ${units} ${selectedProduct.purchaseUnit || 'un'}(s)`}
-                                        </div>
-                                    );
-                                })()}
-                            </Field>
-
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <Card>
                             <Field>
                                 <Select
                                     label="Estabelecimento Destino"
@@ -747,92 +719,124 @@ export default function StockTransfers() {
                                     ]}
                                 />
                             </Field>
-
-                            {(() => {
-                                const selectedProduct = products.find(p => p.id === productId);
-                                const q = Number(quantity);
-                                const isExceeded = selectedProduct && q > Number(selectedProduct.quantity);
-                                return (
-                                    <Button
-                                        onClick={handleTransfer}
-                                        disabled={loading || isExceeded}
-                                        variant={isExceeded ? "secondary" : "primary"}
-                                        style={{ opacity: isExceeded ? 0.6 : 1 }}
-                                    >
-                                        {loading ? "Transferindo..." : isExceeded ? "Estoque Insuficiente" : "Transferir"}
-                                    </Button>
-                                );
-                            })()}
-                        </Form>
-
-                        {/* COLUNA DIREITA: Painel de Mapeamento */}
-                        <MappingPanel>
-                            <MappingTitle>
-                                🔗 Produto no Destino
-                            </MappingTitle>
-
-                            {!destinationId && (
-                                <MappingHint>
-                                    Selecione um <strong>produto</strong> e um <strong>estabelecimento de destino</strong> para ver como o produto será mapeado.
-                                </MappingHint>
-                            )}
-
                             {destinationId && loadingDestProducts && (
-                                <MappingHint>🔄 Buscando produtos do destino...</MappingHint>
+                                <div style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>🔄 Buscando produtos do destino...</div>
                             )}
+                        </Card>
 
-                            {destinationId && !loadingDestProducts && (
-                                <>
-                                    {productId && (() => {
-                                        const src = products.find(p => p.id === productId);
-                                        const destEst = establishments.find(e => e.id === destinationId);
-                                        return src ? (
-                                            <MappingHint>
-                                                Você está transferindo <strong>"{src.name}"</strong> para <strong>{destEst?.name}</strong>.<br />
-                                                Selecione abaixo o produto correspondente no destino, ou deixe em branco para criar um novo.
-                                            </MappingHint>
-                                        ) : null;
-                                    })()}
+                        {items.map((item, idx) => {
+                            const selectedProduct = products.find(p => p.id === item.productId);
+                            const q = Number(item.quantity);
+                            const isExceeded = selectedProduct && q > Number(selectedProduct.quantity);
 
-                                    <MappingSelectWrapper>
-                                        <Label>Produto correspondente no destino</Label>
-                                        <select
-                                            value={destinationProductId}
-                                            onChange={(e) => setDestinationProductId(e.target.value)}
-                                            style={{
-                                                padding: '10px',
-                                                borderRadius: '8px',
-                                                border: '1px solid #e2e8f0',
-                                                background: 'transparent',
-                                                fontSize: '0.875rem',
-                                                width: '100%',
-                                                cursor: 'pointer',
-                                                color: 'inherit',
-                                            }}
-                                        >
-                                            <option value="">➕ Criar como NOVO produto no destino</option>
-                                            {destinationProducts.map(p => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.name} ({Number(p.quantity).toFixed(1)} {p.unit})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </MappingSelectWrapper>
+                            return (
+                                <ManualItemCard key={item._key}>
+                                    <ManualItemHeader>
+                                        <ManualItemNumber>Item {idx + 1}</ManualItemNumber>
+                                        {items.length > 1 && (
+                                            <Button
+                                                size="sm"
+                                                variant="danger"
+                                                onClick={() => removeItem(item._key)}
+                                                style={{ padding: "4px 8px" }}
+                                            >
+                                                <MdRemoveCircleOutline size={16} />
+                                            </Button>
+                                        )}
+                                    </ManualItemHeader>
 
-                                    {destinationProductId ? (
-                                        <MappingBadge $color="#22c55e20" $textColor="#16a34a">
-                                            ✅ Vai incrementar estoque em "{destinationProducts.find(p => p.id === destinationProductId)?.name}"
-                                        </MappingBadge>
-                                    ) : (
-                                        <MappingBadge $color="#f59e0b20" $textColor="#d97706">
-                                            ⚠️ Um novo produto será criado no destino com o nome da origem
-                                        </MappingBadge>
-                                    )}
-                                </>
-                            )}
-                        </MappingPanel>
+                                    <ManualGrid>
+                                        <Field>
+                                            <Select
+                                                label="Produto (Origem)"
+                                                value={item.productId}
+                                                onChange={(val) => updateItem(item._key, "productId", val)}
+                                                options={[
+                                                    { value: "", label: "-- Selecione um produto --" },
+                                                    ...products.map((product) => ({
+                                                        value: product.id,
+                                                        label: `${product.name} (Estoque: ${product.quantity || 0} ${product.unit || 'ml'})`,
+                                                    }))
+                                                ]}
+                                            />
+                                        </Field>
 
-                    </TransferLayout>
+                                        <Field>
+                                            <Label>Quantidade ({selectedProduct?.unit || 'ml'})</Label>
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                placeholder="Quantidade"
+                                                value={item.quantity}
+                                                onChange={(e) => updateItem(item._key, "quantity", e.target.value)}
+                                            />
+                                            {selectedProduct && q > 0 && (
+                                                <div style={{ fontSize: '0.8rem', color: isExceeded ? '#ef4444' : '#64748b', marginTop: '4px', fontWeight: isExceeded ? 600 : 400 }}>
+                                                    {isExceeded ? `⚠️ Estoque insuficiente! Máximo: ${selectedProduct.quantity} ${selectedProduct.unit}` : `Equivale a ${(q / (selectedProduct.packQuantity || 1)).toFixed(2)} ${selectedProduct.purchaseUnit || 'un'}(s)`}
+                                                </div>
+                                            )}
+                                        </Field>
+
+                                        {destinationId && (
+                                            <div style={{ gridColumn: '1 / -1' }}>
+                                                <Label style={{ display: 'block', marginBottom: 4 }}>Produto correspondente no destino</Label>
+                                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    <select
+                                                        value={item.destinationProductId}
+                                                        onChange={(e) => updateItem(item._key, "destinationProductId", e.target.value)}
+                                                        style={{
+                                                            padding: '10px',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid #e2e8f0',
+                                                            background: '#fff',
+                                                            fontSize: '0.875rem',
+                                                            flex: 1,
+                                                            minWidth: 250,
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        <option value="">➕ Criar como NOVO produto no destino</option>
+                                                        {destinationProducts.map(p => (
+                                                            <option key={p.id} value={p.id}>
+                                                                {p.name} ({Number(p.quantity).toFixed(1)} {p.unit})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {item.destinationProductId ? (
+                                                        <Badge variant="success">✅ Incrementar estoque existente</Badge>
+                                                    ) : (
+                                                        <Badge variant="warning">⚠️ Novo produto será criado</Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </ManualGrid>
+                                </ManualItemCard>
+                            );
+                        })}
+
+                        <Button
+                            variant="ghost"
+                            onClick={addItem}
+                            style={{ width: "100%", marginBottom: 8, border: "1.5px dashed", borderRadius: 10 }}
+                        >
+                            <MdAdd size={16} style={{ marginRight: 6 }} />
+                            Adicionar outro produto
+                        </Button>
+
+                        <Button
+                            variant="primary"
+                            onClick={handleTransfer}
+                            disabled={loading || !destinationId || items.some(item => {
+                                const p = products.find(prod => prod.id === item.productId);
+                                return p && Number(item.quantity) > Number(p.quantity);
+                            })}
+                            style={{ padding: '16px', fontSize: '1rem', marginTop: '10px' }}
+                        >
+                            {loading ? "Transferindo..." : "Finalizar Transferência"}
+                        </Button>
+
+                    </div>
                 )}
 
                 {tab === "sent" && (

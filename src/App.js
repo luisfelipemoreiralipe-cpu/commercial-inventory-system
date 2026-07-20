@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import StockAuditHistory from "./pages/StockAuditHistory";
 
@@ -37,6 +37,20 @@ import GlobalStyles from "./styles/GlobalStyles";
 import { Toaster } from "react-hot-toast";
 
 function App() {
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (document.activeElement && document.activeElement.type === "number") {
+        e.preventDefault();
+        document.activeElement.blur();
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false, capture: true });
+    return () => {
+      window.removeEventListener("wheel", handleWheel, { capture: true });
+    };
+  }, []);
+
   return (
     <ThemeModeProvider>
       <LoadingProvider>

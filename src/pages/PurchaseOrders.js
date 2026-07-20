@@ -15,7 +15,7 @@ import { formatCurrency } from "../utils/formatCurrency";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import EmptyState from "../components/EmptyState";
-import { Input } from "../components/FormFields";
+import { Input, CurrencyInput } from "../components/FormFields";
 import Select from "../components/Select";
 import toast from "react-hot-toast";
 
@@ -378,15 +378,11 @@ const ManualOrderModal = ({ isOpen, onClose, products, suppliers, onSuccess }) =
                                 value={item.quantity}
                                 onChange={(e) => updateItem(item._key, "quantity", e.target.value)}
                             />
-                            <Input
+                            <CurrencyInput
                                 label="Preço Unitário (R$)"
-                                type="number"
-                                inputMode="decimal"
-                                min="0.01"
-                                step="0.01"
-                                placeholder="Ex: 45.00"
+                                placeholder="Ex: R$ 45,00"
                                 value={item.unitPrice}
-                                onChange={(e) => updateItem(item._key, "unitPrice", e.target.value)}
+                                onChange={(val) => updateItem(item._key, "unitPrice", val)}
                             />
                         </ManualGrid>
 
@@ -934,20 +930,16 @@ Segue o pedido em PDF.
 
                                                     {/* Campo de Preço */}
                                                     <div style={{ flex: 1 }}>
-                                                        <Input
+                                                        <CurrencyInput
                                                             label="Preço Unitário"
-                                                            type="number"
-                                                            inputMode="decimal"
                                                             value={price}
-                                                            min="0"
-                                                            step="0.01"
-                                                            onChange={(e) =>
+                                                            onChange={(val) =>
                                                                 setReceivedPrice((prev) => ({
                                                                     ...prev,
-                                                                    [item.productId]: Number(e.target.value),
+                                                                    [item.productId]: Number(val),
                                                                 }))
                                                             }
-                                                            placeholder="0.00"
+                                                            placeholder="R$ 0,00"
                                                         />
                                                     </div>
                                                 </div>

@@ -113,9 +113,6 @@ const completeOrder = async (orderId, establishmentId) => {
         const sourceProd = await tx.product.findFirst({
             where: { id: order.sourceProductId, establishmentId }
         });
-        if (Number(sourceProd.quantity) < sourceQty) {
-            throw new Error(`Estoque insuficiente para a matéria prima: ${sourceProd.name}. Disp: ${sourceProd.quantity}, Nec: ${sourceQty}`);
-        }
 
         // Descobre o custo atual da matéria prima
         const unitCostRaw = await stockMovementService.getProductCost(order.sourceProductId, establishmentId, tx);

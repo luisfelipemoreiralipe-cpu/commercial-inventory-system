@@ -119,29 +119,26 @@ const consumeProduct = async ({
         const isAudit = reference === "STOCK_AUDIT";
         const currentQty = stockRecord ? Number(stockRecord.quantity) : 0;
 
-        // Se tiver saldo suficiente OU for auditoria (que permite zerar sem dar erro)
-        if (currentQty >= quantity || isAudit) {
+        const isProduction = product.type === "PRODUCTION";
+        const canDeductDirectly = !isProduction || currentQty >= quantity || isAudit;
+
+        if (canDeductDirectly) {
             
-            // Quantidade real que vamos deduzir do registro físico (productStock) para não negativar
-            const deductAmount = Math.min(currentQty, quantity);
-            
-            // 1. Desconta do Estoque do Local (apenas o que tem, não negativa)
-            if (stockRecord && deductAmount > 0) {
-                await tx.productStock.update({
-                    where: { id: stockRecord.id },
-                    data: { quantity: { decrement: deductAmount } }
-                });
-            }
+            // 1. Desconta do Estoque do Local (permite ficar negativo)
+            await tx.productStock.upsert({
+                where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
+                update: { quantity: { decrement: quantity } },
+                create: { productId: product.id, locationId: targetLocationId, quantity: -quantity }
+            });
 
             // 2. Desconta do Total Global do Produto (Cache)
-            // Na auditoria, baixamos a quantidade total pedida para o global refletir a contagem.
             await tx.product.update({
                 where: { id: product.id },
                 data: { quantity: { decrement: quantity } }
             });
 
             const previousQuantity = currentQty;
-            const newQuantity = currentQty - deductAmount;
+            const newQuantity = currentQty - quantity;
 
             // Usa custo pré-calculado se disponível
             const unitCost = preloadedCost !== undefined ? preloadedCost : await getProductCost(product.id, establishmentId, tx);
@@ -171,12 +168,8 @@ const consumeProduct = async ({
         throw err;
     }
 
-    // Se falhou (count === 0) e é INVENTORY, lança erro
-    if (product.type === "INVENTORY" || product.type === "ASSET") {
-        throw new Error(`Estoque insuficiente para ${product.name}`);
-    }
-
     // Se falhou (count === 0) e é PRODUCTION, faz a baixa pela receita (produção sob demanda)
+
     // 🔴 PRODUCTION
     const recipe = await tx.recipe.findFirst({
         where: { productId: product.id, establishmentId },
@@ -209,15 +202,13 @@ const consumeProduct = async ({
             const ingStock = await tx.productStock.findUnique({
                 where: { productId_locationId: { productId: ingredient.id, locationId: ingTargetLoc } }
             });
+            const previousQuantity = ingStock ? Number(ingStock.quantity) : 0;
 
-            if (!ingStock || Number(ingStock.quantity) < totalNeeded) {
-                throw new Error(`Estoque insuficiente para ingrediente: ${ingredient.name}`);
-            }
-
-            // Desconta do Local
-            await tx.productStock.update({
-                where: { id: ingStock.id },
-                data: { quantity: { decrement: totalNeeded } }
+            // Desconta do Local (permite negativo)
+            await tx.productStock.upsert({
+                where: { productId_locationId: { productId: ingredient.id, locationId: ingTargetLoc } },
+                update: { quantity: { decrement: totalNeeded } },
+                create: { productId: ingredient.id, locationId: ingTargetLoc, quantity: -totalNeeded }
             });
 
             // Desconta do Total
@@ -226,7 +217,6 @@ const consumeProduct = async ({
                 data: { quantity: { decrement: totalNeeded } }
             });
 
-            const previousQuantity = Number(ingStock.quantity);
             const newQuantity = previousQuantity - totalNeeded;
 
             const unitCost = await getProductCost(ingredient.id, establishmentId, tx);
@@ -367,11 +357,6 @@ const createInternalUse = async ({
     establishmentId,
     locationId
 }) => {
-    const openAudit = await prisma.stockAudit.findFirst({
-        where: { establishmentId, status: "OPEN" }
-    });
-
-    if (openAudit) throw new Error("Operação bloqueada: Existe uma auditoria em andamento.");
 
     if (!productId) throw new Error("Produto é obrigatório");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
@@ -411,10 +396,6 @@ const createEntry = async ({
     if (!productId) throw new Error("Produto é obrigatório");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
-    const openAudit = await prisma.stockAudit.findFirst({
-        where: { establishmentId, status: "OPEN" }
-    });
-    if (openAudit) throw new Error("Operação bloqueada: Existe uma auditoria em andamento.");
 
     const product = await prisma.product.findUnique({ where: { id: productId } });
     const productName = product ? product.name : 'Produto Desconhecido';
@@ -436,6 +417,37 @@ const createEntry = async ({
             reference,
             locationId
         }, tx);
+    });
+};
+
+const createBulkEntries = async ({ items, entryType, notes, establishmentId }) => {
+    const typeConfig = ENTRY_TYPES[entryType];
+    if (!typeConfig) throw new Error(`Tipo de lançamento inválido: ${entryType}`);
+
+
+    return prisma.$transaction(async (tx) => {
+        for (const item of items) {
+            const { productId, quantity, locationId } = item;
+            if (!productId) throw new Error("Produto é obrigatório em todos os itens");
+            if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
+
+            const product = await tx.product.findUnique({ where: { id: productId } });
+            const productName = product ? product.name : 'Produto Desconhecido';
+            
+            const rootInfo = `[${quantity} ${productName.trim()}]`;
+            const reference = notes
+                ? `${typeConfig.reference} ${rootInfo} — ${notes}`
+                : `${typeConfig.reference} ${rootInfo}`;
+
+            await consumeProduct({
+                productId,
+                quantity: Number(quantity),
+                establishmentId,
+                reason: typeConfig.reason,
+                reference,
+                locationId
+            }, tx);
+        }
     });
 };
 
@@ -511,6 +523,7 @@ module.exports = {
     getProductCostOutsideTx,
     getProductCost,
     createEntry,
+    createBulkEntries,
     getEntrySummary,
     ENTRY_TYPES
 };

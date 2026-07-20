@@ -3,21 +3,30 @@ const asyncHandler = require('../utils/asyncHandler');
 
 // 🎯 CRIAR LANÇAMENTO
 const create = asyncHandler(async (req, res) => {
-    const { productId, quantity, entryType, notes, locationId } = req.body;
+    const { productId, quantity, entryType, notes, locationId, items } = req.body;
     const establishmentId = req.user.establishmentId;
 
-    await stockMovementService.createEntry({
-        productId,
-        quantity: Number(quantity),
-        entryType,
-        notes,
-        establishmentId,
-        locationId: locationId || undefined
-    });
+    if (items && Array.isArray(items)) {
+        await stockMovementService.createBulkEntries({
+            items,
+            entryType,
+            notes,
+            establishmentId
+        });
+    } else {
+        await stockMovementService.createEntry({
+            productId,
+            quantity: Number(quantity),
+            entryType,
+            notes,
+            establishmentId,
+            locationId: locationId || undefined
+        });
+    }
 
     res.json({
         success: true,
-        message: "Lançamento registrado com sucesso"
+        message: "Lançamento(s) registrado(s) com sucesso"
     });
 });
 

@@ -151,18 +151,7 @@ const importCSV = asyncHandler(async (req, res) => {
     const locationId = req.body.locationId || null; // 🔥 Recebe o local opcional da venda
     console.log("🛠️ PASSO 1: Verificando se existe auditoria aberta...");
 
-    // 🔒 2. Bloquear se auditoria aberta
-    const openAudit = await prisma.stockAudit.findFirst({
-        where: { establishmentId, status: "OPEN" }
-    });
 
-    if (openAudit) {
-        console.log("⛔ PAROU: Existe uma auditoria aberta para este estabelecimento.");
-        return res.status(400).json({
-            success: false,
-            message: "Existe uma auditoria em andamento. Finalize antes de importar vendas."
-        });
-    }
 
     // 📄 3. Ler e Parsear CSV (VERSÃO ROBUSTA TECH LEAD)
     let fileContent = req.file.buffer.toString('utf-8');
@@ -380,17 +369,7 @@ const importManual = asyncHandler(async (req, res) => {
 
     const establishmentId = req.user.establishmentId;
 
-    // 🔒 Bloquear se auditoria aberta
-    const openAudit = await prisma.stockAudit.findFirst({
-        where: { establishmentId, status: "OPEN" }
-    });
 
-    if (openAudit) {
-        return res.status(400).json({
-            success: false,
-            message: "Existe uma auditoria em andamento. Finalize antes de lançar vendas."
-        });
-    }
 
     const productIds = items.map(i => i.productId);
 

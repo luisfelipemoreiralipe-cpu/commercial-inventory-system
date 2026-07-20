@@ -125,6 +125,19 @@ exports.getById = async (req, res) => {
             });
         }
 
+        // 🔥 ATUALIZAÇÃO DINÂMICA: Se a auditoria estiver aberta, 
+        // mostra o saldo atualizado e recalcula a divergência instantaneamente
+        if (audit.status === "OPEN") {
+            audit.items = audit.items.map(item => {
+                const currentSysQty = Number(item.product.quantity || 0);
+                return {
+                    ...item,
+                    systemQuantity: currentSysQty,
+                    difference: Number(item.countedQuantity || 0) - currentSysQty
+                };
+            });
+        }
+
         res.json(audit);
 
     } catch (error) {
@@ -220,13 +233,17 @@ exports.updateItems = async (req, res) => {
                 if (!dbItem) continue;
 
                 const rawCounted = Number(item.countedQuantity || 0);
-                // 🛡️ USAR systemQuantity do BANCO (seguro), não do frontend
-                const difference = rawCounted - Number(dbItem.systemQuantity);
+                
+                // 🔥 USAR SALDO REAL (ATUAL) do produto para que transferências em paralelo
+                // não corrompam o estoque, ignorando a 'foto' original do banco.
+                const currentSysQty = Number(dbItem.product.quantity || 0);
+                const difference = rawCounted - currentSysQty;
 
                 await tx.stockAuditItem.update({
                     where: { id: item.id },
                     data: {
                         countedQuantity: rawCounted,
+                        systemQuantity: currentSysQty, // Atualiza a foto
                         difference: Number(difference.toFixed(4))
                     }
                 });

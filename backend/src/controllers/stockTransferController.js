@@ -5,20 +5,30 @@ const stockTransferService = require('../services/stockTransferService');
 // =============================
 const createTransfer = async (req, res) => {
     try {
-        const { productId, destinationProductId, quantity, toEstablishmentId } = req.body;
+        const { productId, destinationProductId, quantity, toEstablishmentId, items } = req.body;
         const userId = req.user.userId;
         const establishmentId = req.user.establishmentId;
 
-        const transfer = await stockTransferService.createTransfer({
-            productId,
-            destinationProductId,
-            quantity,
-            fromEstablishmentId: establishmentId,
-            toEstablishmentId,
-            userId
-        });
+        let result;
+        if (items && Array.isArray(items)) {
+            result = await stockTransferService.createBulkTransfers({
+                items,
+                fromEstablishmentId: establishmentId,
+                toEstablishmentId,
+                userId
+            });
+        } else {
+            result = await stockTransferService.createTransfer({
+                productId,
+                destinationProductId,
+                quantity,
+                fromEstablishmentId: establishmentId,
+                toEstablishmentId,
+                userId
+            });
+        }
 
-        res.json({ success: true, data: transfer });
+        res.json({ success: true, data: result });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
     }
