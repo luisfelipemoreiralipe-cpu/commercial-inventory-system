@@ -568,7 +568,6 @@ export default function Entries() {
         }
     };
 
-    const selectedProduct = state.products.find(p => p.id === formProductId);
     const hasFilters = filterType || dateFrom || dateTo;
 
     // ─── Export PDF ─────────────────────────────────────────────────────────
@@ -980,7 +979,7 @@ export default function Entries() {
                         <Button
                             fullWidth
                             onClick={handleSubmit}
-                            disabled={submitting || !formProductId || !formQuantity}
+                            disabled={submitting || items.length === 0 || items.some(i => !i.productId || !i.quantity)}
                             size="lg"
                         >
                             {submitting ? "Registrando..." : "Confirmar Lançamento"}

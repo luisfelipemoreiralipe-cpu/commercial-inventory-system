@@ -160,9 +160,26 @@ const getMonthlyBonusTrend = asyncHandler(async (req, res) => {
     });
 });
 
+const getFinancialSummary = asyncHandler(async (req, res) => {
+    const { dateFrom, dateTo } = req.query;
+    const establishmentId = req.user.establishmentId;
+
+    const data = await reportsService.getFinancialSummary(
+        establishmentId,
+        dateFrom,
+        dateTo
+    );
+
+    res.json({
+        success: true,
+        data
+    });
+});
+
 module.exports = {
     getPurchaseSavings,
     getLoss,
     getLossByProduct,
-    getMonthlyBonusTrend
+    getMonthlyBonusTrend,
+    getFinancialSummary
 };

@@ -17,6 +17,7 @@ import StockTransfers from "./pages/StockTransfers";
 import StockAudits from "./pages/StockAudits";
 import StockAuditDetail from "./pages/StockAuditDetail";
 import Reports from "./pages/Reports";
+import FinancialReport from "./pages/FinancialReport";
 import MarketingEvents from "./pages/MarketingEvents";
 import Production from "./pages/Production";
 import Portioning from "./pages/Portioning";
@@ -94,6 +95,8 @@ function App() {
               <Route path="/stock-audits" element={<StockAudits />} />
 
               <Route path="reports" element={<Reports />} />
+              
+              <Route path="/financial-report" element={<FinancialReport />} />
 
               <Route
                 path="/stock-audits/history"

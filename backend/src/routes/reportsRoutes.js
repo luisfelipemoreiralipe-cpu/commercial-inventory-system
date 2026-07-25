@@ -28,4 +28,10 @@ router.get(
     controller.getMonthlyBonusTrend
 );
 
+router.get(
+    '/financial-summary',
+    authMiddleware,
+    controller.getFinancialSummary
+);
+
 module.exports = router;

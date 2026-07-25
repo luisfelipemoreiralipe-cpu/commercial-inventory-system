@@ -387,6 +387,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/stock-history', label: 'Histórico de Estoque', icon: <MdHistory /> },
       { to: '/activity-log', label: 'Reg. de Atividades', icon: <MdEventNote /> },
+      { to: '/financial-report', label: 'Relatório Financeiro', icon: <MdReceiptLong /> },
     ],
   },
 ];
