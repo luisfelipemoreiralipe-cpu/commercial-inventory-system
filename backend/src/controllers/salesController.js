@@ -69,7 +69,8 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
             if (!rItem.product) throw new Error(`Ingrediente órfão em ${product.name}`);
             
             const ingredient = rItem.product;
-            const neededBase = Number(rItem.quantity) * saleQty;
+            const yieldQty = Number(recipe.yieldQuantity) || 1;
+            const neededBase = (Number(rItem.quantity) / yieldQty) * saleQty;
 
             
             await explodeDemandRecursive(ingredient, neededBase, totalDemand, establishmentId, false, targetLocationId);

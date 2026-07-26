@@ -189,7 +189,8 @@ const consumeProduct = async ({
 
         const ingredient = item.product;
 
-        const totalNeeded = Number(item.quantity) * Number(quantity);
+        const yieldQty = Number(recipe.yieldQuantity) || 1;
+        const totalNeeded = (Number(item.quantity) / yieldQty) * Number(quantity);
 
         // 1. localId (informado na venda) > 2. product.defaultLocation (do drink) > 3. ingrediente.defaultLocation
         let ingTargetLoc = targetLocationId || ingredient.defaultLocationId;
