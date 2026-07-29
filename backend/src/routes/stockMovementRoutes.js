@@ -23,6 +23,14 @@ router.post(
     controller.createInternalUse
 );
 
+// 🍹 CONSUMO OPERACIONAL → ADMIN ONLY
+router.post(
+    '/operational-use',
+    authMiddleware,
+    requireRole(['ADMIN']),
+    controller.createOperationalUse
+);
+
 // 🔥 BONUS → ADMIN ONLY (CRÍTICO)
 router.post(
     '/bonus',

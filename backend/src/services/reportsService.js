@@ -82,6 +82,7 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
     const summary = {
         salesCogs: 0,
         internalConsumption: 0,
+        operationalConsumption: 0,
         bonuses: 0,
         losses: 0,
     };
@@ -100,6 +101,7 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
                 date: dayKey,
                 salesCogs: 0,
                 internalConsumption: 0,
+                operationalConsumption: 0,
                 bonuses: 0,
                 losses: 0
             };
@@ -109,9 +111,13 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             summary.salesCogs += cost;
             dailyChart[dayKey].salesCogs += cost;
         } 
-        else if (['INTERNAL_USE', 'PROMO', 'COURTESY', 'DOUBLE_DRINK', 'TASTING'].includes(reason)) {
+        else if (reason === 'INTERNAL_USE') {
             summary.internalConsumption += cost;
             dailyChart[dayKey].internalConsumption += cost;
+        }
+        else if (['PROMO', 'COURTESY', 'DOUBLE_DRINK', 'TASTING', 'OPERATIONAL_USE'].includes(reason)) {
+            summary.operationalConsumption += cost;
+            dailyChart[dayKey].operationalConsumption += cost;
         }
         else if (reason === 'BONUS') {
             summary.bonuses += cost;

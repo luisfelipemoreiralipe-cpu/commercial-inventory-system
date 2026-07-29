@@ -7,7 +7,7 @@ import api from "../services/api";
 import toast from "react-hot-toast";
 import { Input } from "../components/FormFields";
 import Select from "../components/Select";
-import { MdAddCircle, MdRemoveCircle, MdUploadFile, MdShoppingCart } from "react-icons/md";
+import { MdAddCircle, MdRemoveCircle, MdUploadFile, MdShoppingCart, MdLocalBar } from "react-icons/md";
 
 const SearchInput = styled.input`
   width: 100%;
@@ -172,10 +172,12 @@ export default function StockMovement() {
             return;
         }
 
-        if (mode === "INTERNAL_USE" && selectedProduct?.type === "INVENTORY") {
-            if (Number(quantity) > Number(selectedProduct.quantity)) {
-                toast.error("Estoque insuficiente no sistema");
-                return;
+        if (mode === "INTERNAL_USE" || mode === "OPERATIONAL_USE") {
+            if (selectedProduct?.type === "INVENTORY") {
+                if (Number(quantity) > Number(selectedProduct.quantity)) {
+                    toast.error("Estoque insuficiente no sistema");
+                    return;
+                }
             }
         }
 
@@ -193,6 +195,12 @@ export default function StockMovement() {
                 });
             } else if (mode === "INTERNAL_USE") {
                 await api.post("/stock-movements/internal-use", {
+                    productId: String(productId),
+                    quantity: moveQty,
+                    locationId: locationId || undefined
+                });
+            } else if (mode === "OPERATIONAL_USE") {
+                await api.post("/stock-movements/operational-use", {
                     productId: String(productId),
                     quantity: moveQty,
                     locationId: locationId || undefined
@@ -248,6 +256,7 @@ export default function StockMovement() {
                     <PageSubtitle>
                         {mode === "BONUS" ? "Entrada de bonificação" :
                             mode === "INTERNAL_USE" ? "Saída para uso interno" : 
+                            mode === "OPERATIONAL_USE" ? "Saída para uso operacional" :
                             mode === "MANUAL_SALE" ? "Lançamento manual múltiplo" : "Importação de vendas"}
                     </PageSubtitle>
                 </div>
@@ -266,6 +275,13 @@ export default function StockMovement() {
                     onClick={() => { setMode("INTERNAL_USE"); setProductId(""); setSearchTerm(""); setLocationId(""); }}
                 >
                     <MdRemoveCircle /> Consumo Interno
+                </Button>
+
+                <Button
+                    variant={mode === "OPERATIONAL_USE" ? "primary" : "secondary"}
+                    onClick={() => { setMode("OPERATIONAL_USE"); setProductId(""); setSearchTerm(""); setLocationId(""); }}
+                >
+                    <MdLocalBar /> Consumo Operacional
                 </Button>
 
                 <Button

@@ -165,6 +165,7 @@ const FinancialReport = () => {
     const [summary, setSummary] = useState({
         salesCogs: 0,
         internalConsumption: 0,
+        operationalConsumption: 0,
         bonuses: 0,
         losses: 0
     });
@@ -199,11 +200,18 @@ const FinancialReport = () => {
             bg: "rgba(5, 150, 105, 0.12)"
         },
         {
-            title: "Consumo Interno / Cortesias",
+            title: "Consumo Interno",
             value: summary.internalConsumption,
             icon: <MdLocalBar />,
             color: "#3B82F6",
             bg: "rgba(59, 130, 246, 0.12)"
+        },
+        {
+            title: "Consumo Operacional / Cortesias",
+            value: summary.operationalConsumption,
+            icon: <MdLocalBar />,
+            color: "#F59E0B",
+            bg: "rgba(245, 158, 11, 0.12)"
         },
         {
             title: "Bonificações (Ganhos)",
@@ -289,7 +297,8 @@ const FinancialReport = () => {
                         />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar name="CMV Vendas" dataKey="salesCogs" fill="#059669" radius={[4, 4, 0, 0]} />
-                        <Bar name="Consumo / Cortesia" dataKey="internalConsumption" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                        <Bar name="Consumo Interno" dataKey="internalConsumption" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                        <Bar name="Consumo Operacional" dataKey="operationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                         <Bar name="Bonificações" dataKey="bonuses" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                         <Bar name="Perdas" dataKey="losses" fill="#DC2626" radius={[4, 4, 0, 0]} />
                     </BarChart>

@@ -58,6 +58,40 @@ const createInternalUse = async (req, res) => {
 
 };
 
+// 🍹 CONSUMO OPERACIONAL
+const createOperationalUse = async (req, res) => {
+
+    try {
+
+        const { productId, quantity, locationId } = req.body;
+
+        const establishmentId = req.user.establishmentId;
+        const userId = req.user.id;
+
+        await stockMovementService.createOperationalUse({
+            productId,
+            quantity,
+            establishmentId,
+            userId,
+            locationId
+        });
+
+        return res.json({
+            success: true,
+            message: "Consumo operacional registrado com sucesso"
+        });
+
+    } catch (error) {
+
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+};
+
 // 🎁 BONIFICAÇÃO (CORRETO)
 const addBonus = async (req, res) => {
 
@@ -94,5 +128,6 @@ const addBonus = async (req, res) => {
 module.exports = {
     getAll,
     createInternalUse,
+    createOperationalUse,
     addBonus // 🔥 IMPORTANTE EXPORTAR
 };

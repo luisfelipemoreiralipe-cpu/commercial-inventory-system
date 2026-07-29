@@ -374,6 +374,29 @@ const createInternalUse = async ({
     });
 };
 
+// 🍹 CONSUMO OPERACIONAL
+const createOperationalUse = async ({
+    productId,
+    quantity,
+    establishmentId,
+    locationId
+}) => {
+
+    if (!productId) throw new Error("Produto é obrigatório");
+    if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
+
+    return prisma.$transaction(async (tx) => {
+        await consumeProduct({
+            productId,
+            quantity,
+            establishmentId,
+            reason: "OPERATIONAL_USE",
+            reference: "CONSUMO OPERACIONAL",
+            locationId
+        }, tx);
+    });
+};
+
 // 📋 TIPOS DE LANÇAMENTO
 const ENTRY_TYPES = {
     COURTESY: { reason: 'COURTESY', reference: 'CORTESIA', label: 'Cortesia' },
@@ -518,6 +541,7 @@ const getEntrySummary = async ({ establishmentId, dateFrom, dateTo }) => {
 module.exports = {
     getMovements,
     createInternalUse,
+    createOperationalUse,
     consumeProduct,
     addStock,
     addBonus,
