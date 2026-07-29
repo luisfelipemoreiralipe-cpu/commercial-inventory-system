@@ -537,6 +537,48 @@ const Reports = () => {
         return Object.values(map).sort((a, b) => b.quantity - a.quantity);
     }, [state.stockMovements, dateFrom, dateTo]);
 
+    const operationalData = useMemo(() => {
+        if (!state.stockMovements?.length) return [];
+
+        let movements = state.stockMovements;
+
+        if (dateFrom) {
+            movements = movements.filter(
+                (m) => new Date(m.createdAt) >= new Date(dateFrom)
+            );
+        }
+        if (dateTo) {
+            movements = movements.filter(
+                (m) => new Date(m.createdAt) <= new Date(dateTo + 'T23:59:59')
+            );
+        }
+
+        const map = {};
+        const operationalReasons = ['PROMO', 'COURTESY', 'DOUBLE_DRINK', 'TASTING', 'OPERATIONAL_USE'];
+        
+        movements.forEach((m) => {
+            if (m.type === 'OUT' && operationalReasons.includes(m.reason)) {
+                if (!map[m.productId]) {
+                    map[m.productId] = {
+                        productId: m.productId,
+                        name: m.productName,
+                        quantity: 0,
+                        totalCost: 0,
+                        lastDate: m.createdAt
+                    };
+                }
+                map[m.productId].quantity += Math.abs(Number(m.quantity));
+                map[m.productId].totalCost += Number(m.totalCost || 0);
+                
+                if (new Date(m.createdAt) > new Date(map[m.productId].lastDate)) {
+                    map[m.productId].lastDate = m.createdAt;
+                }
+            }
+        });
+
+        return Object.values(map).sort((a, b) => b.totalCost - a.totalCost);
+    }, [state.stockMovements, dateFrom, dateTo]);
+
     const historyData = useMemo(() => {
         if (!state.stockMovements?.length) return [];
 
@@ -901,7 +943,7 @@ const Reports = () => {
 
         // ─── KPIs de Consumo Operacional ─────────────────────
         const consumptionMovements = movements.filter(
-            m => m.type === 'OUT' && ['SALE', 'DOUBLE_DRINK', 'COURTESY', 'TASTING', 'PROMO', 'INTERNAL_USE', 'PRODUCTION'].includes(m.reason)
+            m => m.type === 'OUT' && ['SALE', 'DOUBLE_DRINK', 'COURTESY', 'TASTING', 'PROMO', 'INTERNAL_USE', 'PRODUCTION', 'OPERATIONAL_USE'].includes(m.reason)
         );
 
         const totalConsumptionCost = consumptionMovements.reduce(
@@ -1223,6 +1265,14 @@ const Reports = () => {
                 </Button>
 
                 <Button
+                    variant={activeTab === 'operational' ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => setActiveTab('operational')}
+                >
+                    Consumo Operacional
+                </Button>
+
+                <Button
                     variant={activeTab === 'purchase' ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => setActiveTab('purchase')}
@@ -1364,6 +1414,66 @@ const Reports = () => {
                                             </Tr>
                                         );
                                     })}
+                            </tbody>
+                        </Table>
+                    </Card>
+                )}
+
+                {/* CONSUMO OPERACIONAL */}
+                {activeTab === 'operational' && (
+                    <Card padding="0">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #e2e8f0' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>Consumo Operacional por Produto</div>
+                                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{operationalData.length} produto(s) consumidos no operacional no período</div>
+                            </div>
+                        </div>
+                        <Table>
+                            <thead>
+                                <tr>
+                                    <Th>Produto</Th>
+                                    <Th>Quantidade Consumida</Th>
+                                    <Th>Custo Total</Th>
+                                    <Th>% do Total Operacional</Th>
+                                    <Th>Último Consumo</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {operationalData.map((item, index) => {
+                                    const product = state.products?.find(p => p.id === item.productId);
+                                    const pack = Number(product?.packQuantity || 1);
+                                    const pUnit = product?.purchaseUnit || 'un';
+                                    const bUnit = product?.unit || 'ml';
+                                    const convQty = item.quantity / pack;
+                                    
+                                    const totalOperationalCost = operationalData.reduce((acc, curr) => acc + curr.totalCost, 0);
+                                    const pct = totalOperationalCost > 0
+                                        ? ((item.totalCost / totalOperationalCost) * 100).toFixed(1)
+                                        : '0.0';
+
+                                    return (
+                                        <Tr key={index}>
+                                            <Td style={{ fontWeight: 600 }}>{item.name}</Td>
+                                            <Td>
+                                                {convQty.toFixed(2)} {pUnit}
+                                                <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#64748B' }}>
+                                                    ({item.quantity} {bUnit})
+                                                </span>
+                                            </Td>
+                                            <Td style={{ fontWeight: 600, color: '#059669' }}>
+                                                {formatCurrency(item.totalCost)}
+                                            </Td>
+                                            <Td>
+                                                <span style={{ display: 'inline-block', background: '#f1f5f9', borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+                                                    {pct}%
+                                                </span>
+                                            </Td>
+                                            <Td style={{ color: '#64748B' }}>
+                                                {new Date(item.lastDate).toLocaleDateString('pt-BR')}
+                                            </Td>
+                                        </Tr>
+                                    );
+                                })}
                             </tbody>
                         </Table>
                     </Card>
