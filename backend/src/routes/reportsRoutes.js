@@ -34,4 +34,10 @@ router.get(
     controller.getFinancialSummary
 );
 
+router.get(
+    '/purchases-by-product',
+    authMiddleware,
+    controller.getPurchasesByProduct
+);
+
 module.exports = router;

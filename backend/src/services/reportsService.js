@@ -135,7 +135,50 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
     };
 };
 
+const getPurchasesByProduct = async (establishmentId, productId, dateFrom, dateTo) => {
+    const where = {
+        purchaseOrder: {
+            establishmentId,
+            status: 'completed'
+        }
+    };
+
+    if (productId) {
+        where.productId = productId;
+    }
+
+    if (dateFrom || dateTo) {
+        where.purchaseOrder.completedAt = {};
+        if (dateFrom) where.purchaseOrder.completedAt.gte = new Date(dateFrom);
+        if (dateTo) where.purchaseOrder.completedAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+    }
+
+    const items = await prisma.purchaseOrderItem.findMany({
+        where,
+        include: {
+            purchaseOrder: {
+                select: {
+                    id: true,
+                    completedAt: true
+                }
+            },
+            product: {
+                select: { name: true, unit: true, purchaseUnit: true, packQuantity: true }
+            },
+            supplier: {
+                select: { name: true }
+            }
+        },
+        orderBy: {
+            purchaseOrder: { completedAt: 'desc' }
+        }
+    });
+
+    return items;
+};
+
 module.exports = {
     getMonthlyBonusTrend,
-    getFinancialSummary
+    getFinancialSummary,
+    getPurchasesByProduct
 };

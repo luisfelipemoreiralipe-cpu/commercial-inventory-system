@@ -176,10 +176,28 @@ const getFinancialSummary = asyncHandler(async (req, res) => {
     });
 });
 
+const getPurchasesByProduct = asyncHandler(async (req, res) => {
+    const { productId, dateFrom, dateTo } = req.query;
+    const establishmentId = req.user.establishmentId;
+
+    const data = await reportsService.getPurchasesByProduct(
+        establishmentId,
+        productId,
+        dateFrom,
+        dateTo
+    );
+
+    res.json({
+        success: true,
+        data
+    });
+});
+
 module.exports = {
     getPurchaseSavings,
     getLoss,
     getLossByProduct,
     getMonthlyBonusTrend,
-    getFinancialSummary
+    getFinancialSummary,
+    getPurchasesByProduct
 };

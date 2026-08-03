@@ -431,6 +431,10 @@ const Reports = () => {
     const [bonusTrend, setBonusTrend] = useState([]);
     const [bonusTrendLoading, setBonusTrendLoading] = useState(false);
 
+    const [purchasesData, setPurchasesData] = useState([]);
+    const [purchasesLoading, setPurchasesLoading] = useState(false);
+    const [purchaseFilterProduct, setPurchaseFilterProduct] = useState('');
+
     useEffect(() => {
         const fetchBonusTrend = async () => {
             setBonusTrendLoading(true);
@@ -458,6 +462,30 @@ const Reports = () => {
 
         fetchBonusTrend();
     }, [dateFrom, dateTo]);
+
+    useEffect(() => {
+        const fetchPurchasesByProduct = async () => {
+            if (activeTab !== 'purchases') return;
+            setPurchasesLoading(true);
+            try {
+                let url = '/reports/purchases-by-product';
+                const params = new URLSearchParams();
+                if (dateFrom) params.append('dateFrom', dateFrom);
+                if (dateTo) params.append('dateTo', dateTo);
+                if (purchaseFilterProduct) params.append('productId', purchaseFilterProduct);
+                if (params.toString()) url += `?${params.toString()}`;
+
+                const res = await api.get(url);
+                setPurchasesData(Array.isArray(res) ? res : (res?.data || []));
+            } catch (err) {
+                console.error("Erro ao buscar compras por produto:", err);
+            } finally {
+                setPurchasesLoading(false);
+            }
+        };
+
+        fetchPurchasesByProduct();
+    }, [dateFrom, dateTo, activeTab, purchaseFilterProduct]);
 
     const handleOpenSupplierDetails = async (supplierItem) => {
         setSelectedSupplierDetails(supplierItem);
@@ -1311,6 +1339,14 @@ const Reports = () => {
                 >
                     Métricas
                 </Button>
+
+                <Button
+                    variant={activeTab === 'purchases' ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => setActiveTab('purchases')}
+                >
+                    Compras por Produto
+                </Button>
             </Tabs>
 
             {/* Conteúdo */}
@@ -1877,6 +1913,88 @@ const Reports = () => {
                     </>
                 )}
 
+                {/* HISTÓRICO DE COMPRAS POR PRODUTO */}
+                {activeTab === 'purchases' && (
+                    <>
+                        <div style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: 200 }}>
+                                <label style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 4, display: 'block' }}>Filtrar por Produto</label>
+                                <select 
+                                    value={purchaseFilterProduct}
+                                    onChange={(e) => setPurchaseFilterProduct(e.target.value)}
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
+                                >
+                                    <option value="">Todos os Produtos</option>
+                                    {state.products?.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <KpiGrid>
+                            <Card padding="20px" style={{ borderLeft: '3px solid #3B82F6' }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Total Comprado</div>
+                                <div style={{ fontSize: 22, fontWeight: 700, color: '#1E293B' }}>
+                                    {purchasesData.reduce((acc, item) => acc + Number(item.adjustedQuantity || 0), 0).toFixed(2)}
+                                </div>
+                            </Card>
+                            <Card padding="20px" style={{ borderLeft: '3px solid #10B981' }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Valor Investido</div>
+                                <div style={{ fontSize: 22, fontWeight: 700, color: '#10B981' }}>
+                                    {formatCurrency(purchasesData.reduce((acc, item) => acc + (Number(item.adjustedQuantity || 0) * Number(item.unitPrice || 0)), 0))}
+                                </div>
+                            </Card>
+                            <Card padding="20px" style={{ borderLeft: '3px solid #8B5CF6' }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Preço Médio Pago</div>
+                                <div style={{ fontSize: 22, fontWeight: 700, color: '#8B5CF6' }}>
+                                    {(() => {
+                                        const totalQty = purchasesData.reduce((acc, item) => acc + Number(item.adjustedQuantity || 0), 0);
+                                        const totalVal = purchasesData.reduce((acc, item) => acc + (Number(item.adjustedQuantity || 0) * Number(item.unitPrice || 0)), 0);
+                                        return totalQty > 0 ? formatCurrency(totalVal / totalQty) : 'R$ 0,00';
+                                    })()}
+                                </div>
+                            </Card>
+                        </KpiGrid>
+
+                        <Card padding="0">
+                            {purchasesLoading ? (
+                                <div style={{ padding: 20, textAlign: 'center', color: '#64748B' }}>Carregando histórico...</div>
+                            ) : purchasesData.length === 0 ? (
+                                <div style={{ padding: 20, textAlign: 'center', color: '#64748B' }}>Nenhuma compra encontrada para os filtros selecionados.</div>
+                            ) : (
+                                <Table>
+                                    <thead>
+                                        <tr>
+                                            <Th>Data</Th>
+                                            <Th>Fornecedor</Th>
+                                            {!purchaseFilterProduct && <Th>Produto</Th>}
+                                            <Th style={{ textAlign: 'right' }}>Qtd Comprada</Th>
+                                            <Th style={{ textAlign: 'right' }}>Preço Un.</Th>
+                                            <Th style={{ textAlign: 'right' }}>Total Pago</Th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {purchasesData.map(item => (
+                                            <Tr key={item.id}>
+                                                <Td>{new Date(item.purchaseOrder?.completedAt).toLocaleDateString('pt-BR')}</Td>
+                                                <Td>{item.supplier?.name || '-'}</Td>
+                                                {!purchaseFilterProduct && <Td>{item.product?.name || '-'}</Td>}
+                                                <Td style={{ textAlign: 'right', fontWeight: 600 }}>
+                                                    {Number(item.adjustedQuantity).toFixed(2)} <span style={{ fontSize: 11, color: '#94a3b8' }}>{item.product?.purchaseUnit || 'un'}</span>
+                                                </Td>
+                                                <Td style={{ textAlign: 'right', color: '#64748b' }}>{formatCurrency(Number(item.unitPrice))}</Td>
+                                                <Td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
+                                                    {formatCurrency(Number(item.adjustedQuantity) * Number(item.unitPrice))}
+                                                </Td>
+                                            </Tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                            )}
+                        </Card>
+                    </>
+                )}
 
             </Content>
 
