@@ -734,6 +734,7 @@ Segue o pedido em PDF.
                                     <tr>
 
                                         <Th>Pedido</Th>
+                                        <Th>Data</Th>
                                         <Th>Fornecedor</Th>
                                         <Th>Itens</Th>
                                         <Th>Total</Th>
@@ -758,6 +759,8 @@ Segue o pedido em PDF.
                                             <Tr key={order.id}>
 
                                                 <Td>#{order.id.slice(-4)}</Td>
+
+                                                <Td>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</Td>
 
                                                 <Td>
                                                     {(() => {
