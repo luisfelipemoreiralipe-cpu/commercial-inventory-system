@@ -472,7 +472,7 @@ const createBulkEntries = async ({ items, entryType, notes, establishmentId }) =
                 locationId
             }, tx);
         }
-    });
+    }, { maxWait: 15000, timeout: 60000 });
 };
 
 // 📊 RESUMO DE LANÇAMENTOS POR TIPO
