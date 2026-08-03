@@ -138,6 +138,15 @@ exports.getById = async (req, res) => {
             });
         }
 
+        // Ordena os itens alfabeticamente pelo nome do produto, para "travar" a ordem
+        if (audit.items) {
+            audit.items.sort((a, b) => {
+                const nameA = a.product?.name || "";
+                const nameB = b.product?.name || "";
+                return nameA.localeCompare(nameB);
+            });
+        }
+
         res.json(audit);
 
     } catch (error) {
