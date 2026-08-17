@@ -172,14 +172,7 @@ export default function StockMovement() {
             return;
         }
 
-        if (mode === "INTERNAL_USE" || mode === "OPERATIONAL_USE") {
-            if (selectedProduct?.type === "INVENTORY") {
-                if (Number(quantity) > Number(selectedProduct.quantity)) {
-                    toast.error("Estoque insuficiente no sistema");
-                    return;
-                }
-            }
-        }
+        // Removido o bloqueio de estoque insuficiente para permitir estoque negativo em consumo interno e operacional
 
         setLoading(true);
         try {
