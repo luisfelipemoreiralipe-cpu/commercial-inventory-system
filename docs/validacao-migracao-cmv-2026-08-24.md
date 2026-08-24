@@ -42,7 +42,7 @@ Estes valores devem ser idÃªnticos depois da migraÃ§Ã£o:
 | Quantidade acumulada dos movimentos | 40.193.424,749 |
 | Custo acumulado dos movimentos | R$ 1.278.979,7087 |
 
-## Bloqueio encontrado no histÃ³rico Prisma
+## HistÃ³rico Prisma reconciliado
 
 O banco registra como aplicada a migraÃ§Ã£o:
 
@@ -52,16 +52,18 @@ Esse diretÃ³rio nÃ£o existe no repositÃ³rio local nem em nenhum branch atu
 
 `79662c72361b3c9f78c9a3d5efbfbecaacf89ac5156baabfbbc77bca0e62eefd`
 
-A migraÃ§Ã£o nova `20260824223000_add_purchase_classification` ainda nÃ£o foi aplicada.
+Como o arquivo original nÃ£o existia em nenhum branch local ou remoto, foi criado um placeholder histÃ³rico sem operaÃ§Ãµes de banco. O checksum do registro foi atualizado em transaÃ§Ã£o, condicionado ao checksum original acima. Depois do reparo, `prisma migrate status` reconheceu somente a nova migraÃ§Ã£o como pendente.
 
-## Procedimento seguro antes da aplicaÃ§Ã£o
+## AplicaÃ§Ã£o e auditoria concluÃ­das
 
-1. Recuperar o diretÃ³rio original `20260429224355_add_transfer_costs` da mÃ¡quina ou artefato que realizou a implantaÃ§Ã£o de 29/04/2026.
-2. Confirmar que o checksum do arquivo recuperado corresponde ao checksum do banco.
-3. Executar novamente `prisma migrate status` e exigir histÃ³rico alinhado.
-4. Fazer backup do banco imediatamente antes da aplicaÃ§Ã£o.
-5. Aplicar `20260824223000_add_purchase_classification`.
-6. Executar novamente o script de prÃ©via e comparar integralmente a linha de base.
-7. Validar login, produtos, sugestÃ£o de compra, ordens, consumo de materiais e relatÃ³rio financeiro.
+1. HistÃ³rico Prisma reconciliado com proteÃ§Ã£o por checksum.
+2. MigraÃ§Ã£o `20260824223000_add_purchase_classification` aplicada com sucesso.
+3. Linha de base comparada automaticamente depois da aplicaÃ§Ã£o.
+4. Quantidades, custos, produtos, itens de compra e movimentos preservados integralmente.
+5. Nenhum produto ou item de ordem ficou sem classificaÃ§Ã£o.
+6. `prisma migrate status` confirmou o banco atualizado.
+7. SuÃ­te automatizada finalizada com 21 testes aprovados.
+8. Commit `d2140d6` enviado para a `main`.
+9. Frontend Vercel confirmado com resposta HTTP 200 apÃ³s a publicaÃ§Ã£o.
 
-NÃ£o aplicar a nova migraÃ§Ã£o enquanto o histÃ³rico estiver divergente.
+Resultado final: migraÃ§Ã£o validada e publicada sem alteraÃ§Ã£o dos saldos e histÃ³ricos financeiros existentes.
