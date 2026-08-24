@@ -91,7 +91,8 @@ const consumeProduct = async ({
     reason,
     reference,
     preloadedCost, // opcional: custo pré-calculado fora da transação
-    locationId // opcional: local de onde o estoque vai sair
+    locationId, // opcional: local de onde o estoque vai sair
+    ancestry = [] // controle interno para impedir ciclos em fichas técnicas
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -100,6 +101,9 @@ const consumeProduct = async ({
 
     if (!product) throw new Error("Produto não encontrado ou acesso negado.");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
+    if (ancestry.includes(product.id)) {
+        throw new Error(`Ciclo detectado na ficha técnica do produto "${product.name}".`);
+    }
 
     // Identificar o local de saída
     let targetLocationId = locationId || product.defaultLocationId;
@@ -110,46 +114,46 @@ const consumeProduct = async ({
 
     if (!targetLocationId) throw new Error("Local de estoque não definido para este produto.");
 
-    // 🟢 TENTA BAIXA DIRETA (INVENTORY ou PRODUCTION com estoque)
-    try {
-        const stockRecord = await tx.productStock.findUnique({
-            where: { productId_locationId: { productId: product.id, locationId: targetLocationId } }
-        });
+    const stockRecord = await tx.productStock.findUnique({
+        where: { productId_locationId: { productId: product.id, locationId: targetLocationId } }
+    });
 
-        const isAudit = reference === "STOCK_AUDIT";
-        const currentQty = stockRecord ? Number(stockRecord.quantity) : 0;
+    const requestedQty = Number(quantity);
+    const currentQty = stockRecord ? Number(stockRecord.quantity) : 0;
+    const isAudit = reference === "STOCK_AUDIT";
+    const isProduction = product.type === "PRODUCTION";
 
-        const isProduction = product.type === "PRODUCTION";
-        const canDeductDirectly = !isProduction || currentQty >= quantity || isAudit;
+    // Inventário e auditoria baixam diretamente. Produção usa o saldo pronto
+    // disponível e explode somente a quantidade restante da ficha técnica.
+    const directQty = (!isProduction || isAudit)
+        ? requestedQty
+        : Math.min(Math.max(currentQty, 0), requestedQty);
 
-        if (canDeductDirectly) {
-            
-            // 1. Desconta do Estoque do Local (permite ficar negativo)
+    if (directQty > 0) {
+        try {
             await tx.productStock.upsert({
                 where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
-                update: { quantity: { decrement: quantity } },
-                create: { productId: product.id, locationId: targetLocationId, quantity: -quantity }
+                update: { quantity: { decrement: directQty } },
+                create: { productId: product.id, locationId: targetLocationId, quantity: -directQty }
             });
 
-            // 2. Desconta do Total Global do Produto (Cache)
             await tx.product.update({
                 where: { id: product.id },
-                data: { quantity: { decrement: quantity } }
+                data: { quantity: { decrement: directQty } }
             });
 
             const previousQuantity = currentQty;
-            const newQuantity = currentQty - quantity;
+            const newQuantity = currentQty - directQty;
 
-            // Usa custo pré-calculado se disponível
             const unitCost = preloadedCost !== undefined ? preloadedCost : await getProductCost(product.id, establishmentId, tx);
-            const totalCost = unitCost * Number(quantity);
+            const totalCost = unitCost * directQty;
 
             await tx.stockMovement.create({
                 data: {
                     productId: product.id,
                     productName: product.name,
                     type: "OUT",
-                    quantity,
+                    quantity: directQty,
                     previousQuantity,
                     newQuantity,
                     reference,
@@ -160,17 +164,15 @@ const consumeProduct = async ({
                     locationId: targetLocationId
                 }
             });
-
-            return; // Sucesso na baixa direta
+        } catch (err) {
+            console.error("❌ ERRO REAL DETECTADO (BAIXA DIRETA):", err);
+            throw err;
         }
-    } catch (err) {
-        console.error("❌ ERRO REAL DETECTADO (BAIXA DIRETA):", err);
-        throw err;
     }
 
-    // Se falhou (count === 0) e é PRODUCTION, faz a baixa pela receita (produção sob demanda)
+    const remainingQty = requestedQty - directQty;
+    if (remainingQty <= 0) return;
 
-    // 🔴 PRODUCTION
     const recipe = await tx.recipe.findFirst({
         where: { productId: product.id, establishmentId },
         include: {
@@ -182,66 +184,20 @@ const consumeProduct = async ({
 
     if (!recipe) throw new Error("Produto de produção sem receita cadastrada.");
 
-    const { convertToBaseUnit } = require('../utils/unitConverter');
-
-    // 🔥 BAIXA RECURSIVA/ITENS
     for (const item of recipe.items) {
-
         const ingredient = item.product;
-
         const yieldQty = Number(recipe.yieldQuantity) || 1;
-        const totalNeeded = (Number(item.quantity) / yieldQty) * Number(quantity);
+        const totalNeeded = (Number(item.quantity) / yieldQty) * remainingQty;
 
-        // 1. localId (informado na venda) > 2. product.defaultLocation (do drink) > 3. ingrediente.defaultLocation
-        let ingTargetLoc = targetLocationId || ingredient.defaultLocationId;
-        if (!ingTargetLoc) {
-            const defaultLoc = await tx.stockLocation.findFirst({ where: { establishmentId, isDefault: true }});
-            ingTargetLoc = defaultLoc ? defaultLoc.id : null;
-        }
-
-        try {
-            const ingStock = await tx.productStock.findUnique({
-                where: { productId_locationId: { productId: ingredient.id, locationId: ingTargetLoc } }
-            });
-            const previousQuantity = ingStock ? Number(ingStock.quantity) : 0;
-
-            // Desconta do Local (permite negativo)
-            await tx.productStock.upsert({
-                where: { productId_locationId: { productId: ingredient.id, locationId: ingTargetLoc } },
-                update: { quantity: { decrement: totalNeeded } },
-                create: { productId: ingredient.id, locationId: ingTargetLoc, quantity: -totalNeeded }
-            });
-
-            // Desconta do Total
-            await tx.product.update({
-                where: { id: ingredient.id },
-                data: { quantity: { decrement: totalNeeded } }
-            });
-
-            const newQuantity = previousQuantity - totalNeeded;
-
-            const unitCost = await getProductCost(ingredient.id, establishmentId, tx);
-
-            await tx.stockMovement.create({
-                data: {
-                    productId: ingredient.id,
-                    productName: ingredient.name,
-                    type: "OUT",
-                    quantity: totalNeeded,
-                    previousQuantity,
-                    newQuantity,
-                    reference,
-                    reason,
-                    establishmentId,
-                    unitCost,
-                    totalCost: unitCost * Number(totalNeeded),
-                    locationId: ingTargetLoc
-                }
-            });
-        } catch (err) {
-            console.error("❌ ERRO REAL DETECTADO (PRODUCTION):", err);
-            throw err;
-        }
+        await consumeProduct({
+            productId: ingredient.id,
+            quantity: totalNeeded,
+            establishmentId,
+            reason,
+            reference,
+            locationId: targetLocationId,
+            ancestry: [...ancestry, product.id]
+        }, tx);
     }
 };
 

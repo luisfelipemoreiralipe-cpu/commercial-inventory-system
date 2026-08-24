@@ -62,6 +62,18 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
     const ref = `Ordem de Compra #${orderId.slice(-6).toUpperCase()}`;
 
     const completedOrder = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.purchaseOrder.updateMany({
+            where: {
+                id: orderId,
+                establishmentId,
+                status: 'pending'
+            },
+            data: { status: 'processing' }
+        });
+
+        if (claimed.count !== 1) {
+            throw new AppError('Esta ordem já foi concluída ou está sendo processada.', 409);
+        }
 
         for (const dbItem of order.items) {
 
@@ -151,7 +163,7 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
         }
 
         const updated = await tx.purchaseOrder.updateMany({
-            where: { id: orderId, establishmentId },
+            where: { id: orderId, establishmentId, status: 'processing' },
             data: {
                 status: 'completed',
                 completedAt: new Date()

@@ -192,20 +192,34 @@ const getReceivedTransfers = async (establishmentId) => {
  */
 const approveTransfer = async (transferId, userId, establishmentId) => {
     return prisma.$transaction(async (tx) => {
-        // 1️⃣ Buscar transferência filtrando pelo contexto de destino
+        // Reserva a transferência de forma atômica. Uma segunda aprovação
+        // concorrente não consegue mudar PENDING para APPROVED novamente.
+        const claimed = await tx.stockTransfer.updateMany({
+            where: {
+                id: transferId,
+                toEstablishmentId: establishmentId,
+                status: "PENDING"
+            },
+            data: {
+                status: "APPROVED",
+                approvedBy: userId,
+                approvedAt: new Date()
+            }
+        });
+
+        if (claimed.count !== 1) {
+            throw new Error("Transferência não encontrada, sem permissão ou já processada.");
+        }
+
         const transfer = await tx.stockTransfer.findFirst({
             where: { 
                 id: transferId,
-                toEstablishmentId: establishmentId // SEGURANÇA: Somente se o destino for eu
+                toEstablishmentId: establishmentId
             }
         });
 
         if (!transfer) {
             throw new Error("Transferência não encontrada ou você não tem permissão para aprová-la.");
-        }
-
-        if (transfer.status !== "PENDING") {
-            throw new Error("Esta transferência já foi processada.");
         }
 
         const {
@@ -239,19 +253,61 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
                      establishmentId: toEstablishmentId
                  }
              });
+
+             if (!destinationProduct) {
+                 throw new Error("Produto de destino não encontrado ou não pertence ao estabelecimento de destino.");
+             }
+
+             if (destinationProduct.unit.trim().toLowerCase() !== product.unit.trim().toLowerCase()) {
+                 throw new Error(
+                     `Unidades incompatíveis na transferência: origem em ${product.unit} e destino em ${destinationProduct.unit}.`
+                 );
+             }
         }
 
         if (!destinationProduct) {
+            const sourceCategory = await tx.category.findFirst({
+                where: { id: product.categoryId, establishmentId: fromEstablishmentId }
+            });
+
+            if (!sourceCategory) {
+                throw new Error("Categoria do produto de origem não encontrada.");
+            }
+
+            let destinationCategory = await tx.category.findFirst({
+                where: { name: sourceCategory.name, establishmentId: toEstablishmentId }
+            });
+
+            if (!destinationCategory) {
+                destinationCategory = await tx.category.create({
+                    data: { name: sourceCategory.name, establishmentId: toEstablishmentId }
+                });
+            }
+
+            const destinationDefaultLocation = await tx.stockLocation.findFirst({
+                where: { establishmentId: toEstablishmentId, isDefault: true },
+                orderBy: { createdAt: 'asc' }
+            });
+
+            if (!destinationDefaultLocation) {
+                throw new Error("O estabelecimento de destino não possui local de estoque padrão.");
+            }
+
             destinationProduct = await tx.product.create({
                 data: {
                     name: product.name,
                     unit: product.unit,
                     unitPrice: product.unitPrice,
+                    currentCost: product.currentCost,
                     quantity: 0,
                     minQuantity: product.minQuantity,
                     type: product.type,
-                    categoryId: product.categoryId,
-                    establishmentId: toEstablishmentId
+                    purchaseUnit: product.purchaseUnit,
+                    packQuantity: product.packQuantity,
+                    categoryId: destinationCategory.id,
+                    defaultLocationId: destinationDefaultLocation.id,
+                    establishmentId: toEstablishmentId,
+                    isActive: product.isActive
                 }
             });
         }
@@ -277,9 +333,6 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
         return tx.stockTransfer.update({
             where: { id: transferId },
             data: {
-                status: "APPROVED",
-                approvedBy: userId,
-                approvedAt: new Date(),
                 destinationProductId: destinationProduct.id // Garante que o ID final fique salvo
             }
         });
@@ -290,29 +343,24 @@ const approveTransfer = async (transferId, userId, establishmentId) => {
  * 🔐 REJEITAR TRANSFERÊNCIA
  */
 const rejectTransfer = async (transferId, userId, establishmentId) => {
-    const transfer = await prisma.stockTransfer.findFirst({
-        where: { 
+    const updated = await prisma.stockTransfer.updateMany({
+        where: {
             id: transferId,
-            toEstablishmentId: establishmentId 
-        }
-    });
-
-    if (!transfer) {
-        throw new Error("Transferência não encontrada ou acesso negado.");
-    }
-
-    if (transfer.status !== "PENDING") {
-        throw new Error("Transferência já processada.");
-    }
-
-    return prisma.stockTransfer.update({
-        where: { id: transferId },
+            toEstablishmentId: establishmentId,
+            status: "PENDING"
+        },
         data: {
             status: "REJECTED",
             approvedBy: userId,
             approvedAt: new Date()
         }
     });
+
+    if (updated.count !== 1) {
+        throw new Error("Transferência não encontrada, sem permissão ou já processada.");
+    }
+
+    return prisma.stockTransfer.findUnique({ where: { id: transferId } });
 };
 
 /**

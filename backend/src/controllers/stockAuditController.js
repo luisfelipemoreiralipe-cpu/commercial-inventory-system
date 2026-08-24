@@ -110,8 +110,8 @@ exports.getById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const audit = await prisma.stockAudit.findUnique({
-            where: { id },
+        const audit = await prisma.stockAudit.findFirst({
+            where: { id, establishmentId: req.user.establishmentId },
             include: {
                 items: {
                     include: { product: true }
@@ -231,7 +231,7 @@ exports.updateItems = async (req, res) => {
             if (itemIds.length === 0) return;
 
             const dbItems = await tx.stockAuditItem.findMany({
-                where: { id: { in: itemIds } },
+                where: { id: { in: itemIds }, auditId: audit.id },
                 include: { product: true }
             });
             const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
@@ -282,8 +282,8 @@ exports.finish = async (req, res) => {
         const { id } = req.params;
         const establishmentId = req.user.establishmentId;
 
-        const audit = await prisma.stockAudit.findUnique({
-            where: { id }
+        const audit = await prisma.stockAudit.findFirst({
+            where: { id, establishmentId }
         });
 
         if (!audit) {
@@ -309,8 +309,6 @@ exports.finish = async (req, res) => {
         // Pré-carregar custo de cada produto que terá diferença
         const itemsWithCost = await Promise.all(
             items.map(async (item) => {
-                const diff = Number(item.difference);
-                if (diff === 0) return { ...item, preloadedCost: 0 };
                 const preloadedCost = await getProductCostOutsideTx(item.productId, establishmentId);
                 return { ...item, preloadedCost };
             })
@@ -323,9 +321,35 @@ exports.finish = async (req, res) => {
         // Sem queries de custo — apenas updates e inserts.
         // ─────────────────────────────────────────────────────────────────
         await prisma.$transaction(async (tx) => {
+            const claimed = await tx.stockAudit.updateMany({
+                where: { id, establishmentId, status: "OPEN" },
+                data: { status: "PROCESSING" }
+            });
+
+            if (claimed.count !== 1) {
+                throw new Error("Auditoria já finalizada ou em processamento.");
+            }
 
             for (const item of itemsWithCost) {
-                const diff = Number(item.difference);
+                const currentProduct = await tx.product.findFirst({
+                    where: { id: item.productId, establishmentId },
+                    select: { quantity: true }
+                });
+
+                if (!currentProduct) {
+                    throw new Error(`Produto da auditoria não encontrado: ${item.productId}`);
+                }
+
+                const currentSystemQuantity = Number(currentProduct.quantity || 0);
+                const diff = Number(item.countedQuantity || 0) - currentSystemQuantity;
+
+                await tx.stockAuditItem.update({
+                    where: { id: item.id },
+                    data: {
+                        systemQuantity: currentSystemQuantity,
+                        difference: Number(diff.toFixed(4))
+                    }
+                });
                 console.log(`[AUDIT FINISH] ${item.product?.name}: contado=${item.countedQuantity}, sistema=${item.systemQuantity}, diff=${diff}`);
 
                 if (diff === 0) continue;

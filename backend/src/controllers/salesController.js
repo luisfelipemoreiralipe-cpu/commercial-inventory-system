@@ -3,7 +3,7 @@ const prisma = require('../utils/prisma');
 const { consumeProduct } = require('../services/stockMovementService');
 const { convertToBaseUnit } = require('../utils/unitConverter');
 
-async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establishmentId, isRoot = true, parentLocationId = null) {
+async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establishmentId, isRoot = true, parentLocationId = null, ancestry = []) {
     let product;
     let recipe;
 
@@ -19,6 +19,10 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
                 include: { items: { include: { product: true } } }
             });
         }
+    }
+
+    if (ancestry.includes(product.id)) {
+        throw new Error(`Ciclo detectado na ficha técnica do produto "${product.name}".`);
     }
 
     const targetLocationId = parentLocationId || product.defaultLocationId;
@@ -45,15 +49,20 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
             .filter(d => d.id === product.id)
             .reduce((sum, d) => sum + d.qty, 0);
 
-        // Se temos estoque suficiente do produto de PRODUÇÃO, deduzimos diretamente em vez de explodir a ficha técnica
-        if (Number(product.quantity) >= (currentDemand + neededQty)) {
+        // Usa primeiro o saldo pronto disponível e explode somente a diferença.
+        const availableReadyStock = Math.max(Number(product.quantity) - currentDemand, 0);
+        const directQty = Math.min(availableReadyStock, neededQty);
+
+        if (directQty > 0) {
             const key = targetLocationId ? `${product.id}_${targetLocationId}` : product.id;
             if (!totalDemand[key]) {
                 totalDemand[key] = { id: product.id, name: product.name, qty: 0, locationId: targetLocationId };
             }
-            totalDemand[key].qty += neededQty;
-            return; // Interrompe a recursão
+            totalDemand[key].qty += directQty;
         }
+
+        const remainingQty = neededQty - directQty;
+        if (remainingQty <= 0) return;
 
         if (!recipe) {
             recipe = await prisma.recipe.findFirst({
@@ -70,10 +79,18 @@ async function explodeDemandRecursive(productOrId, saleQty, totalDemand, establi
             
             const ingredient = rItem.product;
             const yieldQty = Number(recipe.yieldQuantity) || 1;
-            const neededBase = (Number(rItem.quantity) / yieldQty) * saleQty;
+            const neededBase = (Number(rItem.quantity) / yieldQty) * remainingQty;
 
             
-            await explodeDemandRecursive(ingredient, neededBase, totalDemand, establishmentId, false, targetLocationId);
+            await explodeDemandRecursive(
+                ingredient,
+                neededBase,
+                totalDemand,
+                establishmentId,
+                false,
+                targetLocationId,
+                [...ancestry, product.id]
+            );
         }
     }
 }
@@ -474,4 +491,8 @@ const importManual = asyncHandler(async (req, res) => {
     });
 });
 
-module.exports = { importCSV, importManual };
+module.exports = {
+    importCSV,
+    importManual,
+    _private: { explodeDemandRecursive, normalizeQuantity }
+};
