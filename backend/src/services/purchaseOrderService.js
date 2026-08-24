@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../utils/prisma');
 const PDFDocument = require('pdfkit');
 const stockMovementService = require('./stockMovementService');
+const { validateAutomaticOrderClassifications } = require('../utils/purchaseOrderRules');
 
 /**
  * 🔐 LISTAR ORDENS
@@ -33,6 +34,18 @@ const createOrder = async (data) => {
     if (!establishmentId) {
         throw new AppError('EstablishmentId não informado.', 400);
     }
+
+    const productIds = [...new Set((data.items || []).map(item => item.productId).filter(Boolean))];
+    const products = await prisma.product.findMany({
+        where: { id: { in: productIds }, establishmentId },
+        select: { id: true, purchaseClassification: true }
+    });
+
+    if (products.length !== productIds.length) {
+        throw new AppError('Um ou mais produtos nÃ£o pertencem a este estabelecimento.', 400);
+    }
+
+    validateAutomaticOrderClassifications(products, data.generationMode);
 
     const order = await purchaseOrderRepo.create(data);
 

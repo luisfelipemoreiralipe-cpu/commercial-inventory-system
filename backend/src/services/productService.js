@@ -90,6 +90,11 @@ const createProduct = async (data, establishmentId) => {
         quantity: 0, // Começa sempre com 0, vamos ajustar usando updateProductQuantity para logar correto
         minQuantity: data.minQuantity || 0,
         defaultLocationId: data.defaultLocationId || null,
+        purchaseClassification: data.purchaseClassification || 'CMV_BEVERAGES',
+        restockFrequency: data.restockFrequency || 'ON_DEMAND',
+        idealQuantity: Number(data.idealQuantity || 0),
+        trackInventory: data.trackInventory !== false,
+        responsibleSector: data.responsibleSector || null,
         establishmentId,
     });
 

@@ -540,9 +540,11 @@ const Reports = () => {
         movements.forEach((m) => {
             if ((m.type === 'OUT' && m.reason !== 'LOSS' && m.reason !== 'OPERATIONAL_LOSS') || (m.type === 'IN' && m.reason === 'MARKETING_EVENT_IN')) {
                 if (!map[m.productId]) {
+                    const product = state.products?.find(p => p.id === m.productId);
                     map[m.productId] = {
                         productId: m.productId,
                         name: m.productName,
+                        purchaseClassification: m.purchaseClassification || product?.purchaseClassification || 'EXCLUDED',
                         quantity: 0,
                         totalCost: 0,
                         lastDate: m.createdAt
@@ -563,7 +565,7 @@ const Reports = () => {
         });
 
         return Object.values(map).sort((a, b) => b.quantity - a.quantity);
-    }, [state.stockMovements, dateFrom, dateTo]);
+    }, [state.stockMovements, state.products, dateFrom, dateTo]);
 
     const operationalData = useMemo(() => {
         if (!state.stockMovements?.length) return [];
@@ -587,9 +589,11 @@ const Reports = () => {
         movements.forEach((m) => {
             if (m.type === 'OUT' && operationalReasons.includes(m.reason)) {
                 if (!map[m.productId]) {
+                    const product = state.products?.find(p => p.id === m.productId);
                     map[m.productId] = {
                         productId: m.productId,
                         name: m.productName,
+                        purchaseClassification: m.purchaseClassification || product?.purchaseClassification || 'EXCLUDED',
                         quantity: 0,
                         totalCost: 0,
                         lastDate: m.createdAt
@@ -605,7 +609,7 @@ const Reports = () => {
         });
 
         return Object.values(map).sort((a, b) => b.totalCost - a.totalCost);
-    }, [state.stockMovements, dateFrom, dateTo]);
+    }, [state.stockMovements, state.products, dateFrom, dateTo]);
 
     const historyData = useMemo(() => {
         if (!state.stockMovements?.length) return [];
@@ -1468,6 +1472,7 @@ const Reports = () => {
                             <thead>
                                 <tr>
                                     <Th>Produto</Th>
+                                    <Th>ClassificaÃ§Ã£o</Th>
                                     <Th>Quantidade Consumida</Th>
                                     <Th>Custo Total</Th>
                                     <Th>% do Total Operacional</Th>
@@ -1490,6 +1495,13 @@ const Reports = () => {
                                     return (
                                         <Tr key={index}>
                                             <Td style={{ fontWeight: 600 }}>{item.name}</Td>
+                                            <Td>{({
+                                                CMV_BEVERAGES: 'Bebidas / CMV',
+                                                CLEANING: 'Limpeza',
+                                                DISPOSABLES: 'DescartÃ¡veis',
+                                                OPERATING: 'Outros operacionais',
+                                                EXCLUDED: 'Fora do CMV'
+                                            })[item.purchaseClassification] || 'Fora do CMV'}</Td>
                                             <Td>
                                                 {convQty.toFixed(2)} {pUnit}
                                                 <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#64748B' }}>

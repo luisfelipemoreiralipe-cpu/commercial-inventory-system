@@ -24,6 +24,7 @@ import Portioning from "./pages/Portioning";
 import Patrimony from "./pages/Patrimony";
 import Entries from "./pages/Entries";
 import StockLocations from "./pages/StockLocations";
+import MaterialConsumption from "./pages/MaterialConsumption";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -112,6 +113,7 @@ function App() {
               <Route path="/portioning" element={<Portioning />} />
               <Route path="/patrimony" element={<Patrimony />} />
               <Route path="/entries" element={<Entries />} />
+              <Route path="/material-consumption" element={<MaterialConsumption />} />
 
               <Route
                 path="/purchase-suggestions"

@@ -1,0 +1,7 @@
+-- Historical migration placeholder reconstructed on 2026-08-24.
+--
+-- The original migration was applied successfully in production on 2026-04-29,
+-- but its source file was not committed and could not be recovered from any Git
+-- branch. The current production schema was inspected before this placeholder
+-- was introduced. This file intentionally performs no database operation: it
+-- exists only to restore a complete, reproducible Prisma migration history.

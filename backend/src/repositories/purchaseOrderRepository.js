@@ -32,9 +32,9 @@ const findAll = (establishmentId) =>
 
 // ─── FIND BY ID ──────────────────────────────────────
 
-const findById = (id) =>
-    prisma.purchaseOrder.findUnique({
-        where: { id },
+const findById = (id, establishmentId) =>
+    prisma.purchaseOrder.findFirst({
+        where: { id, establishmentId },
         include: {
             items: {
                 include: {
@@ -70,11 +70,25 @@ const create = async (data) => {
 
             let supplierId = item.supplierId;
 
+            const product = item.productId
+                ? await prisma.product.findFirst({
+                    where: { id: item.productId, establishmentId: data.establishmentId },
+                    select: { id: true, purchaseClassification: true }
+                })
+                : null;
+
+            if (item.productId && !product) {
+                throw new Error(`Produto não encontrado neste estabelecimento: ${item.productName || item.productId}`);
+            }
+
             // Se não veio fornecedor do frontend
             if (!supplierId && item.productId) {
 
                 const productSupplier = await prisma.productSupplier.findFirst({
-                    where: { productId: item.productId },
+                    where: {
+                        productId: item.productId,
+                        product: { establishmentId: data.establishmentId }
+                    },
                     select: { supplierId: true }
                 });
 
@@ -86,7 +100,8 @@ const create = async (data) => {
                 productName: item.productName,
                 adjustedQuantity: item.adjustedQuantity,
                 unitPrice: item.unitPrice,
-                supplierId
+                supplierId,
+                purchaseClassification: product?.purchaseClassification || 'EXCLUDED'
             };
         })
     );

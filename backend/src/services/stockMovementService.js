@@ -90,6 +90,8 @@ const consumeProduct = async ({
     establishmentId,
     reason,
     reference,
+    movementMetadata = {},
+    enforceAvailableStock = false,
     preloadedCost, // opcional: custo pré-calculado fora da transação
     locationId, // opcional: local de onde o estoque vai sair
     ancestry = [] // controle interno para impedir ciclos em fichas técnicas
@@ -131,16 +133,40 @@ const consumeProduct = async ({
 
     if (directQty > 0) {
         try {
-            await tx.productStock.upsert({
-                where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
-                update: { quantity: { decrement: directQty } },
-                create: { productId: product.id, locationId: targetLocationId, quantity: -directQty }
-            });
+            if (enforceAvailableStock) {
+                const updatedStock = await tx.productStock.updateMany({
+                    where: {
+                        productId: product.id,
+                        locationId: targetLocationId,
+                        quantity: { gte: directQty }
+                    },
+                    data: { quantity: { decrement: directQty } }
+                });
+                if (updatedStock.count !== 1) {
+                    throw new Error(`Saldo insuficiente de ${product.name} neste local.`);
+                }
+            } else {
+                await tx.productStock.upsert({
+                    where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
+                    update: { quantity: { decrement: directQty } },
+                    create: { productId: product.id, locationId: targetLocationId, quantity: -directQty }
+                });
+            }
 
-            await tx.product.update({
-                where: { id: product.id },
-                data: { quantity: { decrement: directQty } }
-            });
+            if (enforceAvailableStock) {
+                const updatedProduct = await tx.product.updateMany({
+                    where: { id: product.id, establishmentId, quantity: { gte: directQty } },
+                    data: { quantity: { decrement: directQty } }
+                });
+                if (updatedProduct.count !== 1) {
+                    throw new Error(`Saldo global inconsistente para ${product.name}. FaÃ§a uma auditoria antes da baixa.`);
+                }
+            } else {
+                await tx.product.update({
+                    where: { id: product.id },
+                    data: { quantity: { decrement: directQty } }
+                });
+            }
 
             const previousQuantity = currentQty;
             const newQuantity = currentQty - directQty;
@@ -161,11 +187,12 @@ const consumeProduct = async ({
                     establishmentId,
                     unitCost,
                     totalCost,
-                    locationId: targetLocationId
+                    locationId: targetLocationId,
+                    purchaseClassification: product.purchaseClassification,
+                    ...movementMetadata
                 }
             });
         } catch (err) {
-            console.error("❌ ERRO REAL DETECTADO (BAIXA DIRETA):", err);
             throw err;
         }
     }
@@ -195,6 +222,8 @@ const consumeProduct = async ({
             establishmentId,
             reason,
             reference,
+            movementMetadata,
+            enforceAvailableStock,
             locationId: targetLocationId,
             ancestry: [...ancestry, product.id]
         }, tx);
@@ -335,20 +364,63 @@ const createOperationalUse = async ({
     productId,
     quantity,
     establishmentId,
-    locationId
+    locationId,
+    responsibleSector,
+    notes,
+    periodFrom,
+    periodTo,
+    userId
 }) => {
 
     if (!productId) throw new Error("Produto é obrigatório");
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
     return prisma.$transaction(async (tx) => {
+        const product = await tx.product.findFirst({
+            where: {
+                id: productId,
+                establishmentId,
+                trackInventory: true,
+                purchaseClassification: { in: ['CLEANING', 'DISPOSABLES', 'OPERATING'] }
+            },
+            select: { id: true, name: true, purchaseClassification: true, responsibleSector: true }
+        });
+        if (!product) throw new Error('Produto operacional invÃ¡lido ou acesso negado.');
+
+        const defaultLocation = locationId ? null : await tx.stockLocation.findFirst({
+            where: { establishmentId, isDefault: true }, select: { id: true }
+        });
+        const targetLocationId = locationId || defaultLocation?.id;
+        if (!targetLocationId) throw new Error('Local de estoque nÃ£o definido.');
+
+        const location = await tx.stockLocation.findFirst({
+            where: { id: targetLocationId, establishmentId }, select: { id: true }
+        });
+        if (!location) throw new Error('Local de estoque invÃ¡lido ou acesso negado.');
+
+        const stock = await tx.productStock.findUnique({
+            where: { productId_locationId: { productId, locationId: targetLocationId } }
+        });
+        if (Number(stock?.quantity || 0) < Number(quantity)) {
+            throw new Error(`Saldo insuficiente de ${product.name} neste local.`);
+        }
+
         await consumeProduct({
             productId,
             quantity,
             establishmentId,
             reason: "OPERATIONAL_USE",
-            reference: "CONSUMO OPERACIONAL",
-            locationId
+            reference: "CONSUMO OPERACIONAL SEMANAL",
+            locationId: targetLocationId,
+            enforceAvailableStock: true,
+            movementMetadata: {
+                purchaseClassification: product.purchaseClassification,
+                responsibleSector: responsibleSector || product.responsibleSector || null,
+                notes: notes || null,
+                periodFrom: periodFrom ? new Date(periodFrom) : null,
+                periodTo: periodTo ? new Date(periodTo) : null,
+                recordedByUserId: userId || null
+            }
         }, tx);
     });
 };

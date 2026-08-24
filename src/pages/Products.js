@@ -39,6 +39,11 @@ const EMPTY_FORM = {
     supplierId: '',
     defaultLocationId: '',
     isActive: true,
+    purchaseClassification: 'CMV_BEVERAGES',
+    restockFrequency: 'ON_DEMAND',
+    idealQuantity: '',
+    trackInventory: true,
+    responsibleSector: '',
 };
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
@@ -495,6 +500,11 @@ const Products = () => {
             type: p.type || 'INVENTORY',
             defaultLocationId: p.defaultLocationId || '',
             isActive: p.isActive !== false,
+            purchaseClassification: p.purchaseClassification || 'CMV_BEVERAGES',
+            restockFrequency: p.restockFrequency || 'ON_DEMAND',
+            idealQuantity: Number(p.idealQuantity || 0) / Number(p.packQuantity || 1),
+            trackInventory: p.trackInventory !== false,
+            responsibleSector: p.responsibleSector || '',
         });
         setErrors({});
         setModalOpen(true);
@@ -557,6 +567,11 @@ const Products = () => {
             minQuantity: Number(form.minQuantity || 0) * Number(form.packQuantity || 1),
             defaultLocationId: form.defaultLocationId || null,
             isActive: form.isActive !== false,
+            purchaseClassification: form.purchaseClassification,
+            restockFrequency: form.restockFrequency,
+            idealQuantity: Number(form.idealQuantity || 0) * Number(form.packQuantity || 1),
+            trackInventory: form.trackInventory !== false,
+            responsibleSector: form.responsibleSector.trim() || null,
         };
 
         try {
@@ -1042,6 +1057,31 @@ const Products = () => {
                         ]}
                     />
 
+                    <Select
+                        label="Classificação da Compra"
+                        value={form.purchaseClassification}
+                        onChange={(val) => setForm((f) => ({ ...f, purchaseClassification: val }))}
+                        options={[
+                            { value: 'CMV_BEVERAGES', label: 'CMV — Bebidas e insumos' },
+                            { value: 'CLEANING', label: 'Material de limpeza' },
+                            { value: 'DISPOSABLES', label: 'Descartáveis' },
+                            { value: 'OPERATING', label: 'Outros custos operacionais' },
+                            { value: 'EXCLUDED', label: 'Não contabilizar no CMV' }
+                        ]}
+                    />
+
+                    <Select
+                        label="Frequência de Reposição"
+                        value={form.restockFrequency}
+                        onChange={(val) => setForm((f) => ({ ...f, restockFrequency: val }))}
+                        options={[
+                            { value: 'WEEKLY', label: 'Semanal' },
+                            { value: 'BIWEEKLY', label: 'Quinzenal' },
+                            { value: 'MONTHLY', label: 'Mensal' },
+                            { value: 'ON_DEMAND', label: 'Sob demanda' }
+                        ]}
+                    />
+
                     <FormFull>
                         <div style={{ 
                             display: 'grid', 
@@ -1100,6 +1140,35 @@ const Products = () => {
                                 placeholder="0"
                                 {...field('minQuantity')}
                             />
+
+                            <Input
+                                label="Qtd. Ideal"
+                                type="number"
+                                min="0"
+                                step="any"
+                                placeholder="0"
+                                {...field('idealQuantity')}
+                            />
+
+                            <Input
+                                label="Setor Responsável"
+                                placeholder="Ex: Limpeza, Bar, Operação"
+                                {...field('responsibleSector')}
+                            />
+
+                            <FormFull>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.trackInventory}
+                                        onChange={(e) => setForm((f) => ({ ...f, trackInventory: e.target.checked }))}
+                                    />
+                                    <span>Controlar quantidade deste produto em estoque</span>
+                                </label>
+                                <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '4px' }}>
+                                    Desmarque apenas para despesas diretas que não precisam de saldo físico.
+                                </span>
+                            </FormFull>
 
                             <FormFull>
                                 <Select 

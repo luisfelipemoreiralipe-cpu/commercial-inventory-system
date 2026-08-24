@@ -19,6 +19,14 @@ const createFakeTransaction = ({ products, stocks, recipes }) => {
                     product.quantity -= Number(data.quantity.decrement);
                 }
                 return { ...product };
+            },
+            updateMany: async ({ where, data }) => {
+                const product = productMap.get(where.id);
+                if (!product || product.establishmentId !== where.establishmentId || product.quantity < Number(where.quantity.gte)) {
+                    return { count: 0 };
+                }
+                product.quantity -= Number(data.quantity.decrement);
+                return { count: 1 };
             }
         },
         productStock: {
@@ -36,6 +44,13 @@ const createFakeTransaction = ({ products, stocks, recipes }) => {
                     stock.quantity -= Number(update.quantity.decrement);
                 }
                 return { ...stock };
+            },
+            updateMany: async ({ where, data }) => {
+                const key = `${where.productId}:${where.locationId}`;
+                const stock = stockMap.get(key);
+                if (!stock || stock.quantity < Number(where.quantity.gte)) return { count: 0 };
+                stock.quantity -= Number(data.quantity.decrement);
+                return { count: 1 };
             }
         },
         recipe: {
@@ -122,4 +137,39 @@ test('interrompe ciclos em fichas técnicas', async () => {
         }, fixture.tx),
         /Ciclo detectado/
     );
+});
+
+test('baixa protegida nÃ£o permite saldo local negativo', async () => {
+    const fixture = createFakeTransaction({
+        products: [{ id: 'detergente', name: 'Detergente', type: 'INVENTORY', quantity: 2, establishmentId: 'est', defaultLocationId: 'loc', currentCost: 5 }],
+        stocks: [{ productId: 'detergente', locationId: 'loc', quantity: 2 }],
+        recipes: {}
+    });
+
+    await assert.rejects(
+        consumeProduct({
+            productId: 'detergente', quantity: 3, establishmentId: 'est',
+            reason: 'OPERATIONAL_USE', reference: 'TEST', enforceAvailableStock: true
+        }, fixture.tx),
+        /Saldo insuficiente/
+    );
+    assert.equal(fixture.stockMap.get('detergente:loc').quantity, 2);
+    assert.equal(fixture.productMap.get('detergente').quantity, 2);
+});
+
+test('baixa protegida congela classificaÃ§Ã£o e mantÃ©m saldos consistentes', async () => {
+    const fixture = createFakeTransaction({
+        products: [{ id: 'papel', name: 'Papel', type: 'INVENTORY', quantity: 10, establishmentId: 'est', defaultLocationId: 'loc', currentCost: 2, purchaseClassification: 'CLEANING' }],
+        stocks: [{ productId: 'papel', locationId: 'loc', quantity: 10 }],
+        recipes: {}
+    });
+
+    await consumeProduct({
+        productId: 'papel', quantity: 4, establishmentId: 'est', reason: 'OPERATIONAL_USE',
+        reference: 'TEST', enforceAvailableStock: true
+    }, fixture.tx);
+
+    assert.equal(fixture.stockMap.get('papel:loc').quantity, 6);
+    assert.equal(fixture.productMap.get('papel').quantity, 6);
+    assert.equal(fixture.movements[0].purchaseClassification, 'CLEANING');
 });

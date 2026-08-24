@@ -4,7 +4,6 @@ import { MdTrendingUp, MdTrendingDown, MdLocalBar, MdCardGiftcard } from 'react-
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import toast from 'react-hot-toast';
 import api from '../services/api';
 
 const PageContainer = styled.div`
@@ -166,8 +165,13 @@ const FinancialReport = () => {
         salesCogs: 0,
         internalConsumption: 0,
         operationalConsumption: 0,
+        beverageOperationalConsumption: 0,
+        cleaningConsumption: 0,
+        disposablesConsumption: 0,
+        otherOperationalConsumption: 0,
         bonuses: 0,
-        losses: 0
+        losses: 0,
+        purchasesByClassification: {}
     });
 
     const [chartData, setChartData] = useState([]);
@@ -207,11 +211,32 @@ const FinancialReport = () => {
             bg: "rgba(59, 130, 246, 0.12)"
         },
         {
-            title: "Consumo Operacional / Cortesias",
-            value: summary.operationalConsumption,
+            title: "Cortesias e promoÃ§Ãµes de bebidas",
+            value: summary.beverageOperationalConsumption,
             icon: <MdLocalBar />,
             color: "#F59E0B",
             bg: "rgba(245, 158, 11, 0.12)"
+        },
+        {
+            title: "Consumo de limpeza",
+            value: summary.cleaningConsumption,
+            icon: <MdTrendingDown />,
+            color: "#0EA5E9",
+            bg: "rgba(14, 165, 233, 0.12)"
+        },
+        {
+            title: "Consumo de descartÃ¡veis",
+            value: summary.disposablesConsumption,
+            icon: <MdTrendingDown />,
+            color: "#EC4899",
+            bg: "rgba(236, 72, 153, 0.12)"
+        },
+        {
+            title: "Outros consumos operacionais",
+            value: summary.otherOperationalConsumption,
+            icon: <MdTrendingDown />,
+            color: "#64748B",
+            bg: "rgba(100, 116, 139, 0.12)"
         },
         {
             title: "Bonificações (Ganhos)",
@@ -265,6 +290,25 @@ const FinancialReport = () => {
                 ))}
             </CardsGrid>
 
+            <ChartContainer style={{ height: 'auto' }}>
+                <ChartTitle>Compras concluÃ­das por classificaÃ§Ã£o</ChartTitle>
+                <CardsGrid>
+                    {[
+                        ['CMV_BEVERAGES', 'Bebidas / CMV'],
+                        ['CLEANING', 'Limpeza'],
+                        ['DISPOSABLES', 'DescartÃ¡veis'],
+                        ['OPERATING', 'Outros operacionais']
+                    ].map(([key, label]) => (
+                        <div key={key}>
+                            <MetricTitle>{label}</MetricTitle>
+                            <MetricValue style={{ fontSize: '1.5rem' }}>
+                                {formatCurrency(summary.purchasesByClassification?.[key])}
+                            </MetricValue>
+                        </div>
+                    ))}
+                </CardsGrid>
+            </ChartContainer>
+
             <ChartContainer>
                 <ChartTitle>Evolução Diária</ChartTitle>
                 <ResponsiveContainer width="100%" height="100%">
@@ -298,7 +342,10 @@ const FinancialReport = () => {
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar name="CMV Vendas" dataKey="salesCogs" fill="#059669" radius={[4, 4, 0, 0]} />
                         <Bar name="Consumo Interno" dataKey="internalConsumption" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                        <Bar name="Consumo Operacional" dataKey="operationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                        <Bar name="Cortesias / PromoÃ§Ãµes" dataKey="beverageOperationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                        <Bar name="Limpeza" dataKey="cleaningConsumption" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
+                        <Bar name="DescartÃ¡veis" dataKey="disposablesConsumption" fill="#EC4899" radius={[4, 4, 0, 0]} />
+                        <Bar name="Outros operacionais" dataKey="otherOperationalConsumption" fill="#64748B" radius={[4, 4, 0, 0]} />
                         <Bar name="Bonificações" dataKey="bonuses" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                         <Bar name="Perdas" dataKey="losses" fill="#DC2626" radius={[4, 4, 0, 0]} />
                     </BarChart>

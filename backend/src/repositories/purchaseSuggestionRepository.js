@@ -8,9 +8,18 @@ const getProductsBelowMinimum = async (establishmentId) => {
         where: {
             establishmentId,
             type: { not: "ASSET" },
-            quantity: {
-                lt: prisma.product.fields.minQuantity
-            }
+            trackInventory: true,
+            purchaseClassification: { not: "EXCLUDED" },
+            OR: [
+                {
+                    purchaseClassification: "CMV_BEVERAGES",
+                    quantity: { lt: prisma.product.fields.minQuantity }
+                },
+                {
+                    purchaseClassification: { in: ["CLEANING", "DISPOSABLES", "OPERATING"] },
+                    quantity: { lt: prisma.product.fields.idealQuantity }
+                }
+            ]
         },
 
         select: {
@@ -21,6 +30,10 @@ const getProductsBelowMinimum = async (establishmentId) => {
             minQuantity: true,
             purchaseUnit: true,
             packQuantity: true,
+            purchaseClassification: true,
+            restockFrequency: true,
+            idealQuantity: true,
+            responsibleSector: true,
 
             category: {
                 select: {

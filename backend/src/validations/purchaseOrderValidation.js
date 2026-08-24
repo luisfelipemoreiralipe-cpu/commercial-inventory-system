@@ -9,6 +9,7 @@ const purchaseOrderItemSchema = z.object({
 });
 
 const createPurchaseOrderSchema = z.object({
+    generationMode: z.enum(['MANUAL', 'AUTOMATIC']).default('MANUAL'),
     items: z
         .array(purchaseOrderItemSchema)
         .min(1, 'A ordem deve conter pelo menos 1 item'),

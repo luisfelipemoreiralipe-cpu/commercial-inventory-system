@@ -94,22 +94,51 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
         where.createdAt = { gte: sevenDaysAgo };
     }
 
-    const movements = await prisma.stockMovement.findMany({
-        where,
-        select: {
-            reason: true,
-            totalCost: true,
-            createdAt: true
-        },
-        orderBy: { createdAt: 'asc' }
-    });
+    const [movements, purchaseItems] = await Promise.all([
+        prisma.stockMovement.findMany({
+            where,
+            select: {
+                reason: true,
+                totalCost: true,
+                createdAt: true,
+                purchaseClassification: true,
+                product: { select: { purchaseClassification: true } }
+            },
+            orderBy: { createdAt: 'asc' }
+        }),
+        prisma.purchaseOrderItem.findMany({
+            where: {
+                purchaseOrder: {
+                    establishmentId,
+                    status: 'completed',
+                    ...(where.createdAt ? { completedAt: where.createdAt } : {})
+                }
+            },
+            select: {
+                purchaseClassification: true,
+                adjustedQuantity: true,
+                unitPrice: true
+            }
+        })
+    ]);
 
     const summary = {
         salesCogs: 0,
         internalConsumption: 0,
         operationalConsumption: 0,
+        beverageOperationalConsumption: 0,
+        cleaningConsumption: 0,
+        disposablesConsumption: 0,
+        otherOperationalConsumption: 0,
         bonuses: 0,
         losses: 0,
+        purchasesByClassification: {
+            CMV_BEVERAGES: 0,
+            CLEANING: 0,
+            DISPOSABLES: 0,
+            OPERATING: 0,
+            EXCLUDED: 0
+        }
     };
 
     const dailyChart = {};
@@ -126,12 +155,18 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
                 salesCogs: 0,
                 internalConsumption: 0,
                 operationalConsumption: 0,
+                beverageOperationalConsumption: 0,
+                cleaningConsumption: 0,
+                disposablesConsumption: 0,
+                otherOperationalConsumption: 0,
                 bonuses: 0,
                 losses: 0
             };
         }
 
-        if (reason === 'SALE') {
+        const classification = m.purchaseClassification || m.product?.purchaseClassification || 'EXCLUDED';
+
+        if (reason === 'SALE' && classification === 'CMV_BEVERAGES') {
             summary.salesCogs += cost;
             dailyChart[dayKey].salesCogs += cost;
         } 
@@ -139,9 +174,26 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             summary.internalConsumption += cost;
             dailyChart[dayKey].internalConsumption += cost;
         }
-        else if (['PROMO', 'COURTESY', 'DOUBLE_DRINK', 'TASTING', 'OPERATIONAL_USE'].includes(reason)) {
+        else if (reason === 'OPERATIONAL_USE') {
             summary.operationalConsumption += cost;
             dailyChart[dayKey].operationalConsumption += cost;
+
+            if (classification === 'CLEANING') {
+                summary.cleaningConsumption += cost;
+                dailyChart[dayKey].cleaningConsumption += cost;
+            } else if (classification === 'DISPOSABLES') {
+                summary.disposablesConsumption += cost;
+                dailyChart[dayKey].disposablesConsumption += cost;
+            } else if (classification === 'OPERATING') {
+                summary.otherOperationalConsumption += cost;
+                dailyChart[dayKey].otherOperationalConsumption += cost;
+            }
+        }
+        else if (['PROMO', 'COURTESY', 'DOUBLE_DRINK', 'TASTING'].includes(reason)) {
+            summary.operationalConsumption += cost;
+            summary.beverageOperationalConsumption += cost;
+            dailyChart[dayKey].operationalConsumption += cost;
+            dailyChart[dayKey].beverageOperationalConsumption += cost;
         }
         else if (reason === 'BONUS') {
             summary.bonuses += cost;
@@ -151,6 +203,12 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             summary.losses += cost;
             dailyChart[dayKey].losses += cost;
         }
+    });
+
+    purchaseItems.forEach(item => {
+        const classification = item.purchaseClassification || 'EXCLUDED';
+        summary.purchasesByClassification[classification] +=
+            Number(item.adjustedQuantity || 0) * Number(item.unitPrice || 0);
     });
 
     return {

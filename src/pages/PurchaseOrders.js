@@ -437,6 +437,10 @@ const PurchaseOrders = () => {
     const [receivedPrice, setReceivedPrice] = useState({});
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [tab, setTab] = useState("PENDING");
+    const [classificationFilter, setClassificationFilter] = useState('');
+    const [supplierFilter, setSupplierFilter] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [showManualModal, setShowManualModal] = useState(false);
 
     /* -------------------------------------------------------------------------- */
@@ -530,9 +534,18 @@ const PurchaseOrders = () => {
         );
 
     }, [state.purchaseOrders]);
-    const filteredOrders = state.purchaseOrders.filter(
-        order => order.status.toUpperCase() === tab
-    );
+    const filteredOrders = state.purchaseOrders.filter(order => {
+        if (order.status.toUpperCase() !== tab) return false;
+        if (classificationFilter && !order.items?.some(item =>
+            (item.purchaseClassification || 'CMV_BEVERAGES') === classificationFilter
+        )) return false;
+        if (supplierFilter && !order.items?.some(item => item.supplierId === supplierFilter)) return false;
+
+        const orderDate = new Date(order.createdAt);
+        if (dateFrom && orderDate < new Date(`${dateFrom}T00:00:00`)) return false;
+        if (dateTo && orderDate > new Date(`${dateTo}T23:59:59`)) return false;
+        return true;
+    });
 
     /* -------------------------------------------------------------------------- */
     /*                                  HANDLERS                                  */
@@ -718,6 +731,33 @@ Segue o pedido em PDF.
                     Finalizadas
                 </Button>
 
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'end' }}>
+                <div style={{ minWidth: 190 }}>
+                    <Select
+                        value={classificationFilter}
+                        onChange={setClassificationFilter}
+                        options={[
+                            { value: '', label: 'Todas as classificaÃ§Ãµes' },
+                            { value: 'CMV_BEVERAGES', label: 'Bebidas / CMV' },
+                            { value: 'CLEANING', label: 'Limpeza' },
+                            { value: 'DISPOSABLES', label: 'DescartÃ¡veis' },
+                            { value: 'OPERATING', label: 'Outros operacionais' }
+                        ]}
+                    />
+                </div>
+                <div style={{ minWidth: 190 }}>
+                    <Select
+                        value={supplierFilter}
+                        onChange={setSupplierFilter}
+                        options={[
+                            { value: '', label: 'Todos os fornecedores' },
+                            ...state.suppliers.map(supplier => ({ value: supplier.id, label: supplier.name }))
+                        ]}
+                    />
+                </div>
+                <Input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} />
+                <Input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} />
             </div>
             {filteredOrders.length > 0 && (
 

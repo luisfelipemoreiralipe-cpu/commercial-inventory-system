@@ -2,6 +2,20 @@ const prisma = require('../config/prisma');
 const purchaseSuggestionRepo = require('../repositories/purchaseSuggestionRepository');
 const purchaseOrderRepo = require('../repositories/purchaseOrderRepository');
 
+const calculateSuggestedUnits = ({ product, consumed, targetDays }) => {
+    const isBeverageCmv = product.purchaseClassification === 'CMV_BEVERAGES';
+    const projectedConsumption = Number(consumed || 0) * (Number(targetDays) / 7) * 1.5;
+    const configuredTarget = isBeverageCmv
+        ? Number(product.minQuantity)
+        : Number(product.idealQuantity || product.minQuantity);
+    const targetStock = isBeverageCmv
+        ? Math.max(configuredTarget, projectedConsumption)
+        : configuredTarget;
+    const shortage = targetStock - Number(product.quantity);
+    const packQuantity = Number(product.packQuantity || 1);
+    return shortage > 0 ? Math.ceil(shortage / packQuantity) : 0;
+};
+
 /**
  * 🧠 CALCULAR CONSUMO
  */
@@ -60,15 +74,11 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             7
         );
 
-        const safetyFactor = 1.5;
-        const eventMultiplier = targetDays / 7;
-        const projectedConsumption = Number(consumption.totalConsumed || 0) * eventMultiplier * safetyFactor;
-
-        const targetStockMl = Math.max(Number(product.minQuantity), projectedConsumption);
-        const suggestedMl = targetStockMl - Number(product.quantity);
-
-        const packQuantity = Number(product.packQuantity || 1);
-        const suggestedInUnits = suggestedMl > 0 ? Math.ceil(suggestedMl / packQuantity) : 0;
+        const suggestedInUnits = calculateSuggestedUnits({
+            product,
+            consumed: consumption.totalConsumed,
+            targetDays
+        });
 
         if (suggestedInUnits <= 0) return null;
 
@@ -143,6 +153,10 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
             unit: product.unit,
             purchaseUnit: product.purchaseUnit,
             packQuantity: product.packQuantity,
+            purchaseClassification: product.purchaseClassification,
+            restockFrequency: product.restockFrequency,
+            idealQuantity: product.idealQuantity,
+            responsibleSector: product.responsibleSector,
             currentStock: product.quantity,
             minimumStock: product.minQuantity,
             suggestedQuantity: suggestedInUnits,
@@ -165,4 +179,5 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
 
 module.exports = {
     getPurchaseSuggestions,
+    calculateSuggestedUnits,
 };

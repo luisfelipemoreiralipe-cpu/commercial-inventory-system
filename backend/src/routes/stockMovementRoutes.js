@@ -3,6 +3,8 @@ const controller = require('../controllers/stockMovementController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const requireRole = require('../middlewares/requireRole');
 const Roles = require('../constants/roles');
+const validate = require('../middlewares/validate');
+const { operationalUseSchema } = require('../validations/operationalUseValidation');
 console.log('ROLES DEBUG:', Roles);
 
 const router = Router();
@@ -28,6 +30,7 @@ router.post(
     '/operational-use',
     authMiddleware,
     requireRole(['ADMIN']),
+    validate(operationalUseSchema),
     controller.createOperationalUse
 );
 

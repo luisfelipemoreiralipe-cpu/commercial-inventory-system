@@ -39,6 +39,7 @@ const findAll = ({ productId, dateFrom, dateTo, type, reason, supplierId, establ
         include: {
             product: { select: { id: true, name: true, unit: true } },
             supplier: { select: { name: true } },
+            location: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
     });

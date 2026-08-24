@@ -12,6 +12,14 @@ const createProductSchema = z.object({
     packQuantity: z.preprocess((val) => Number(val), z.number().min(0).optional().default(1)),
     defaultLocationId: z.string().optional().nullable(),
     isActive: z.boolean().optional(),
+    purchaseClassification: z.enum([
+        'CMV_BEVERAGES', 'CLEANING', 'DISPOSABLES', 'OPERATING', 'EXCLUDED'
+    ]).optional().default('CMV_BEVERAGES'),
+    restockFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'ON_DEMAND'])
+        .optional().default('ON_DEMAND'),
+    idealQuantity: z.preprocess((val) => Number(val), z.number().min(0).optional().default(0)),
+    trackInventory: z.boolean().optional().default(true),
+    responsibleSector: z.string().trim().max(100).optional().nullable(),
 });
 
 const updateProductSchema = createProductSchema.partial();

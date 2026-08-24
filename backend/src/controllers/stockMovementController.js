@@ -32,7 +32,7 @@ const createInternalUse = async (req, res) => {
         const { productId, quantity, locationId } = req.body;
 
         const establishmentId = req.user.establishmentId;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
         await stockMovementService.createInternalUse({
             productId,
@@ -63,17 +63,21 @@ const createOperationalUse = async (req, res) => {
 
     try {
 
-        const { productId, quantity, locationId } = req.body;
+        const { productId, quantity, locationId, responsibleSector, notes, periodFrom, periodTo } = req.body;
 
         const establishmentId = req.user.establishmentId;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
         await stockMovementService.createOperationalUse({
             productId,
             quantity,
             establishmentId,
             userId,
-            locationId
+            locationId,
+            responsibleSector,
+            notes,
+            periodFrom,
+            periodTo
         });
 
         return res.json({

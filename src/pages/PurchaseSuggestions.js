@@ -11,6 +11,13 @@ import toast from "react-hot-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+const PURCHASE_CLASSIFICATIONS = [
+    { value: 'CMV_BEVERAGES', label: 'Bebidas / CMV' },
+    { value: 'CLEANING', label: 'Limpeza' },
+    { value: 'DISPOSABLES', label: 'DescartÃ¡veis' },
+    { value: 'OPERATING', label: 'Outros operacionais' }
+];
+
 
 
 const PageHeader = styled.div`
@@ -208,6 +215,7 @@ const PurchaseSuggestions = () => {
     const [targetDays, setTargetDays] = useState(7);
     const [ignoredProducts, setIgnoredProducts] = useState({});
     const [viewMode, setViewMode] = useState("active"); // active | ignored
+    const [activeClassification, setActiveClassification] = useState('CMV_BEVERAGES');
     const [filterCategory, setFilterCategory] = useState('');
     const theme = useTheme();
 
@@ -258,19 +266,35 @@ const PurchaseSuggestions = () => {
 
     const lowStockProducts = useMemo(() => {
         return state.products.filter(
-            p => Number(p.quantity) < Number(p.minQuantity)
+            p => (p.purchaseClassification || 'CMV_BEVERAGES') === activeClassification &&
+                p.trackInventory !== false &&
+                Number(p.quantity) < Number(
+                    activeClassification === 'CMV_BEVERAGES'
+                        ? p.minQuantity
+                        : (p.idealQuantity || p.minQuantity)
+                )
         );
-    }, [state.products]);
+    }, [state.products, activeClassification]);
 
+    const classificationCounts = useMemo(() => {
+        return suggestions.reduce((counts, suggestion) => {
+            const classification = suggestion.purchaseClassification ||
+                productsMap[suggestion.productId]?.purchaseClassification ||
+                'CMV_BEVERAGES';
+            counts[classification] = (counts[classification] || 0) + 1;
+            return counts;
+        }, {});
+    }, [suggestions, productsMap]);
 
 
     const filteredSuggestions = useMemo(() => {
-        if (!filterCategory) return suggestions;
         return suggestions.filter(s => {
             const p = productsMap[s.productId];
-            return String(p?.categoryId) === String(filterCategory);
+            const classification = s.purchaseClassification || p?.purchaseClassification || 'CMV_BEVERAGES';
+            return classification === activeClassification &&
+                (!filterCategory || String(p?.categoryId) === String(filterCategory));
         });
-    }, [suggestions, productsMap, filterCategory]);
+    }, [suggestions, productsMap, filterCategory, activeClassification]);
 
     const newSuggestions = useMemo(() => {
         return filteredSuggestions.filter(s =>
@@ -549,6 +573,7 @@ const PurchaseSuggestions = () => {
             for (const items of Object.values(groupedBySupplier)) {
 
                 await api.post("/purchase-orders", {
+                    generationMode: 'AUTOMATIC',
                     items
                 });
 
@@ -690,6 +715,21 @@ const PurchaseSuggestions = () => {
             </StatsGrid>
 
             <hr style={{ margin: "20px 0", border: 'none', borderTop: `1px solid ${theme.colors.border}` }} />
+
+            <Tabs style={{ flexWrap: 'wrap' }}>
+                {PURCHASE_CLASSIFICATIONS.map(classification => (
+                    <Tab
+                        key={classification.value}
+                        active={activeClassification === classification.value}
+                        onClick={() => {
+                            setActiveClassification(classification.value);
+                            setFilterCategory('');
+                        }}
+                    >
+                        {classification.label} ({classificationCounts[classification.value] || 0})
+                    </Tab>
+                ))}
+            </Tabs>
 
             <div style={{
                 display: "flex",
