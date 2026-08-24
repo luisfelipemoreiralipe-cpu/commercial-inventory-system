@@ -26,20 +26,17 @@ const createStockLocation = async (req, res) => {
       return res.status(400).json({ error: 'O nome do local é obrigatório' });
     }
 
-    // Se estiver criando como padrão, tira o padrão dos outros
-    if (isDefault) {
-      await prisma.stockLocation.updateMany({
-        where: { establishmentId },
-        data: { isDefault: false },
-      });
-    }
+    const newLocation = await prisma.$transaction(async (tx) => {
+      if (isDefault) {
+        await tx.stockLocation.updateMany({
+          where: { establishmentId },
+          data: { isDefault: false },
+        });
+      }
 
-    const newLocation = await prisma.stockLocation.create({
-      data: {
-        name,
-        isDefault: isDefault || false,
-        establishmentId,
-      },
+      return tx.stockLocation.create({
+        data: { name, isDefault: isDefault || false, establishmentId },
+      });
     });
 
     res.status(201).json(newLocation);
@@ -55,20 +52,21 @@ const updateStockLocation = async (req, res) => {
     const { id } = req.params;
     const { name, isDefault } = req.body;
 
-    // Se estiver atualizando como padrão, tira o padrão dos outros
-    if (isDefault) {
-      await prisma.stockLocation.updateMany({
-        where: { establishmentId },
-        data: { isDefault: false },
-      });
-    }
+    const location = await prisma.stockLocation.findFirst({ where: { id, establishmentId } });
+    if (!location) return res.status(404).json({ error: 'Local de estoque não encontrado.' });
 
-    const updatedLocation = await prisma.stockLocation.update({
-      where: { id },
-      data: {
-        name,
-        ...(isDefault !== undefined && { isDefault }),
-      },
+    const updatedLocation = await prisma.$transaction(async (tx) => {
+      if (isDefault) {
+        await tx.stockLocation.updateMany({
+          where: { establishmentId, id: { not: id } },
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.stockLocation.update({
+        where: { id },
+        data: { name, ...(isDefault !== undefined && { isDefault }) },
+      });
     });
 
     res.json(updatedLocation);
@@ -81,19 +79,19 @@ const updateStockLocation = async (req, res) => {
 const deleteStockLocation = async (req, res) => {
   try {
     const { id } = req.params;
+    const establishmentId = req.user.establishmentId;
+
+    const location = await prisma.stockLocation.findFirst({ where: { id, establishmentId } });
+    if (!location) return res.status(404).json({ error: 'Local de estoque não encontrado.' });
 
     // Verificar se existe estoque neste local
     const stockCount = await prisma.productStock.count({
-      where: { locationId: id, quantity: { gt: 0 } },
+      where: { locationId: id, NOT: { quantity: 0 } },
     });
 
     if (stockCount > 0) {
       return res.status(400).json({ error: 'Não é possível excluir um local que possui produtos com saldo.' });
     }
-
-    const location = await prisma.stockLocation.findUnique({
-      where: { id },
-    });
 
     if (location.isDefault) {
        return res.status(400).json({ error: 'Não é possível excluir o local padrão.' });
@@ -124,6 +122,16 @@ const internalTransfer = async (req, res) => {
     }
 
     await prisma.$transaction(async (tx) => {
+      const [product, sourceLocation, destinationLocation] = await Promise.all([
+        tx.product.findFirst({ where: { id: productId, establishmentId } }),
+        tx.stockLocation.findFirst({ where: { id: fromLocationId, establishmentId } }),
+        tx.stockLocation.findFirst({ where: { id: toLocationId, establishmentId } })
+      ]);
+
+      if (!product || !sourceLocation || !destinationLocation) {
+        throw new Error('Produto ou local de estoque não encontrado neste estabelecimento.');
+      }
+
       // Verifica saldo na origem
       const sourceStock = await tx.productStock.findUnique({
         where: { productId_locationId: { productId, locationId: fromLocationId } }
@@ -140,19 +148,17 @@ const internalTransfer = async (req, res) => {
       });
 
       // Adiciona no destino
-      await tx.productStock.upsert({
+      const destinationStock = await tx.productStock.upsert({
         where: { productId_locationId: { productId, locationId: toLocationId } },
         create: { productId, locationId: toLocationId, quantity: Number(quantity) },
         update: { quantity: { increment: quantity } }
       });
 
       // Cria log de movimento interno (duplo: saída e entrada, ou apenas log textual, mas aqui faremos um log genérico de ajuste para manter rastreabilidade)
-      const product = await tx.product.findUnique({ where: { id: productId } });
-      
       await tx.stockMovement.create({
         data: {
           productId,
-          productName: product?.name || 'Desconhecido',
+          productName: product.name,
           type: 'TRANSFER',
           quantity,
           previousQuantity: Number(sourceStock.quantity),
@@ -169,11 +175,11 @@ const internalTransfer = async (req, res) => {
       await tx.stockMovement.create({
         data: {
           productId,
-          productName: product?.name || 'Desconhecido',
+          productName: product.name,
           type: 'TRANSFER',
           quantity,
-          previousQuantity: 0, // Apenas para ilustrar
-          newQuantity: quantity,
+          previousQuantity: Number(destinationStock.quantity) - Number(quantity),
+          newQuantity: Number(destinationStock.quantity),
           reference: `Transferência Interna (Recebido)`,
           reason: 'INTERNAL_TRANSFER',
           establishmentId,

@@ -2,7 +2,6 @@ const productRepo = require('../repositories/productRepository');
 const categoryRepo = require('../repositories/categoryRepository');
 const supplierRepo = require('../repositories/supplierRepository');
 const prisma = require('../utils/prisma');
-const stockMovementRepo = require('../repositories/stockMovementRepository');
 const auditLogRepo = require('../repositories/auditLogRepository');
 const AppError = require('../utils/AppError');
 
@@ -212,71 +211,67 @@ const deleteProduct = async (id, establishmentId) => {
 // ─── UPDATE STOCK ──────────────────────────────────────────────────────
 
 const updateProductQuantity = async (id, newQuantity, establishmentId, locationId) => {
-
-    const product = await getProductById(id, establishmentId);
-    
-    let targetLocationId = locationId || product.defaultLocationId;
-    if (!targetLocationId) {
-        const defaultLoc = await prisma.stockLocation.findFirst({ where: { establishmentId, isDefault: true }});
-        targetLocationId = defaultLoc ? defaultLoc.id : null;
+    const parsedQuantity = Number(newQuantity);
+    if (!Number.isFinite(parsedQuantity)) {
+        throw new AppError('Quantidade inválida.', 400);
     }
 
-    if (!targetLocationId) throw new AppError("Local de estoque não definido para este produto.", 400);
+    return prisma.$transaction(async (tx) => {
+        const product = await tx.product.findFirst({ where: { id, establishmentId } });
+        if (!product) throw new AppError('Produto não encontrado.', 404);
 
-    const stockRecord = await prisma.productStock.upsert({
-        where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
-        create: { productId: product.id, locationId: targetLocationId, quantity: 0 },
-        update: {}
+        let targetLocationId = locationId || product.defaultLocationId;
+        if (!targetLocationId) {
+            const defaultLoc = await tx.stockLocation.findFirst({
+                where: { establishmentId, isDefault: true },
+                orderBy: { createdAt: 'asc' }
+            });
+            targetLocationId = defaultLoc?.id || null;
+        }
+
+        const targetLocation = targetLocationId
+            ? await tx.stockLocation.findFirst({ where: { id: targetLocationId, establishmentId } })
+            : null;
+
+        if (!targetLocation) {
+            throw new AppError('Local de estoque não definido ou não pertence ao estabelecimento.', 400);
+        }
+
+        const existingStock = await tx.productStock.findUnique({
+            where: { productId_locationId: { productId: product.id, locationId: targetLocationId } }
+        });
+        const previousQuantity = Number(existingStock?.quantity || 0);
+        const difference = parsedQuantity - previousQuantity;
+
+        const stockRecord = await tx.productStock.upsert({
+            where: { productId_locationId: { productId: product.id, locationId: targetLocationId } },
+            create: { productId: product.id, locationId: targetLocationId, quantity: parsedQuantity },
+            update: { quantity: parsedQuantity }
+        });
+
+        const updated = await tx.product.update({
+            where: { id: product.id },
+            data: { quantity: { increment: difference } }
+        });
+
+        await tx.stockMovement.create({
+            data: {
+                ...mkMovement(id, product.name, 'adjustment', previousQuantity, parsedQuantity, 'Ajuste Manual', establishmentId),
+                locationId: targetLocationId
+            }
+        });
+
+        await tx.auditLog.create({
+            data: mkAuditLog(
+                'UPDATE',
+                id,
+                `Estoque de "${product.name}" ajustado manualmente: ${previousQuantity} → ${parsedQuantity} ${product.unit}.`,
+                establishmentId
+            )
+        });
+
+        return { ...updated, adjustedLocationQuantity: Number(stockRecord.quantity) };
     });
-
-    const prevQty = Number(stockRecord.quantity);
-    const difference = newQuantity - prevQty;
-
-    // Atualiza o local
-    await prisma.productStock.update({
-        where: { id: stockRecord.id },
-        data: { quantity: newQuantity }
-    });
-
-    // Atualiza o total global cacheado
-    const updated = await productRepo.updateByEstablishment(
-        id,
-        establishmentId,
-        { quantity: Number(product.quantity) + difference }
-    );
-
-    if (!updated) {
-        throw new AppError('Produto não encontrado.', 404);
-    }
-
-    await stockMovementRepo.create(
-        mkMovement(
-            id,
-            product.name,
-            'adjustment',
-            prevQty,
-            newQuantity,
-            'Ajuste Manual',
-            establishmentId
-        )
-    );
-
-    // Ajusta o locationId do movement recém criado
-    await prisma.stockMovement.updateMany({
-        where: { productId: id, reference: 'Ajuste Manual', createdAt: { gte: new Date(Date.now() - 10000) } },
-        data: { locationId: targetLocationId }
-    });
-
-    await auditLogRepo.create(
-        mkAuditLog(
-            'UPDATE',
-            id,
-            `Estoque de "${product.name}" ajustado manualmente: ${prevQty} → ${newQuantity} ${product.unit}.`,
-            establishmentId
-        )
-    );
-
-    return updated;
 };
 
 // ─── PRICE HISTORY ─────────────────────────────────────────────────────
