@@ -14,7 +14,7 @@ import autoTable from "jspdf-autotable";
 const PURCHASE_CLASSIFICATIONS = [
     { value: 'CMV_BEVERAGES', label: 'Bebidas / CMV' },
     { value: 'CLEANING', label: 'Limpeza' },
-    { value: 'DISPOSABLES', label: 'DescartÃ¡veis' },
+    { value: 'DISPOSABLES', label: 'Descartáveis' },
     { value: 'OPERATING', label: 'Outros operacionais' }
 ];
 

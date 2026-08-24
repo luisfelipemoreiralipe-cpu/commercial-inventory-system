@@ -738,10 +738,10 @@ Segue o pedido em PDF.
                         value={classificationFilter}
                         onChange={setClassificationFilter}
                         options={[
-                            { value: '', label: 'Todas as classificaÃ§Ãµes' },
+                            { value: '', label: 'Todas as classificações' },
                             { value: 'CMV_BEVERAGES', label: 'Bebidas / CMV' },
                             { value: 'CLEANING', label: 'Limpeza' },
-                            { value: 'DISPOSABLES', label: 'DescartÃ¡veis' },
+                            { value: 'DISPOSABLES', label: 'Descartáveis' },
                             { value: 'OPERATING', label: 'Outros operacionais' }
                         ]}
                     />

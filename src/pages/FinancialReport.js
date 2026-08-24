@@ -211,7 +211,7 @@ const FinancialReport = () => {
             bg: "rgba(59, 130, 246, 0.12)"
         },
         {
-            title: "Cortesias e promoÃ§Ãµes de bebidas",
+            title: "Cortesias e promoções de bebidas",
             value: summary.beverageOperationalConsumption,
             icon: <MdLocalBar />,
             color: "#F59E0B",
@@ -225,7 +225,7 @@ const FinancialReport = () => {
             bg: "rgba(14, 165, 233, 0.12)"
         },
         {
-            title: "Consumo de descartÃ¡veis",
+            title: "Consumo de descartáveis",
             value: summary.disposablesConsumption,
             icon: <MdTrendingDown />,
             color: "#EC4899",
@@ -291,12 +291,12 @@ const FinancialReport = () => {
             </CardsGrid>
 
             <ChartContainer style={{ height: 'auto' }}>
-                <ChartTitle>Compras concluÃ­das por classificaÃ§Ã£o</ChartTitle>
+                <ChartTitle>Compras concluídas por classificação</ChartTitle>
                 <CardsGrid>
                     {[
                         ['CMV_BEVERAGES', 'Bebidas / CMV'],
                         ['CLEANING', 'Limpeza'],
-                        ['DISPOSABLES', 'DescartÃ¡veis'],
+                        ['DISPOSABLES', 'Descartáveis'],
                         ['OPERATING', 'Outros operacionais']
                     ].map(([key, label]) => (
                         <div key={key}>
@@ -342,9 +342,9 @@ const FinancialReport = () => {
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar name="CMV Vendas" dataKey="salesCogs" fill="#059669" radius={[4, 4, 0, 0]} />
                         <Bar name="Consumo Interno" dataKey="internalConsumption" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                        <Bar name="Cortesias / PromoÃ§Ãµes" dataKey="beverageOperationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                        <Bar name="Cortesias / Promoções" dataKey="beverageOperationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                         <Bar name="Limpeza" dataKey="cleaningConsumption" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
-                        <Bar name="DescartÃ¡veis" dataKey="disposablesConsumption" fill="#EC4899" radius={[4, 4, 0, 0]} />
+                        <Bar name="Descartáveis" dataKey="disposablesConsumption" fill="#EC4899" radius={[4, 4, 0, 0]} />
                         <Bar name="Outros operacionais" dataKey="otherOperationalConsumption" fill="#64748B" radius={[4, 4, 0, 0]} />
                         <Bar name="Bonificações" dataKey="bonuses" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                         <Bar name="Perdas" dataKey="losses" fill="#DC2626" radius={[4, 4, 0, 0]} />

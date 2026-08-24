@@ -1472,7 +1472,7 @@ const Reports = () => {
                             <thead>
                                 <tr>
                                     <Th>Produto</Th>
-                                    <Th>ClassificaÃ§Ã£o</Th>
+                                    <Th>Classificação</Th>
                                     <Th>Quantidade Consumida</Th>
                                     <Th>Custo Total</Th>
                                     <Th>% do Total Operacional</Th>
@@ -1498,7 +1498,7 @@ const Reports = () => {
                                             <Td>{({
                                                 CMV_BEVERAGES: 'Bebidas / CMV',
                                                 CLEANING: 'Limpeza',
-                                                DISPOSABLES: 'DescartÃ¡veis',
+                                                DISPOSABLES: 'Descartáveis',
                                                 OPERATING: 'Outros operacionais',
                                                 EXCLUDED: 'Fora do CMV'
                                             })[item.purchaseClassification] || 'Fora do CMV'}</Td>

@@ -139,7 +139,7 @@ test('interrompe ciclos em fichas técnicas', async () => {
     );
 });
 
-test('baixa protegida nÃ£o permite saldo local negativo', async () => {
+test('baixa protegida não permite saldo local negativo', async () => {
     const fixture = createFakeTransaction({
         products: [{ id: 'detergente', name: 'Detergente', type: 'INVENTORY', quantity: 2, establishmentId: 'est', defaultLocationId: 'loc', currentCost: 5 }],
         stocks: [{ productId: 'detergente', locationId: 'loc', quantity: 2 }],
@@ -157,7 +157,7 @@ test('baixa protegida nÃ£o permite saldo local negativo', async () => {
     assert.equal(fixture.productMap.get('detergente').quantity, 2);
 });
 
-test('baixa protegida congela classificaÃ§Ã£o e mantÃ©m saldos consistentes', async () => {
+test('baixa protegida congela classificação e mantém saldos consistentes', async () => {
     const fixture = createFakeTransaction({
         products: [{ id: 'papel', name: 'Papel', type: 'INVENTORY', quantity: 10, establishmentId: 'est', defaultLocationId: 'loc', currentCost: 2, purchaseClassification: 'CLEANING' }],
         stocks: [{ productId: 'papel', locationId: 'loc', quantity: 10 }],

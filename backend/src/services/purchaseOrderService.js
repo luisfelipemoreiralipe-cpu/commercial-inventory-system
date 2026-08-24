@@ -42,7 +42,7 @@ const createOrder = async (data) => {
     });
 
     if (products.length !== productIds.length) {
-        throw new AppError('Um ou mais produtos nÃ£o pertencem a este estabelecimento.', 400);
+        throw new AppError('Um ou mais produtos não pertencem a este estabelecimento.', 400);
     }
 
     validateAutomaticOrderClassifications(products, data.generationMode);

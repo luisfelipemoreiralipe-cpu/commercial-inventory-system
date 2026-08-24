@@ -1,14 +1,14 @@
-# ValidaÃ§Ã£o assistida da migraÃ§Ã£o de CMV
+# Validação assistida da migração de CMV
 
-Data da simulaÃ§Ã£o: 24/08/2026
+Data da simulação: 24/08/2026
 
 Banco consultado: Supabase configurado no backend
 
 Modo: somente leitura
 
-## Resultado da classificaÃ§Ã£o simulada
+## Resultado da classificação simulada
 
-| Estabelecimento | CMV â€” Bebidas | ExcluÃ­dos |
+| Estabelecimento | CMV — Bebidas | Excluídos |
 |---|---:|---:|
 | commercial | 163 | 3 |
 | estabelecimento teste | 60 | 23 |
@@ -16,22 +16,22 @@ Modo: somente leitura
 | Lights | 81 | 0 |
 | park | 83 | 0 |
 
-Nenhum produto ativo atual foi automaticamente classificado como limpeza, descartÃ¡vel ou outro operacional. Esses materiais deverÃ£o ser cadastrados ou reclassificados pela nova interface.
+Nenhum produto ativo atual foi automaticamente classificado como limpeza, descartável ou outro operacional. Esses materiais deverão ser cadastrados ou reclassificados pela nova interface.
 
-### DecisÃµes confirmadas pela regra
+### Decisões confirmadas pela regra
 
-- `aÃ§ucar` permanece em CMV â€” Bebidas por ser ingrediente de drinks.
-- Hortifruti e insumos atuais permanecem em CMV â€” Bebidas.
+- `açucar` permanece em CMV — Bebidas por ser ingrediente de drinks.
+- Hortifruti e insumos atuais permanecem em CMV — Bebidas.
 - `BIFE DE BURGUER` e `SMASH` ficam fora do CMV nesta fase.
 - Categorias de comida, carnes e milkshake do estabelecimento de teste ficam fora do CMV.
-- PatrimÃ´nios, como os copos encontrados, ficam fora do CMV.
-- Todos os produtos ativos de Lights e Park permanecem em CMV â€” Bebidas.
+- Patrimônios, como os copos encontrados, ficam fora do CMV.
+- Todos os produtos ativos de Lights e Park permanecem em CMV — Bebidas.
 
-## Linha de base imutÃ¡vel
+## Linha de base imutável
 
-Estes valores devem ser idÃªnticos depois da migraÃ§Ã£o:
+Estes valores devem ser idênticos depois da migração:
 
-| Indicador | Antes da migraÃ§Ã£o |
+| Indicador | Antes da migração |
 |---|---:|
 | Produtos | 432 |
 | Quantidade total dos produtos | 2.836.511,784 |
@@ -42,28 +42,28 @@ Estes valores devem ser idÃªnticos depois da migraÃ§Ã£o:
 | Quantidade acumulada dos movimentos | 40.193.424,749 |
 | Custo acumulado dos movimentos | R$ 1.278.979,7087 |
 
-## HistÃ³rico Prisma reconciliado
+## Histórico Prisma reconciliado
 
-O banco registra como aplicada a migraÃ§Ã£o:
+O banco registra como aplicada a migração:
 
 `20260429224355_add_transfer_costs`
 
-Esse diretÃ³rio nÃ£o existe no repositÃ³rio local nem em nenhum branch atualmente disponÃ­vel no GitHub. O checksum registrado no banco Ã©:
+Esse diretório não existe no repositório local nem em nenhum branch atualmente disponível no GitHub. O checksum registrado no banco é:
 
 `79662c72361b3c9f78c9a3d5efbfbecaacf89ac5156baabfbbc77bca0e62eefd`
 
-Como o arquivo original nÃ£o existia em nenhum branch local ou remoto, foi criado um placeholder histÃ³rico sem operaÃ§Ãµes de banco. O checksum do registro foi atualizado em transaÃ§Ã£o, condicionado ao checksum original acima. Depois do reparo, `prisma migrate status` reconheceu somente a nova migraÃ§Ã£o como pendente.
+Como o arquivo original não existia em nenhum branch local ou remoto, foi criado um placeholder histórico sem operações de banco. O checksum do registro foi atualizado em transação, condicionado ao checksum original acima. Depois do reparo, `prisma migrate status` reconheceu somente a nova migração como pendente.
 
-## AplicaÃ§Ã£o e auditoria concluÃ­das
+## Aplicação e auditoria concluídas
 
-1. HistÃ³rico Prisma reconciliado com proteÃ§Ã£o por checksum.
-2. MigraÃ§Ã£o `20260824223000_add_purchase_classification` aplicada com sucesso.
-3. Linha de base comparada automaticamente depois da aplicaÃ§Ã£o.
+1. Histórico Prisma reconciliado com proteção por checksum.
+2. Migração `20260824223000_add_purchase_classification` aplicada com sucesso.
+3. Linha de base comparada automaticamente depois da aplicação.
 4. Quantidades, custos, produtos, itens de compra e movimentos preservados integralmente.
-5. Nenhum produto ou item de ordem ficou sem classificaÃ§Ã£o.
+5. Nenhum produto ou item de ordem ficou sem classificação.
 6. `prisma migrate status` confirmou o banco atualizado.
-7. SuÃ­te automatizada finalizada com 21 testes aprovados.
+7. Suíte automatizada finalizada com 21 testes aprovados.
 8. Commit `d2140d6` enviado para a `main`.
-9. Frontend Vercel confirmado com resposta HTTP 200 apÃ³s a publicaÃ§Ã£o.
+9. Frontend Vercel confirmado com resposta HTTP 200 após a publicação.
 
-Resultado final: migraÃ§Ã£o validada e publicada sem alteraÃ§Ã£o dos saldos e histÃ³ricos financeiros existentes.
+Resultado final: migração validada e publicada sem alteração dos saldos e históricos financeiros existentes.

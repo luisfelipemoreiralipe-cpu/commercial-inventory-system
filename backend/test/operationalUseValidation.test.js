@@ -10,12 +10,12 @@ const validData = {
     periodTo: '2026-08-24'
 };
 
-test('baixa operacional converte quantidade e aceita perÃ­odo vÃ¡lido', () => {
+test('baixa operacional converte quantidade e aceita período válido', () => {
     const parsed = operationalUseSchema.parse(validData);
     assert.equal(parsed.quantity, 1.5);
 });
 
-test('baixa operacional rejeita perÃ­odo invertido', () => {
+test('baixa operacional rejeita período invertido', () => {
     assert.equal(operationalUseSchema.safeParse({ ...validData, periodFrom: '2026-08-25' }).success, false);
 });
 

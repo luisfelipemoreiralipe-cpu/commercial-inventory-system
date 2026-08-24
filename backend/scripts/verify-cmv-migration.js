@@ -42,7 +42,7 @@ async function main() {
     const { invalidProducts, invalidOrderItems } = nullCounts;
 
     if (invalidProducts || invalidOrderItems) {
-        throw new Error(`ClassificaÃ§Ãµes nulas: produtos=${invalidProducts}; itens=${invalidOrderItems}.`);
+        throw new Error(`Classificações nulas: produtos=${invalidProducts}; itens=${invalidOrderItems}.`);
     }
 
     console.log(JSON.stringify({ baselinePreserved: true, classifications, invalidProducts, invalidOrderItems }, null, 2));

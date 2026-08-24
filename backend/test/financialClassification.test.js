@@ -25,7 +25,7 @@ const fakePrisma = {
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: fakePrisma };
 const reportsService = require('../src/services/reportsService');
 
-test('relatÃ³rio separa CMV de bebidas dos custos operacionais', async () => {
+test('relatório separa CMV de bebidas dos custos operacionais', async () => {
     const result = await reportsService.getFinancialSummary('establishment', '2026-08-20', '2026-08-20');
 
     assert.equal(result.summary.salesCogs, 100);

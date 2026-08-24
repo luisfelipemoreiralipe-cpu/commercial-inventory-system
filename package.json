@@ -20,6 +20,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "check:encoding": "node scripts/check-text-encoding.js",
+    "prebuild": "npm run check:encoding",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

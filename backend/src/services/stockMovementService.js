@@ -159,7 +159,7 @@ const consumeProduct = async ({
                     data: { quantity: { decrement: directQty } }
                 });
                 if (updatedProduct.count !== 1) {
-                    throw new Error(`Saldo global inconsistente para ${product.name}. FaÃ§a uma auditoria antes da baixa.`);
+                    throw new Error(`Saldo global inconsistente para ${product.name}. Faça uma auditoria antes da baixa.`);
                 }
             } else {
                 await tx.product.update({
@@ -385,18 +385,18 @@ const createOperationalUse = async ({
             },
             select: { id: true, name: true, purchaseClassification: true, responsibleSector: true }
         });
-        if (!product) throw new Error('Produto operacional invÃ¡lido ou acesso negado.');
+        if (!product) throw new Error('Produto operacional inválido ou acesso negado.');
 
         const defaultLocation = locationId ? null : await tx.stockLocation.findFirst({
             where: { establishmentId, isDefault: true }, select: { id: true }
         });
         const targetLocationId = locationId || defaultLocation?.id;
-        if (!targetLocationId) throw new Error('Local de estoque nÃ£o definido.');
+        if (!targetLocationId) throw new Error('Local de estoque não definido.');
 
         const location = await tx.stockLocation.findFirst({
             where: { id: targetLocationId, establishmentId }, select: { id: true }
         });
-        if (!location) throw new Error('Local de estoque invÃ¡lido ou acesso negado.');
+        if (!location) throw new Error('Local de estoque inválido ou acesso negado.');
 
         const stock = await tx.productStock.findUnique({
             where: { productId_locationId: { productId, locationId: targetLocationId } }

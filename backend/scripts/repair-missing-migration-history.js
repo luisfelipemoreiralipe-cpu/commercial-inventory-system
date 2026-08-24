@@ -29,7 +29,7 @@ async function main() {
             throw new Error(`Checksum atual divergente. Esperado ${expectedOldChecksum}; encontrado ${row.checksum}.`);
         }
         if (!row.finished_at || row.rolled_back_at || Number(row.applied_steps_count) !== 1) {
-            throw new Error('A migraÃ§Ã£o histÃ³rica nÃ£o estÃ¡ marcada como concluÃ­da e Ã­ntegra.');
+            throw new Error('A migração histórica não está marcada como concluída e íntegra.');
         }
 
         const updated = await tx.$executeRaw`
@@ -39,7 +39,7 @@ async function main() {
               AND checksum = ${expectedOldChecksum}
         `;
 
-        if (updated !== 1) throw new Error('O registro mudou durante o reparo; operaÃ§Ã£o cancelada.');
+        if (updated !== 1) throw new Error('O registro mudou durante o reparo; operação cancelada.');
     });
 
     console.log(JSON.stringify({ migrationName, oldChecksum: expectedOldChecksum, replacementChecksum, repaired: true }, null, 2));

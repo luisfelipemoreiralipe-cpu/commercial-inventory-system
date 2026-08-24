@@ -25,9 +25,9 @@ async function main() {
         WHERE table_schema = 'public' AND lower(table_name) LIKE '%transfer%'
         ORDER BY table_name, ordinal_position
     `;
-    console.log('MigraÃ§Ã£o presente apenas no banco:');
+    console.log('Migração presente apenas no banco:');
     console.table(migrationRows.map(row => ({ ...row, finished_at: row.finished_at?.toISOString() })));
-    console.log('\nEstrutura atual das tabelas de transferÃªncia no banco:');
+    console.log('\nEstrutura atual das tabelas de transferência no banco:');
     console.table(transferColumns);
 
     const costColumns = await prisma.$queryRaw`
@@ -51,7 +51,7 @@ async function main() {
             (SELECT COALESCE(SUM("quantity"), 0)::text FROM "stock_movements") AS "movementQuantity",
             (SELECT COALESCE(SUM("totalCost"), 0)::text FROM "stock_movements") AS "movementCost"
     `;
-    console.log('\nLinha de base para conferÃªncia pÃ³s-migraÃ§Ã£o (campos que nÃ£o podem mudar):');
+    console.log('\nLinha de base para conferência pós-migração (campos que não podem mudar):');
     console.table(baseline);
 
     const products = await prisma.product.findMany({
@@ -104,13 +104,13 @@ async function main() {
         classificationSummary.set(key, current);
     }
 
-    console.log('\nResumo final simulado pela regra exata da migraÃ§Ã£o:');
+    console.log('\nResumo final simulado pela regra exata da migração:');
     console.table([...classificationSummary.values()].sort((a, b) =>
         a.estabelecimento.localeCompare(b.estabelecimento) || a.classificacao.localeCompare(b.classificacao)
     ));
 
     const operationalKeywords = ['LIMPEZA', 'DETERGENTE', 'DESINFETANTE', 'PAPEL', 'SACO DE LIXO', 'LUVA', 'GUARDANAPO', 'CANUDO', 'COPO', 'EMBALAGEM'];
-    console.log('\nPossÃ­veis materiais operacionais identificados pelo nome:');
+    console.log('\nPossíveis materiais operacionais identificados pelo nome:');
     console.table(products.filter(product =>
         operationalKeywords.some(keyword => product.name.toUpperCase().includes(keyword))
     ).map(product => ({
