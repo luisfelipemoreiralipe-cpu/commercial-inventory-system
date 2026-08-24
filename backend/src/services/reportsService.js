@@ -1,5 +1,30 @@
 const prisma = require('../config/prisma');
 
+const BUSINESS_TIME_ZONE = 'America/Sao_Paulo';
+
+const parseBusinessDateBoundary = (date, endOfDay = false) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new Error('Data inválida. Use o formato YYYY-MM-DD.');
+    }
+
+    const time = endOfDay ? '23:59:59.999' : '00:00:00.000';
+
+    // O calendário operacional do sistema é o de São Paulo (UTC-03 desde 2019).
+    return new Date(`${date}T${time}-03:00`);
+};
+
+const getBusinessDayKey = (date) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: BUSINESS_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return `${values.year}-${values.month}-${values.day}`;
+};
+
 const getMonthlyBonusTrend = async (establishmentId, dateFrom, dateTo) => {
     const where = {
         establishmentId,
@@ -59,8 +84,8 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
 
     if (dateFrom || dateTo) {
         where.createdAt = {};
-        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-        if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+        if (dateFrom) where.createdAt.gte = parseBusinessDateBoundary(dateFrom);
+        if (dateTo) where.createdAt.lte = parseBusinessDateBoundary(dateTo, true);
     } else {
         // Default to last 7 days
         const sevenDaysAgo = new Date();
@@ -93,8 +118,7 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
         const cost = Number(m.totalCost || 0);
         const reason = m.reason;
 
-        const date = new Date(m.createdAt);
-        const dayKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        const dayKey = getBusinessDayKey(m.createdAt);
 
         if (!dailyChart[dayKey]) {
             dailyChart[dayKey] = {
@@ -131,7 +155,7 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
 
     return {
         summary,
-        chartData: Object.values(dailyChart)
+        chartData: Object.values(dailyChart).sort((a, b) => a.date.localeCompare(b.date))
     };
 };
 
