@@ -145,13 +145,17 @@ const getLastPurchasePrice = async (productId, establishmentId) => {
         },
         select: {
             currentCost: true,
-            unitPrice: true
+            unitPrice: true,
+            packQuantity: true
         }
     });
 
     if (product) {
         if (product.currentCost && Number(product.currentCost) > 0) {
-            return Number(product.currentCost);
+            // currentCost já representa o custo por unidade-base (ml/g/un),
+            // enquanto o consumidor desta função espera o valor do pacote
+            // para então dividi-lo por packQuantity.
+            return Number(product.currentCost) * Number(product.packQuantity || 1);
         }
         if (product.unitPrice && Number(product.unitPrice) > 0) {
             return Number(product.unitPrice);
