@@ -1,4 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
+const crypto = require('crypto');
 const prisma = require('../utils/prisma');
 const { consumeProduct } = require('../services/stockMovementService');
 const { convertToBaseUnit } = require('../utils/unitConverter');
@@ -157,6 +158,118 @@ function parseCSVLine(line, delimiter) {
     return result;
 }
 
+function normalizeHeader(value) {
+    return String(value || '')
+        .replace(/^\uFEFF/, '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_');
+}
+
+function parseMoney(raw) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+    let value = String(raw).trim().replace(/^"|"$/g, '').replace(/R\$/gi, '').replace(/\s/g, '');
+    if (value.includes(',') && value.includes('.')) {
+        value = value.lastIndexOf(',') > value.lastIndexOf('.')
+            ? value.replace(/\./g, '').replace(',', '.')
+            : value.replace(/,/g, '');
+    } else if (value.includes(',')) {
+        value = value.replace(/\./g, '').replace(',', '.');
+    }
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function findColumn(headers, aliases, fallback = -1) {
+    const index = headers.findIndex(header => aliases.includes(header));
+    return index >= 0 ? index : fallback;
+}
+
+function financialValues(item) {
+    const quantity = Number(item.quantity);
+    const unitSalePrice = parseMoney(item.unitSalePrice);
+    const discountTotal = parseMoney(item.discountTotal) ?? 0;
+    const informedGross = parseMoney(item.grossTotal);
+    const informedNet = parseMoney(item.netTotal);
+    const grossTotal = informedGross ?? (unitSalePrice !== null ? unitSalePrice * quantity : null);
+    const netTotal = informedNet ?? (grossTotal !== null ? Math.max(grossTotal - discountTotal, 0) : null);
+
+    return { unitSalePrice, grossTotal, discountTotal, netTotal };
+}
+
+function parseSoldAt(raw) {
+    if (!raw) return new Date();
+    const soldAt = new Date(raw);
+    if (Number.isNaN(soldAt.getTime())) throw new Error('Data da venda inválida.');
+    return soldAt;
+}
+
+function buildCsvExternalId(fileBuffer, soldAt) {
+    return crypto
+        .createHash('sha256')
+        .update(fileBuffer)
+        .update('|')
+        .update(parseSoldAt(soldAt).toISOString().slice(0, 10))
+        .digest('hex');
+}
+
+function normalizeExternalId(value) {
+    const normalized = String(value || '').trim();
+    return normalized || null;
+}
+
+async function saleAlreadyExists(establishmentId, source, externalId) {
+    if (!externalId) return false;
+    return Boolean(await prisma.sale.findFirst({
+        where: { establishmentId, source, externalId },
+        select: { id: true }
+    }));
+}
+
+async function finalizeSaleCost(tx, saleId) {
+    const result = await tx.stockMovement.aggregate({
+        where: { saleId, reason: 'SALE', purchaseClassification: 'CMV_BEVERAGES' },
+        _sum: { totalCost: true }
+    });
+    const costTotal = Number(result._sum.totalCost || 0);
+    await tx.sale.update({ where: { id: saleId }, data: { costTotal } });
+    return costTotal;
+}
+
+async function createSaleRecord(tx, { establishmentId, source, items, productMap, soldAt, externalId }) {
+    const normalizedItems = items.map(item => ({ ...item, ...financialValues(item) }));
+    const hasCompleteRevenue = normalizedItems.length > 0 && normalizedItems.every(item => item.netTotal !== null);
+    const sum = field => normalizedItems.reduce((total, item) => total + Number(item[field] || 0), 0);
+
+    return tx.sale.create({
+        data: {
+            establishmentId,
+            source,
+            externalId: normalizeExternalId(externalId),
+            soldAt: parseSoldAt(soldAt),
+            grossTotal: hasCompleteRevenue ? sum('grossTotal') : null,
+            discountTotal: hasCompleteRevenue ? sum('discountTotal') : null,
+            netTotal: hasCompleteRevenue ? sum('netTotal') : null,
+            items: {
+                create: normalizedItems.map(item => {
+                    const product = productMap.get(item.productId || item.product);
+                    return {
+                        productId: product?.id || null,
+                        productName: product?.name || item.productName || item.product,
+                        quantity: Number(item.quantity),
+                        unitSalePrice: item.unitSalePrice,
+                        grossTotal: item.grossTotal,
+                        discountTotal: item.netTotal === null ? null : item.discountTotal,
+                        netTotal: item.netTotal
+                    };
+                })
+            }
+        }
+    });
+}
+
 const importCSV = asyncHandler(async (req, res) => {
     console.log("!!!!!!!!!!!!!!!!!! ESTOU NO ARQUIVO CERTO !!!!!!!!!!!!!!!!!!");
 
@@ -167,6 +280,12 @@ const importCSV = asyncHandler(async (req, res) => {
 
     const establishmentId = req.user.establishmentId;
     const locationId = req.body.locationId || null; // 🔥 Recebe o local opcional da venda
+    const effectiveSoldAt = parseSoldAt(req.body.soldAt);
+    const externalId = normalizeExternalId(req.body.externalId)
+        || buildCsvExternalId(req.file.buffer, effectiveSoldAt);
+    if (await saleAlreadyExists(establishmentId, 'CSV', externalId)) {
+        return res.status(409).json({ success: false, message: 'Este arquivo de vendas já foi importado para a data informada.' });
+    }
     console.log("🛠️ PASSO 1: Verificando se existe auditoria aberta...");
 
 
@@ -215,6 +334,15 @@ const importCSV = asyncHandler(async (req, res) => {
     console.log(`🛠️ PASSO 2: Analisando CSV. Delimitador final: "${delimiter}" (Dados: ,:${dataCommas} ;:${dataSemis} | Header: ,:${headerCommas} ;:${headerSemis})`);
 
     const dataLines = lines.slice(1);
+    const headers = parseCSVLine(header, delimiter).map(normalizeHeader);
+    const columns = {
+        product: findColumn(headers, ['produto', 'product', 'item', 'descricao', 'descricao_produto'], 0),
+        quantity: findColumn(headers, ['quantidade', 'qtd', 'quantity'], 1),
+        unitSalePrice: findColumn(headers, ['preco_unitario', 'valor_unitario', 'unit_price', 'preco_venda']),
+        grossTotal: findColumn(headers, ['valor_bruto', 'total_bruto', 'gross_total']),
+        discountTotal: findColumn(headers, ['desconto', 'valor_desconto', 'discount']),
+        netTotal: findColumn(headers, ['valor_liquido', 'total_liquido', 'net_total', 'total'])
+    };
     const parsed = [];
 
     for (let i = 0; i < dataLines.length; i++) {
@@ -229,9 +357,9 @@ const importCSV = asyncHandler(async (req, res) => {
             continue;
         }
 
-        const productName = parts[0].trim().replace(/^"|"$/g, '').toUpperCase();
+        const productName = String(parts[columns.product] || '').trim().replace(/^"|"$/g, '').toUpperCase();
         // Pega a quantidade e normaliza formato BR (ex: "1.117,5" -> 1117.5 | "1,5" -> 1.5)
-        const rawQty = parts[1] ? parts[1].trim().replace(/^"|"$/g, '') : '';
+        const rawQty = parts[columns.quantity] ? parts[columns.quantity].trim().replace(/^"|"$/g, '') : '';
         const normalizedQty = normalizeQuantity(rawQty);
         const quantity = parseFloat(normalizedQty);
 
@@ -241,7 +369,11 @@ const importCSV = asyncHandler(async (req, res) => {
         if (productName && !isNaN(quantity) && quantity > 0 && productName.replace(/[,;]/g, '') !== '') {
             parsed.push({
                 product: productName,
-                quantity: quantity
+                quantity,
+                unitSalePrice: columns.unitSalePrice >= 0 ? parts[columns.unitSalePrice] : null,
+                grossTotal: columns.grossTotal >= 0 ? parts[columns.grossTotal] : null,
+                discountTotal: columns.discountTotal >= 0 ? parts[columns.discountTotal] : null,
+                netTotal: columns.netTotal >= 0 ? parts[columns.netTotal] : null
             });
         } else {
             console.log(`⚠️ Linha ${i + 2} ignorada (dados inválidos): "${line}" -> Produto: [${productName}], Qtd: [${rawQty}]`);
@@ -353,7 +485,16 @@ const importCSV = asyncHandler(async (req, res) => {
 
     // 🚀 8. Execução Atômica com timeout estendido (60s para lotes grandes)
     console.log("🛠️ PASSO 8: Abrindo transação para baixar estoque...");
-    await prisma.$transaction(async (tx) => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const sale = await createSaleRecord(tx, {
+            establishmentId,
+            source: 'CSV',
+            items: parsed,
+            productMap,
+            soldAt: effectiveSoldAt,
+            externalId
+        });
         for (const key in totalDemand) {
             const demandItem = totalDemand[key];
             console.log(`[BAIXA] Consumindo: ${demandItem.name} | Quantidade: ${demandItem.qty}`);
@@ -363,11 +504,19 @@ const importCSV = asyncHandler(async (req, res) => {
                 establishmentId,
                 reason: "SALE",
                 reference: "CSV_IMPORT_CONSOLIDATED",
+                movementMetadata: { createdAt: effectiveSoldAt, saleId: sale.id },
                 preloadedCost: preloadedCosts[demandItem.id],
                 locationId: demandItem.locationId || undefined // 🔥 Passa o local propagado
             }, tx);
         }
-    }, { timeout: 60000 }); // 60 segundos para lotes grandes
+        await finalizeSaleCost(tx, sale.id);
+      }, { timeout: 60000 }); // 60 segundos para lotes grandes
+    } catch (error) {
+        if (error?.code === 'P2002') {
+            return res.status(409).json({ success: false, message: 'Esta venda já foi processada.' });
+        }
+        throw error;
+    }
 
     console.log("✅ SUCESSO: Importação concluída.");
     return res.json({
@@ -379,13 +528,17 @@ const importCSV = asyncHandler(async (req, res) => {
 });
 
 const importManual = asyncHandler(async (req, res) => {
-    const { items, locationId } = req.body; // Array de { productId, quantity } e locationId (opcional)
+    const { items, locationId, soldAt, externalId } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'Nenhum item informado para venda manual' });
     }
 
     const establishmentId = req.user.establishmentId;
+    const normalizedExternalId = normalizeExternalId(externalId);
+    if (normalizedExternalId && await saleAlreadyExists(establishmentId, 'MANUAL', normalizedExternalId)) {
+        return res.status(409).json({ success: false, message: 'Esta venda manual já foi processada.' });
+    }
 
 
 
@@ -468,7 +621,17 @@ const importManual = asyncHandler(async (req, res) => {
     );
 
     // 🚀 Execução Atômica
-    await prisma.$transaction(async (tx) => {
+    const effectiveSoldAt = parseSoldAt(soldAt);
+    try {
+      await prisma.$transaction(async (tx) => {
+        const sale = await createSaleRecord(tx, {
+            establishmentId,
+            source: 'MANUAL',
+            items,
+            productMap,
+            soldAt: effectiveSoldAt,
+            externalId: normalizedExternalId
+        });
         for (const key in totalDemand) {
             const demandItem = totalDemand[key];
             await consumeProduct({
@@ -477,11 +640,19 @@ const importManual = asyncHandler(async (req, res) => {
                 establishmentId,
                 reason: "SALE",
                 reference: "MANUAL_SALE",
+                movementMetadata: { createdAt: effectiveSoldAt, saleId: sale.id },
                 preloadedCost: preloadedCosts[demandItem.id],
                 locationId: demandItem.locationId || undefined // 🔥 Passa o local propagado
             }, tx);
         }
-    }, { timeout: 60000 });
+        await finalizeSaleCost(tx, sale.id);
+      }, { timeout: 60000 });
+    } catch (error) {
+        if (error?.code === 'P2002') {
+            return res.status(409).json({ success: false, message: 'Esta venda já foi processada.' });
+        }
+        throw error;
+    }
 
     return res.json({
         success: true,
@@ -494,5 +665,5 @@ const importManual = asyncHandler(async (req, res) => {
 module.exports = {
     importCSV,
     importManual,
-    _private: { explodeDemandRecursive, normalizeQuantity }
+    _private: { explodeDemandRecursive, normalizeQuantity, normalizeHeader, parseMoney, financialValues, buildCsvExternalId, normalizeExternalId }
 };

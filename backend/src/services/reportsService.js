@@ -94,7 +94,14 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
         where.createdAt = { gte: sevenDaysAgo };
     }
 
-    const [movements, purchaseItems] = await Promise.all([
+    const saleWhere = {
+        establishmentId,
+        status: 'COMPLETED',
+        netTotal: { not: null }
+    };
+    if (where.createdAt) saleWhere.soldAt = where.createdAt;
+
+    const [movements, purchaseItems, sales] = await Promise.all([
         prisma.stockMovement.findMany({
             where,
             select: {
@@ -119,11 +126,23 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
                 adjustedQuantity: true,
                 unitPrice: true
             }
+        }),
+        prisma.sale.findMany({
+            where: saleWhere,
+            select: { grossTotal: true, discountTotal: true, netTotal: true, soldAt: true },
+            orderBy: { soldAt: 'asc' }
         })
     ]);
 
     const summary = {
         salesCogs: 0,
+        grossRevenue: 0,
+        discounts: 0,
+        netRevenue: 0,
+        cogsPercentage: null,
+        grossProfit: null,
+        grossMarginPercentage: null,
+        revenueAvailable: false,
         internalConsumption: 0,
         operationalConsumption: 0,
         beverageOperationalConsumption: 0,
@@ -153,6 +172,8 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             dailyChart[dayKey] = {
                 date: dayKey,
                 salesCogs: 0,
+                netRevenue: 0,
+                cogsPercentage: null,
                 internalConsumption: 0,
                 operationalConsumption: 0,
                 beverageOperationalConsumption: 0,
@@ -209,6 +230,47 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
         const classification = item.purchaseClassification || 'EXCLUDED';
         summary.purchasesByClassification[classification] +=
             Number(item.adjustedQuantity || 0) * Number(item.unitPrice || 0);
+    });
+
+    sales.forEach(sale => {
+        const gross = Number(sale.grossTotal || 0);
+        const discount = Number(sale.discountTotal || 0);
+        const net = Number(sale.netTotal || 0);
+        summary.grossRevenue += gross;
+        summary.discounts += discount;
+        summary.netRevenue += net;
+
+        const dayKey = getBusinessDayKey(sale.soldAt);
+        if (!dailyChart[dayKey]) {
+            dailyChart[dayKey] = {
+                date: dayKey,
+                salesCogs: 0,
+                netRevenue: 0,
+                cogsPercentage: null,
+                internalConsumption: 0,
+                operationalConsumption: 0,
+                beverageOperationalConsumption: 0,
+                cleaningConsumption: 0,
+                disposablesConsumption: 0,
+                otherOperationalConsumption: 0,
+                bonuses: 0,
+                losses: 0
+            };
+        }
+        dailyChart[dayKey].netRevenue += net;
+    });
+
+    if (summary.netRevenue > 0) {
+        summary.revenueAvailable = true;
+        summary.cogsPercentage = (summary.salesCogs / summary.netRevenue) * 100;
+        summary.grossProfit = summary.netRevenue - summary.salesCogs;
+        summary.grossMarginPercentage = (summary.grossProfit / summary.netRevenue) * 100;
+    }
+
+    Object.values(dailyChart).forEach(day => {
+        day.cogsPercentage = day.netRevenue > 0
+            ? (day.salesCogs / day.netRevenue) * 100
+            : null;
     });
 
     return {

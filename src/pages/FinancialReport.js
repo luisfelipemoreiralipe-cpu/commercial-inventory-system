@@ -163,6 +163,13 @@ const FinancialReport = () => {
 
     const [summary, setSummary] = useState({
         salesCogs: 0,
+        grossRevenue: 0,
+        discounts: 0,
+        netRevenue: 0,
+        cogsPercentage: null,
+        grossProfit: null,
+        grossMarginPercentage: null,
+        revenueAvailable: false,
         internalConsumption: 0,
         operationalConsumption: 0,
         beverageOperationalConsumption: 0,
@@ -194,14 +201,61 @@ const FinancialReport = () => {
     }, []);
 
     const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+    const formatPercentage = (val) => val === null || val === undefined
+        ? 'Sem dados de receita'
+        : new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val) + '%';
 
     const metrics = [
+        {
+            title: "Faturamento bruto de bebidas",
+            value: summary.grossRevenue,
+            icon: <MdTrendingUp />,
+            color: "#1D4ED8",
+            bg: "rgba(29, 78, 216, 0.12)"
+        },
+        {
+            title: "Descontos",
+            value: summary.discounts,
+            icon: <MdTrendingDown />,
+            color: "#EA580C",
+            bg: "rgba(234, 88, 12, 0.12)"
+        },
         {
             title: "CMV de Vendas",
             value: summary.salesCogs,
             icon: <MdTrendingUp />,
             color: "#059669",
             bg: "rgba(5, 150, 105, 0.12)"
+        },
+        {
+            title: "Receita líquida de bebidas",
+            value: summary.netRevenue,
+            icon: <MdTrendingUp />,
+            color: "#2563EB",
+            bg: "rgba(37, 99, 235, 0.12)"
+        },
+        {
+            title: "CMV sobre a receita",
+            value: summary.cogsPercentage,
+            formatter: formatPercentage,
+            icon: <MdTrendingDown />,
+            color: "#7C3AED",
+            bg: "rgba(124, 58, 237, 0.12)"
+        },
+        {
+            title: "Lucro bruto de bebidas",
+            value: summary.grossProfit,
+            icon: <MdTrendingUp />,
+            color: "#0F766E",
+            bg: "rgba(15, 118, 110, 0.12)"
+        },
+        {
+            title: "Margem bruta",
+            value: summary.grossMarginPercentage,
+            formatter: formatPercentage,
+            icon: <MdTrendingUp />,
+            color: "#0891B2",
+            bg: "rgba(8, 145, 178, 0.12)"
         },
         {
             title: "Consumo Interno",
@@ -285,7 +339,7 @@ const FinancialReport = () => {
                                 {metric.icon}
                             </MetricIcon>
                         </MetricHeader>
-                        <MetricValue>{formatCurrency(metric.value)}</MetricValue>
+                        <MetricValue>{metric.formatter ? metric.formatter(metric.value) : formatCurrency(metric.value)}</MetricValue>
                     </MetricCard>
                 ))}
             </CardsGrid>
@@ -341,6 +395,7 @@ const FinancialReport = () => {
                         />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar name="CMV Vendas" dataKey="salesCogs" fill="#059669" radius={[4, 4, 0, 0]} />
+                        <Bar name="Receita líquida" dataKey="netRevenue" fill="#2563EB" radius={[4, 4, 0, 0]} />
                         <Bar name="Consumo Interno" dataKey="internalConsumption" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                         <Bar name="Cortesias / Promoções" dataKey="beverageOperationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                         <Bar name="Limpeza" dataKey="cleaningConsumption" fill="#0EA5E9" radius={[4, 4, 0, 0]} />

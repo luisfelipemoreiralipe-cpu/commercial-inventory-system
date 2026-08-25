@@ -111,9 +111,16 @@ export default function StockMovement() {
     const [file, setFile] = useState(null);
     const [loadingImport, setLoadingImport] = useState(false);
     const [manualSales, setManualSales] = useState({});
+    const [manualPrices, setManualPrices] = useState({});
+    const [manualDiscounts, setManualDiscounts] = useState({});
+    const manualRequestIdRef = React.useRef(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [locationId, setLocationId] = useState("");
     const [locations, setLocations] = useState([]);
+    const [saleDate, setSaleDate] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    });
 
     React.useEffect(() => {
         const loadLocations = async () => {
@@ -139,18 +146,36 @@ export default function StockMovement() {
     const handleManualSaleSubmit = async () => {
         const items = Object.entries(manualSales)
             .filter(([_, qty]) => Number(qty) > 0)
-            .map(([productId, quantity]) => ({ productId, quantity: Number(quantity) }));
+            .map(([productId, quantity]) => ({
+                productId,
+                quantity: Number(quantity),
+                unitSalePrice: manualPrices[productId],
+                discountTotal: manualDiscounts[productId] || 0
+            }));
 
         if (items.length === 0) {
             toast.error("Informe pelo menos um produto com quantidade maior que zero");
             return;
         }
+        if (items.some(item => !Number.isFinite(Number(item.unitSalePrice)) || Number(item.unitSalePrice) < 0)) {
+            toast.error("Informe o preço unitário de todos os produtos vendidos");
+            return;
+        }
 
         setLoading(true);
         try {
-            await api.post("/sales/manual", { items, locationId: locationId || undefined });
+            if (!manualRequestIdRef.current) manualRequestIdRef.current = crypto.randomUUID();
+            await api.post("/sales/manual", {
+                items,
+                locationId: locationId || undefined,
+                soldAt: `${saleDate}T12:00:00-03:00`,
+                externalId: manualRequestIdRef.current
+            });
             toast.success("Vendas lançadas com sucesso");
             setManualSales({});
+            setManualPrices({});
+            setManualDiscounts({});
+            manualRequestIdRef.current = null;
             setLocationId("");
             await fetchAllData();
         } catch (error) {
@@ -228,6 +253,7 @@ export default function StockMovement() {
         const formData = new FormData();
         formData.append("file", file);
         if (locationId) formData.append("locationId", locationId);
+        formData.append("soldAt", `${saleDate}T12:00:00-03:00`);
 
         setLoadingImport(true);
         try {
@@ -311,6 +337,12 @@ export default function StockMovement() {
                                 ...locations.map(l => ({ value: l.id, label: l.name }))
                             ]}
                         />
+                        <Input
+                            label="Data das vendas"
+                            type="date"
+                            value={saleDate}
+                            onChange={(e) => setSaleDate(e.target.value)}
+                        />
                         <SearchInput 
                             placeholder="Buscar produto por nome..." 
                             value={searchTerm}
@@ -324,6 +356,9 @@ export default function StockMovement() {
                                         <th>Produto</th>
                                         <th>Categoria</th>
                                         <th style={{ textAlign: 'center' }}>Vendas</th>
+                                        <th style={{ textAlign: 'center' }}>Preço unitário</th>
+                                        <th style={{ textAlign: 'center' }}>Desconto total</th>
+                                        <th style={{ textAlign: 'right' }}>Valor líquido</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -349,6 +384,37 @@ export default function StockMovement() {
                                                                 setManualSales(prev => ({ ...prev, [p.id]: val }));
                                                             }}
                                                         />
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <SmallInput
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            inputMode="decimal"
+                                                            placeholder="0,00"
+                                                            value={manualPrices[p.id] || ""}
+                                                            onChange={(e) => setManualPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                                        />
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <SmallInput
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            inputMode="decimal"
+                                                            placeholder="0,00"
+                                                            value={manualDiscounts[p.id] || ""}
+                                                            onChange={(e) => setManualDiscounts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                                        />
+                                                    </td>
+                                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                                            Math.max(
+                                                                Number(manualSales[p.id] || 0) * Number(manualPrices[p.id] || 0)
+                                                                - Number(manualDiscounts[p.id] || 0),
+                                                                0
+                                                            )
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );
@@ -474,11 +540,23 @@ export default function StockMovement() {
                             ]}
                         />
                         <Input
+                            label="Data das vendas"
+                            type="date"
+                            value={saleDate}
+                            onChange={(e) => setSaleDate(e.target.value)}
+                        />
+                        <Input
                             label="Arquivo CSV"
                             type="file"
                             accept=".csv"
                             onChange={(e) => setFile(e.target.files[0])}
                         />
+
+                        <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
+                            Para calcular o CMV em porcentagem, o CSV pode conter as colunas Produto, Quantidade,
+                            Preço Unitário, Desconto e Valor Líquido. Importações apenas com produto e quantidade
+                            continuam aceitas, mas não geram percentual financeiro.
+                        </p>
 
                         {file && (
                             <p style={{ fontSize: '13px', color: '#64748B' }}>

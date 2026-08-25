@@ -19,6 +19,11 @@ const fakePrisma = {
             { purchaseClassification: 'CMV_BEVERAGES', adjustedQuantity: 2, unitPrice: 30 },
             { purchaseClassification: 'CLEANING', adjustedQuantity: 3, unitPrice: 10 }
         ]
+    },
+    sale: {
+        findMany: async () => [
+            { grossTotal: 250, discountTotal: 50, netTotal: 200, soldAt: movementDate }
+        ]
     }
 };
 
@@ -34,4 +39,8 @@ test('relatório separa CMV de bebidas dos custos operacionais', async () => {
     assert.equal(result.summary.otherOperationalConsumption, 5);
     assert.equal(result.summary.purchasesByClassification.CMV_BEVERAGES, 60);
     assert.equal(result.summary.purchasesByClassification.CLEANING, 30);
+    assert.equal(result.summary.netRevenue, 200);
+    assert.equal(result.summary.cogsPercentage, 50);
+    assert.equal(result.summary.grossProfit, 100);
+    assert.equal(result.summary.grossMarginPercentage, 50);
 });
