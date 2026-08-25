@@ -11,7 +11,10 @@ const fakePrisma = {
             { reason: 'SALE', totalCost: 999, createdAt: movementDate, purchaseClassification: 'CLEANING', product: null },
             { reason: 'OPERATIONAL_USE', totalCost: 20, createdAt: movementDate, purchaseClassification: 'CLEANING', product: null },
             { reason: 'OPERATIONAL_USE', totalCost: 10, createdAt: movementDate, purchaseClassification: 'DISPOSABLES', product: null },
-            { reason: 'OPERATIONAL_USE', totalCost: 5, createdAt: movementDate, purchaseClassification: 'OPERATING', product: null }
+            { reason: 'OPERATIONAL_USE', totalCost: 5, createdAt: movementDate, purchaseClassification: 'OPERATING', product: null },
+            { reason: 'LOSS', reference: 'STOCK_AUDIT:audit-1', totalCost: 90, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null },
+            { reason: 'GAIN', reference: 'STOCK_AUDIT:audit-1', totalCost: 60, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null },
+            { reason: 'OPERATIONAL_LOSS', totalCost: 7, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null }
         ]
     },
     purchaseOrderItem: {
@@ -43,4 +46,11 @@ test('relatório separa CMV de bebidas dos custos operacionais', async () => {
     assert.equal(result.summary.cogsPercentage, 50);
     assert.equal(result.summary.grossProfit, 100);
     assert.equal(result.summary.grossMarginPercentage, 50);
+    assert.equal(result.summary.auditLosses, 90);
+    assert.equal(result.summary.auditGains, 60);
+    assert.equal(result.summary.auditNetImpact, -30);
+    assert.equal(result.summary.operationalLosses, 7);
+    assert.equal(result.summary.losses, 97);
+    assert.equal(result.summary.hasMixedAuditAdjustments, true);
+    assert.equal(result.summary.suspectedExchangeAudits, 1);
 });

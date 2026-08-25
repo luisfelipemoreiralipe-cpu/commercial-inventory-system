@@ -10,7 +10,7 @@ import autoTable from "jspdf-autotable";
 import Card from "../components/Card";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
-import EmptyState from "../components/EmptyState"; // Assumindo que você tem esse componente
+import Select from "../components/Select";
 
 /* -------------------------------------------------------------------------- */
 /* Styled UI                                   */
@@ -141,6 +141,18 @@ export default function StockAudits() {
     
     const [audits, setAudits] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
+    const [locations, setLocations] = useState([]);
+    const [auditLocationId, setAuditLocationId] = useState("");
+
+    useEffect(() => {
+        api.get('/stock-locations')
+            .then(data => {
+                const list = Array.isArray(data) ? data : [];
+                setLocations(list);
+                setAuditLocationId(list.find(location => location.isDefault)?.id || list[0]?.id || "");
+            })
+            .catch(error => console.error("Erro ao carregar locais", error));
+    }, []);
 
     const generateBlankPDF = () => {
         const doc = new jsPDF();
@@ -217,7 +229,7 @@ export default function StockAudits() {
 
     async function createAudit() {
         try {
-            const res = await api.post("/stock-audits");
+            const res = await api.post("/stock-audits", { locationId: auditLocationId || undefined });
             const auditId = res?.id;
             setModalOpen(false);
 
@@ -335,7 +347,7 @@ export default function StockAudits() {
                             Cancelar
                         </Button>
 
-                        <Button onClick={createAudit} style={{ flex: 1 }}>
+                        <Button onClick={createAudit} disabled={!auditLocationId} style={{ flex: 1 }}>
                             Confirmar
                         </Button>
                     </div>
@@ -356,8 +368,16 @@ export default function StockAudits() {
                     </div>
                     <h3 style={{ marginBottom: "8px", color: "#1E293B" }}>Iniciar Nova Conferência?</h3>
                     <p style={{ color: "#64748B", fontSize: "14px", lineHeight: "1.5" }}>
-                        Uma nova lista de auditoria será gerada com base no seu estoque atual para conferência manual.
+                        Uma nova lista será gerada com o saldo atual do local selecionado.
                     </p>
+                    <div style={{ textAlign: "left", marginTop: "20px" }}>
+                        <Select
+                            label="Local da auditoria"
+                            value={auditLocationId}
+                            onChange={setAuditLocationId}
+                            options={locations.map(location => ({ value: location.id, label: location.name }))}
+                        />
+                    </div>
                 </div>
             </Modal>
         </>

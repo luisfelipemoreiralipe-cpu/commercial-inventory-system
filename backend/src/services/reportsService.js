@@ -106,6 +106,7 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             where,
             select: {
                 reason: true,
+                reference: true,
                 totalCost: true,
                 createdAt: true,
                 purchaseClassification: true,
@@ -151,6 +152,12 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
         otherOperationalConsumption: 0,
         bonuses: 0,
         losses: 0,
+        auditLosses: 0,
+        auditGains: 0,
+        auditNetImpact: 0,
+        operationalLosses: 0,
+        hasMixedAuditAdjustments: false,
+        suspectedExchangeAudits: 0,
         purchasesByClassification: {
             CMV_BEVERAGES: 0,
             CLEANING: 0,
@@ -161,6 +168,7 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
     };
 
     const dailyChart = {};
+    const auditAdjustments = new Map();
 
     movements.forEach(m => {
         const cost = Number(m.totalCost || 0);
@@ -181,7 +189,11 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
                 disposablesConsumption: 0,
                 otherOperationalConsumption: 0,
                 bonuses: 0,
-                losses: 0
+                losses: 0,
+                auditLosses: 0,
+                auditGains: 0,
+                auditNetImpact: 0,
+                operationalLosses: 0
             };
         }
 
@@ -220,9 +232,33 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             summary.bonuses += cost;
             dailyChart[dayKey].bonuses += cost;
         }
-        else if (['OPERATIONAL_LOSS', 'LOSS'].includes(reason)) {
+        else if (reason === 'LOSS') {
             summary.losses += cost;
+            summary.auditLosses += cost;
             dailyChart[dayKey].losses += cost;
+            dailyChart[dayKey].auditLosses += cost;
+            dailyChart[dayKey].auditNetImpact -= cost;
+            if (String(m.reference || '').startsWith('STOCK_AUDIT')) {
+                const adjustment = auditAdjustments.get(m.reference) || { losses: 0, gains: 0 };
+                adjustment.losses += cost;
+                auditAdjustments.set(m.reference, adjustment);
+            }
+        }
+        else if (reason === 'GAIN') {
+            summary.auditGains += cost;
+            dailyChart[dayKey].auditGains += cost;
+            dailyChart[dayKey].auditNetImpact += cost;
+            if (String(m.reference || '').startsWith('STOCK_AUDIT')) {
+                const adjustment = auditAdjustments.get(m.reference) || { losses: 0, gains: 0 };
+                adjustment.gains += cost;
+                auditAdjustments.set(m.reference, adjustment);
+            }
+        }
+        else if (reason === 'OPERATIONAL_LOSS') {
+            summary.losses += cost;
+            summary.operationalLosses += cost;
+            dailyChart[dayKey].losses += cost;
+            dailyChart[dayKey].operationalLosses += cost;
         }
     });
 
@@ -254,7 +290,11 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
                 disposablesConsumption: 0,
                 otherOperationalConsumption: 0,
                 bonuses: 0,
-                losses: 0
+                losses: 0,
+                auditLosses: 0,
+                auditGains: 0,
+                auditNetImpact: 0,
+                operationalLosses: 0
             };
         }
         dailyChart[dayKey].netRevenue += net;
@@ -266,6 +306,11 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
         summary.grossProfit = summary.netRevenue - summary.salesCogs;
         summary.grossMarginPercentage = (summary.grossProfit / summary.netRevenue) * 100;
     }
+
+    summary.auditNetImpact = summary.auditGains - summary.auditLosses;
+    summary.suspectedExchangeAudits = [...auditAdjustments.values()]
+        .filter(adjustment => adjustment.losses > 0 && adjustment.gains > 0).length;
+    summary.hasMixedAuditAdjustments = summary.suspectedExchangeAudits > 0;
 
     Object.values(dailyChart).forEach(day => {
         day.cogsPercentage = day.netRevenue > 0

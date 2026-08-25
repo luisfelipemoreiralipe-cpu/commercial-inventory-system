@@ -3,6 +3,23 @@ const { consumeProduct, addStock, getProductCostOutsideTx } = require('../servic
 
 const prisma = new PrismaClient();
 
+async function getCurrentAuditQuantity(tx, item, establishmentId) {
+    if (item.locationId) {
+        const stock = await tx.productStock.findUnique({
+            where: { productId_locationId: { productId: item.productId, locationId: item.locationId } },
+            select: { quantity: true }
+        });
+        return Number(stock?.quantity || 0);
+    }
+
+    const product = await tx.product.findFirst({
+        where: { id: item.productId, establishmentId },
+        select: { quantity: true }
+    });
+    if (!product) throw new Error(`Produto da auditoria não encontrado: ${item.productId}`);
+    return Number(product.quantity || 0);
+}
+
 /*
 ====================================================
 LISTAR AUDITORIAS ABERTAS
@@ -37,11 +54,10 @@ CRIAR AUDITORIA
 */
 exports.create = async (req, res) => {
     try {
-        console.log("DADOS DO TOKEN (AUDITORIA):", req.user); // 👈 Log para segurança
-
         const establishmentId = req.user?.establishmentId;
         // 👈 A MÁGICA: Procuramos o ID em todas as chaves possíveis
         const userId = req.user?.id || req.user?.userId || req.user?.sub || req.userId;
+        const locationId = req.body?.locationId || null;
 
         // 👈 TRAVA DE SEGURANÇA: Se não achar o usuário, avisa o front em vez de quebrar o banco
         if (!userId) {
@@ -63,6 +79,11 @@ exports.create = async (req, res) => {
             });
         }
 
+        if (locationId) {
+            const location = await prisma.stockLocation.findFirst({ where: { id: locationId, establishmentId } });
+            if (!location) return res.status(400).json({ error: "Local de estoque inválido." });
+        }
+
         const audit = await prisma.stockAudit.create({
             data: {
                 establishment: { connect: { id: establishmentId } },
@@ -78,16 +99,23 @@ exports.create = async (req, res) => {
             },
             select: {
                 id: true,
-                quantity: true
+                quantity: true,
+                productStocks: locationId ? {
+                    where: { locationId },
+                    select: { quantity: true }
+                } : false
             }
         });
 
         const items = products.map(product => ({
             auditId: audit.id,
             productId: product.id,
-            systemQuantity: Number(product.quantity || 0),
+            systemQuantity: locationId
+                ? Number(product.productStocks?.[0]?.quantity || 0)
+                : Number(product.quantity || 0),
             countedQuantity: 0,
-            difference: 0
+            difference: 0,
+            locationId
         }));
 
         if (items.length > 0) {
@@ -114,7 +142,7 @@ exports.getById = async (req, res) => {
             where: { id, establishmentId: req.user.establishmentId },
             include: {
                 items: {
-                    include: { product: true }
+                    include: { product: { include: { productStocks: true } }, location: true }
                 }
             }
         });
@@ -129,7 +157,9 @@ exports.getById = async (req, res) => {
         // mostra o saldo atualizado e recalcula a divergência instantaneamente
         if (audit.status === "OPEN") {
             audit.items = audit.items.map(item => {
-                const currentSysQty = Number(item.product.quantity || 0);
+                const currentSysQty = item.locationId
+                    ? Number(item.product.productStocks?.find(stock => stock.locationId === item.locationId)?.quantity || 0)
+                    : Number(item.product.quantity || 0);
                 return {
                     ...item,
                     systemQuantity: currentSysQty,
@@ -171,7 +201,7 @@ exports.history = async (req, res) => {
             },
             include: {
                 items: {
-                    include: { product: true }
+                    include: { product: true, location: true }
                 }
             },
             orderBy: { createdAt: "desc" }
@@ -232,7 +262,7 @@ exports.updateItems = async (req, res) => {
 
             const dbItems = await tx.stockAuditItem.findMany({
                 where: { id: { in: itemIds }, auditId: audit.id },
-                include: { product: true }
+                include: { product: { include: { productStocks: true } } }
             });
             const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
 
@@ -245,7 +275,9 @@ exports.updateItems = async (req, res) => {
                 
                 // 🔥 USAR SALDO REAL (ATUAL) do produto para que transferências em paralelo
                 // não corrompam o estoque, ignorando a 'foto' original do banco.
-                const currentSysQty = Number(dbItem.product.quantity || 0);
+                const currentSysQty = dbItem.locationId
+                    ? Number(dbItem.product.productStocks?.find(stock => stock.locationId === dbItem.locationId)?.quantity || 0)
+                    : Number(dbItem.product.quantity || 0);
                 const difference = rawCounted - currentSysQty;
 
                 await tx.stockAuditItem.update({
@@ -331,16 +363,7 @@ exports.finish = async (req, res) => {
             }
 
             for (const item of itemsWithCost) {
-                const currentProduct = await tx.product.findFirst({
-                    where: { id: item.productId, establishmentId },
-                    select: { quantity: true }
-                });
-
-                if (!currentProduct) {
-                    throw new Error(`Produto da auditoria não encontrado: ${item.productId}`);
-                }
-
-                const currentSystemQuantity = Number(currentProduct.quantity || 0);
+                const currentSystemQuantity = await getCurrentAuditQuantity(tx, item, establishmentId);
                 const diff = Number(item.countedQuantity || 0) - currentSystemQuantity;
 
                 await tx.stockAuditItem.update({
@@ -362,8 +385,9 @@ exports.finish = async (req, res) => {
                         quantity: Math.abs(diff),
                         establishmentId,
                         reason: "LOSS",
-                        reference: "STOCK_AUDIT",
-                        preloadedCost: item.preloadedCost
+                        reference: `STOCK_AUDIT:${id}`,
+                        preloadedCost: item.preloadedCost,
+                        locationId: item.locationId || undefined
                     }, tx);
                 }
 
@@ -375,8 +399,9 @@ exports.finish = async (req, res) => {
                         quantity: diff,
                         establishmentId,
                         reason: "GAIN",
-                        reference: "STOCK_AUDIT",
-                        unitCost: item.preloadedCost
+                        reference: `STOCK_AUDIT:${id}`,
+                        unitCost: item.preloadedCost,
+                        locationId: item.locationId || undefined
                     }, tx);
                 }
             }
@@ -400,3 +425,5 @@ exports.finish = async (req, res) => {
         res.status(500).json({ error: "Erro ao finalizar auditoria" });
     }
 };
+
+exports._private = { getCurrentAuditQuantity };

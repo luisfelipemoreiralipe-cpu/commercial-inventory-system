@@ -22,13 +22,15 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const complete = asyncHandler(async (req, res) => {
-    const { items } = req.body;
+    const { items, invoice } = req.body;
     const establishmentId = req.user.establishmentId;
 
     const data = await purchaseOrderService.completeOrder(
         req.params.id,
         establishmentId,
-        items
+        items,
+        invoice,
+        req.user.userId
     );
 
     res.json({ success: true, data });

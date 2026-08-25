@@ -364,6 +364,7 @@ const NAV_GROUPS = [
       { to: '/production', label: 'Produção', icon: <MdFactory /> },
       { to: '/portioning', label: 'Desossa (Porcionamento)', icon: <MdContentCut /> },
       { to: '/purchase-orders', label: 'Ordens de Compra', icon: <MdShoppingCart /> },
+      { to: '/commercial-agreements', label: 'Acordos e Bonificacoes', icon: <MdReceiptLong /> },
       { to: '/purchase-suggestions', label: 'Sugestões de Compra', icon: <MdLightbulb /> },
       { to: '/stock-audits', label: 'Auditoria de estoque', icon: <MdLightbulb /> },
       { to: '/stock-transfers', label: 'Transferencia de estoque', icon: <MdCompareArrows /> },

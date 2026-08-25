@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const prisma = require('../utils/prisma');
 const PDFDocument = require('pdfkit');
 const stockMovementService = require('./stockMovementService');
+const commercialAgreementService = require('./commercialAgreementService');
 const { validateAutomaticOrderClassifications } = require('../utils/purchaseOrderRules');
 
 /**
@@ -64,12 +65,18 @@ const createOrder = async (data) => {
  * 🔐 CONCLUIR ORDEM (RECEBIMENTO)
  * 🛡️ Blindado com establishmentId em todas as queries
  */
-const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
+const completeOrder = async (orderId, establishmentId, incomingItems = [], invoiceData = {}, userId) => {
 
     const order = await getOrderById(orderId, establishmentId);
 
     if (order.status === 'completed') {
         throw new AppError('Esta ordem já foi concluída.', 400);
+    }
+
+    const supplierIds = [...new Set(order.items.map(item => item.supplierId).filter(Boolean))];
+    if (supplierIds.length !== 1) throw new AppError('A nota deve corresponder a um único fornecedor.', 400);
+    if (!String(invoiceData.invoiceNumber || '').trim() || !invoiceData.issuedAt) {
+        throw new AppError('Informe o número e a data de emissão da nota fiscal.', 400);
     }
 
     const ref = `Ordem de Compra #${orderId.slice(-6).toUpperCase()}`;
@@ -88,6 +95,7 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
             throw new AppError('Esta ordem já foi concluída ou está sendo processada.', 409);
         }
 
+        const invoiceItems = [];
         for (const dbItem of order.items) {
 
             if (!dbItem.productId) continue;
@@ -105,6 +113,7 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
             const packQuantity = product.packQuantity || 1;
             const finalQuantity = quantity * packQuantity;
             const finalUnitCost = unitPrice / packQuantity;
+            if (quantity > 0) invoiceItems.push({ productId: dbItem.productId, quantity, unitPrice });
 
             // 🔹 Atualiza o item (contexto da ordem já validado)
             await tx.purchaseOrderItem.update({
@@ -174,6 +183,22 @@ const completeOrder = async (orderId, establishmentId, incomingItems = []) => {
                 }
             }
         }
+
+        const invoice = await tx.purchaseInvoice.create({
+            data: {
+                establishmentId,
+                supplierId: supplierIds[0],
+                purchaseOrderId: orderId,
+                invoiceNumber: String(invoiceData.invoiceNumber).trim(),
+                invoiceSeries: String(invoiceData.invoiceSeries || '').trim(),
+                issuedAt: new Date(invoiceData.issuedAt),
+                netPaidAmount: invoiceData.netPaidAmount === undefined || invoiceData.netPaidAmount === null
+                    ? null : Number(invoiceData.netPaidAmount),
+                createdByUserId: userId,
+                items: { create: invoiceItems }
+            }
+        });
+        await commercialAgreementService.processInvoiceAccruals(tx, { invoice, invoiceItems });
 
         const updated = await tx.purchaseOrder.updateMany({
             where: { id: orderId, establishmentId, status: 'processing' },

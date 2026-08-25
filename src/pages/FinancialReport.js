@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { MdTrendingUp, MdTrendingDown, MdLocalBar, MdCardGiftcard } from 'react-icons/md';
+import { MdTrendingUp, MdTrendingDown, MdInfoOutline } from 'react-icons/md';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -72,19 +72,22 @@ const FilterGroup = styled.div`
 
 const CardsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: ${({ theme }) => theme.spacing.lg};
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: ${({ theme }) => theme.spacing.md};
+
+  @media (max-width: 1100px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 600px) { grid-template-columns: 1fr; }
 `;
 
 const MetricCard = styled.div`
   background: ${({ theme }) => theme.colors.bgCard};
   border-radius: ${({ theme }) => theme.radii.xl};
-  padding: ${({ theme }) => theme.spacing.lg};
+  padding: 22px;
   box-shadow: ${({ theme }) => theme.shadows.card};
   border: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: 10px;
   position: relative;
   overflow: hidden;
 
@@ -125,10 +128,67 @@ const MetricTitle = styled.h3`
 `;
 
 const MetricValue = styled.h2`
-  font-size: ${({ theme }) => theme.fontSizes['3xl']};
+  font-size: clamp(1.65rem, 2.4vw, 2.15rem);
   color: ${({ theme }) => theme.colors.textPrimary};
   font-weight: ${({ theme }) => theme.fontWeights.bold};
   margin: 0;
+`;
+
+const MetricDetail = styled.div`
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  min-height: 20px;
+`;
+
+const Notice = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: ${({ theme }) => theme.radii.lg};
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  color: #9A3412;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+
+  svg { flex: 0 0 auto; font-size: 20px; margin-top: 1px; }
+`;
+
+const SectionGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: ${({ theme }) => theme.spacing.lg};
+  @media (max-width: 900px) { grid-template-columns: 1fr; }
+`;
+
+const DetailPanel = styled.section`
+  background: ${({ theme }) => theme.colors.bgCard};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.xl};
+  padding: ${({ theme }) => theme.spacing.lg};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+`;
+
+const PanelHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+`;
+
+const DetailRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+
+  &:last-child { border-bottom: 0; }
+  strong { color: ${({ theme }) => theme.colors.textPrimary}; white-space: nowrap; }
 `;
 
 const ChartContainer = styled.div`
@@ -137,7 +197,7 @@ const ChartContainer = styled.div`
   padding: ${({ theme }) => theme.spacing.xl};
   box-shadow: ${({ theme }) => theme.shadows.card};
   border: 1px solid ${({ theme }) => theme.colors.border};
-  height: 400px;
+  height: 360px;
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing.lg};
@@ -178,6 +238,12 @@ const FinancialReport = () => {
         otherOperationalConsumption: 0,
         bonuses: 0,
         losses: 0,
+        auditLosses: 0,
+        auditGains: 0,
+        auditNetImpact: 0,
+        operationalLosses: 0,
+        hasMixedAuditAdjustments: false,
+        suspectedExchangeAudits: 0,
         purchasesByClassification: {}
     });
 
@@ -202,110 +268,65 @@ const FinancialReport = () => {
 
     const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
     const formatPercentage = (val) => val === null || val === undefined
-        ? 'Sem dados de receita'
+        ? '—'
         : new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val) + '%';
+    const formatSignedCurrency = (val) => `${Number(val) > 0 ? '+' : ''}${formatCurrency(val)}`;
 
-    const metrics = [
+    const primaryMetrics = [
         {
-            title: "Faturamento bruto de bebidas",
-            value: summary.grossRevenue,
-            icon: <MdTrendingUp />,
-            color: "#1D4ED8",
-            bg: "rgba(29, 78, 216, 0.12)"
-        },
-        {
-            title: "Descontos",
-            value: summary.discounts,
-            icon: <MdTrendingDown />,
-            color: "#EA580C",
-            bg: "rgba(234, 88, 12, 0.12)"
-        },
-        {
-            title: "CMV de Vendas",
-            value: summary.salesCogs,
-            icon: <MdTrendingUp />,
-            color: "#059669",
-            bg: "rgba(5, 150, 105, 0.12)"
-        },
-        {
-            title: "Receita líquida de bebidas",
+            title: "Receita líquida",
             value: summary.netRevenue,
+            detail: `Bruta ${formatCurrency(summary.grossRevenue)} · Descontos ${formatCurrency(summary.discounts)}`,
             icon: <MdTrendingUp />,
             color: "#2563EB",
             bg: "rgba(37, 99, 235, 0.12)"
         },
         {
-            title: "CMV sobre a receita",
-            value: summary.cogsPercentage,
-            formatter: formatPercentage,
+            title: "CMV de bebidas",
+            value: summary.salesCogs,
+            detail: "Custo congelado das vendas",
             icon: <MdTrendingDown />,
             color: "#7C3AED",
             bg: "rgba(124, 58, 237, 0.12)"
         },
         {
-            title: "Lucro bruto de bebidas",
+            title: "CMV",
+            value: summary.cogsPercentage,
+            formatter: formatPercentage,
+            detail: summary.revenueAvailable ? "Sobre a receita líquida" : "Aguardando dados de receita",
+            icon: <MdTrendingDown />,
+            color: "#7C3AED",
+            bg: "rgba(124, 58, 237, 0.12)"
+        },
+        {
+            title: "Lucro bruto",
             value: summary.grossProfit,
+            formatter: summary.revenueAvailable ? undefined : () => '—',
+            detail: summary.revenueAvailable
+                ? `Margem ${formatPercentage(summary.grossMarginPercentage)}`
+                : "Aguardando dados de receita",
             icon: <MdTrendingUp />,
             color: "#0F766E",
             bg: "rgba(15, 118, 110, 0.12)"
-        },
-        {
-            title: "Margem bruta",
-            value: summary.grossMarginPercentage,
-            formatter: formatPercentage,
-            icon: <MdTrendingUp />,
-            color: "#0891B2",
-            bg: "rgba(8, 145, 178, 0.12)"
-        },
-        {
-            title: "Consumo Interno",
-            value: summary.internalConsumption,
-            icon: <MdLocalBar />,
-            color: "#3B82F6",
-            bg: "rgba(59, 130, 246, 0.12)"
-        },
-        {
-            title: "Cortesias e promoções de bebidas",
-            value: summary.beverageOperationalConsumption,
-            icon: <MdLocalBar />,
-            color: "#F59E0B",
-            bg: "rgba(245, 158, 11, 0.12)"
-        },
-        {
-            title: "Consumo de limpeza",
-            value: summary.cleaningConsumption,
-            icon: <MdTrendingDown />,
-            color: "#0EA5E9",
-            bg: "rgba(14, 165, 233, 0.12)"
-        },
-        {
-            title: "Consumo de descartáveis",
-            value: summary.disposablesConsumption,
-            icon: <MdTrendingDown />,
-            color: "#EC4899",
-            bg: "rgba(236, 72, 153, 0.12)"
-        },
-        {
-            title: "Outros consumos operacionais",
-            value: summary.otherOperationalConsumption,
-            icon: <MdTrendingDown />,
-            color: "#64748B",
-            bg: "rgba(100, 116, 139, 0.12)"
-        },
-        {
-            title: "Bonificações (Ganhos)",
-            value: summary.bonuses,
-            icon: <MdCardGiftcard />,
-            color: "#8B5CF6",
-            bg: "rgba(139, 92, 246, 0.12)"
-        },
-        {
-            title: "Perdas / Sobras",
-            value: summary.losses,
-            icon: <MdTrendingDown />,
-            color: "#DC2626",
-            bg: "rgba(220, 38, 38, 0.12)"
         }
+    ];
+
+    const operationalDetails = [
+        ['Consumo interno', summary.internalConsumption],
+        ['Cortesias e promoções', summary.beverageOperationalConsumption],
+        ['Limpeza', summary.cleaningConsumption],
+        ['Descartáveis', summary.disposablesConsumption],
+        ['Outros consumos operacionais', summary.otherOperationalConsumption],
+        ['Bonificações', summary.bonuses],
+        ['Perdas operacionais', summary.operationalLosses],
+        ['Perdas de auditoria', summary.auditLosses],
+        ['Sobras de auditoria', summary.auditGains]
+    ];
+    const purchaseDetails = [
+        ['Bebidas / CMV', summary.purchasesByClassification?.CMV_BEVERAGES],
+        ['Limpeza', summary.purchasesByClassification?.CLEANING],
+        ['Descartáveis', summary.purchasesByClassification?.DISPOSABLES],
+        ['Outros operacionais', summary.purchasesByClassification?.OPERATING]
     ];
 
     return (
@@ -330,8 +351,28 @@ const FinancialReport = () => {
                 </FilterGroup>
             </Header>
 
+            {!summary.revenueAvailable && summary.salesCogs > 0 && (
+                <Notice>
+                    <MdInfoOutline />
+                    <div>
+                        <strong>Faturamento indisponível neste período.</strong><br />
+                        O CMV em reais está calculado, mas percentual, lucro e margem dependem da importação da receita das vendas.
+                    </div>
+                </Notice>
+            )}
+
+            {summary.hasMixedAuditAdjustments && (
+                <Notice>
+                    <MdInfoOutline />
+                    <div>
+                        <strong>Possível troca ou divergência entre produtos.</strong><br />
+                        {summary.suspectedExchangeAudits} auditoria(s) possui(em) perdas e sobras simultâneas. No período são {formatCurrency(summary.auditLosses)} em perdas e {formatCurrency(summary.auditGains)} em sobras. Revise os produtos contados antes de interpretar apenas o saldo líquido.
+                    </div>
+                </Notice>
+            )}
+
             <CardsGrid>
-                {metrics.map((metric, idx) => (
+                {primaryMetrics.map((metric, idx) => (
                     <MetricCard key={idx} color={metric.color}>
                         <MetricHeader>
                             <MetricTitle>{metric.title}</MetricTitle>
@@ -340,31 +381,13 @@ const FinancialReport = () => {
                             </MetricIcon>
                         </MetricHeader>
                         <MetricValue>{metric.formatter ? metric.formatter(metric.value) : formatCurrency(metric.value)}</MetricValue>
+                        <MetricDetail>{metric.detail}</MetricDetail>
                     </MetricCard>
                 ))}
             </CardsGrid>
 
-            <ChartContainer style={{ height: 'auto' }}>
-                <ChartTitle>Compras concluídas por classificação</ChartTitle>
-                <CardsGrid>
-                    {[
-                        ['CMV_BEVERAGES', 'Bebidas / CMV'],
-                        ['CLEANING', 'Limpeza'],
-                        ['DISPOSABLES', 'Descartáveis'],
-                        ['OPERATING', 'Outros operacionais']
-                    ].map(([key, label]) => (
-                        <div key={key}>
-                            <MetricTitle>{label}</MetricTitle>
-                            <MetricValue style={{ fontSize: '1.5rem' }}>
-                                {formatCurrency(summary.purchasesByClassification?.[key])}
-                            </MetricValue>
-                        </div>
-                    ))}
-                </CardsGrid>
-            </ChartContainer>
-
             <ChartContainer>
-                <ChartTitle>Evolução Diária</ChartTitle>
+                <ChartTitle>Receita e CMV por dia</ChartTitle>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
@@ -394,18 +417,41 @@ const FinancialReport = () => {
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                         />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                        <Bar name="CMV Vendas" dataKey="salesCogs" fill="#059669" radius={[4, 4, 0, 0]} />
+                        <Bar name="CMV de bebidas" dataKey="salesCogs" fill="#7C3AED" radius={[4, 4, 0, 0]} />
                         <Bar name="Receita líquida" dataKey="netRevenue" fill="#2563EB" radius={[4, 4, 0, 0]} />
-                        <Bar name="Consumo Interno" dataKey="internalConsumption" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                        <Bar name="Cortesias / Promoções" dataKey="beverageOperationalConsumption" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                        <Bar name="Limpeza" dataKey="cleaningConsumption" fill="#0EA5E9" radius={[4, 4, 0, 0]} />
-                        <Bar name="Descartáveis" dataKey="disposablesConsumption" fill="#EC4899" radius={[4, 4, 0, 0]} />
-                        <Bar name="Outros operacionais" dataKey="otherOperationalConsumption" fill="#64748B" radius={[4, 4, 0, 0]} />
-                        <Bar name="Bonificações" dataKey="bonuses" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                        <Bar name="Perdas" dataKey="losses" fill="#DC2626" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartContainer>
+
+            <SectionGrid>
+                <DetailPanel>
+                    <PanelHeader>
+                        <ChartTitle>Consumos e ajustes</ChartTitle>
+                    </PanelHeader>
+                    {operationalDetails.map(([label, value]) => (
+                        <DetailRow key={label}>
+                            <span>{label}</span>
+                            <strong>{formatCurrency(value)}</strong>
+                        </DetailRow>
+                    ))}
+                    <DetailRow>
+                        <span>Impacto líquido das auditorias</span>
+                        <strong style={{ color: Number(summary.auditNetImpact) < 0 ? '#DC2626' : '#059669' }}>
+                            {formatSignedCurrency(summary.auditNetImpact)}
+                        </strong>
+                    </DetailRow>
+                </DetailPanel>
+
+                <DetailPanel>
+                    <PanelHeader><ChartTitle>Compras concluídas</ChartTitle></PanelHeader>
+                    {purchaseDetails.map(([label, value]) => (
+                        <DetailRow key={label}>
+                            <span>{label}</span>
+                            <strong>{formatCurrency(value)}</strong>
+                        </DetailRow>
+                    ))}
+                </DetailPanel>
+            </SectionGrid>
 
         </PageContainer>
     );

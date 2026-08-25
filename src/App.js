@@ -25,6 +25,7 @@ import Patrimony from "./pages/Patrimony";
 import Entries from "./pages/Entries";
 import StockLocations from "./pages/StockLocations";
 import MaterialConsumption from "./pages/MaterialConsumption";
+import CommercialAgreements from "./pages/CommercialAgreements";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -86,6 +87,7 @@ function App() {
               <Route path="/suppliers" element={<Suppliers />} />
 
               <Route path="/purchase-orders" element={<PurchaseOrders />} />
+              <Route path="/commercial-agreements" element={<CommercialAgreements />} />
 
               <Route path="/stock-history" element={<StockHistory />} />
 

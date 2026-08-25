@@ -442,6 +442,12 @@ const PurchaseOrders = () => {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [showManualModal, setShowManualModal] = useState(false);
+    const [invoiceData, setInvoiceData] = useState({
+        invoiceNumber: '',
+        invoiceSeries: '',
+        issuedAt: new Date().toISOString().split('T')[0],
+        netPaidAmount: ''
+    });
 
     /* -------------------------------------------------------------------------- */
     /*                                   EFFECT                                   */
@@ -573,7 +579,11 @@ const PurchaseOrders = () => {
 
             // Chamada à API para completar a ordem e atualizar o custo e estoque do produto
             await api.put(`/purchase-orders/${selectedOrder.id}/complete`, {
-                items
+                items,
+                invoice: {
+                    ...invoiceData,
+                    netPaidAmount: invoiceData.netPaidAmount === '' ? undefined : Number(invoiceData.netPaidAmount)
+                }
             });
 
             toast.success("Recebimento concluído e estoque atualizado!");
@@ -585,6 +595,12 @@ const PurchaseOrders = () => {
             // ✨ Limpa os estados temporários para não "sujar" o próximo recebimento
             setReceivedQty({});
             setReceivedPrice({});
+            setInvoiceData({
+                invoiceNumber: '',
+                invoiceSeries: '',
+                issuedAt: new Date().toISOString().split('T')[0],
+                netPaidAmount: ''
+            });
 
         } catch (err) {
             console.error("❌ Erro ao finalizar ordem:", err);
@@ -924,6 +940,37 @@ Segue o pedido em PDF.
                                         </Button>
                                     </div>
 
+                                    <div style={{ marginBottom: 20, padding: 16, border: '1px solid #BFDBFE', borderRadius: 12, background: '#EFF6FF' }}>
+                                        <div style={{ fontWeight: 700, marginBottom: 12, color: '#1E3A8A' }}>Nota fiscal recebida</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                                            <Input
+                                                label="Número da nota"
+                                                value={invoiceData.invoiceNumber}
+                                                onChange={(e) => setInvoiceData(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                                            />
+                                            <Input
+                                                label="Série"
+                                                value={invoiceData.invoiceSeries}
+                                                onChange={(e) => setInvoiceData(prev => ({ ...prev, invoiceSeries: e.target.value }))}
+                                            />
+                                            <Input
+                                                label="Data de emissão"
+                                                type="date"
+                                                value={invoiceData.issuedAt}
+                                                onChange={(e) => setInvoiceData(prev => ({ ...prev, issuedAt: e.target.value }))}
+                                            />
+                                            <CurrencyInput
+                                                label="Valor líquido pago"
+                                                value={invoiceData.netPaidAmount}
+                                                onChange={(value) => setInvoiceData(prev => ({ ...prev, netPaidAmount: value }))}
+                                                placeholder="R$ 0,00"
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#1E40AF', marginTop: 10 }}>
+                                            Os acordos comerciais serão apurados pelos itens efetivamente recebidos nesta nota.
+                                        </div>
+                                    </div>
+
                                     {/* 🔥 LISTA DE ITENS AJUSTADA COM LABELS */}
                                     {selectedOrder.items.map((item) => {
                                         const qty = receivedQty[item.productId] ?? item.adjustedQuantity;
@@ -1024,6 +1071,7 @@ Segue o pedido em PDF.
                                         variant="primary"
                                         fullWidth
                                         onClick={handleCompleteOrder}
+                                        disabled={!invoiceData.invoiceNumber || !invoiceData.issuedAt}
                                         style={{ marginTop: 10, minHeight: 48 }}
                                     >
                                         Concluir Recebimento

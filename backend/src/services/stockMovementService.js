@@ -122,7 +122,7 @@ const consumeProduct = async ({
 
     const requestedQty = Number(quantity);
     const currentQty = stockRecord ? Number(stockRecord.quantity) : 0;
-    const isAudit = reference === "STOCK_AUDIT";
+    const isAudit = String(reference || '').startsWith("STOCK_AUDIT");
     const isProduction = product.type === "PRODUCTION";
 
     // Inventário e auditoria baixam diretamente. Produção usa o saldo pronto
@@ -241,7 +241,8 @@ const addStock = async ({
     reference,
     supplierId,
     unitCost: manualUnitCost,
-    locationId
+    locationId,
+    updateCurrentCost = true
 }, tx) => {
 
     const product = await tx.product.findFirst({
@@ -275,7 +276,7 @@ const addStock = async ({
         where: { id: product.id },
         data: {
             quantity: { increment: quantity },
-            currentCost: unitCost
+            ...(updateCurrentCost ? { currentCost: unitCost } : {})
         }
     });
 
@@ -307,7 +308,8 @@ const addStock = async ({
             unitCost,
             totalCost,
             supplierId: finalSupplierId,
-            locationId: targetLocationId
+            locationId: targetLocationId,
+            purchaseClassification: product.purchaseClassification
         }
     });
 };

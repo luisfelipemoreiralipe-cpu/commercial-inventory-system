@@ -50,8 +50,11 @@ model Supplier {
   orderItems       PurchaseOrderItem[]
   productSuppliers ProductSupplier[]
 
-  priceHistory   SupplierPriceHistory[]
-  stockMovements StockMovement[]
+  priceHistory         SupplierPriceHistory[]
+  stockMovements       StockMovement[]
+  commercialAgreements CommercialAgreement[]
+  purchaseInvoices     PurchaseInvoice[]
+  bonusReceipts        BonusReceipt[]
 }
 
 model Category {
@@ -101,25 +104,28 @@ model Product {
   defaultLocationId String?        @db.Uuid
   defaultLocation   StockLocation? @relation("ProductDefaultLocation", fields: [defaultLocationId], references: [id])
 
-  createdAt                 DateTime               @default(now())
-  updatedAt                 DateTime               @updatedAt
-  auditItems                StockAuditItem[]
-  orderItems                PurchaseOrderItem[]
-  stockMovements            StockMovement[]
-  productSuppliers          ProductSupplier[]
-  supplierPriceHistory      SupplierPriceHistory[]
-  recipeItems               RecipeItem[]
-  Recipe                    Recipe?
-  transfersAsSource         StockTransfer[]        @relation("TransferSourceProduct")
-  transfersAsDestination    StockTransfer[]        @relation("TransferDestinationProduct")
-  consumptionEventItems     ConsumptionEventItem[]
-  productionOrders          ProductionOrder[]
-  productStocks             ProductStock[]
-  portioningRecipesAsSource PortioningRecipe?      @relation("PortioningSourceProduct")
-  portioningRecipeItems     PortioningRecipeItem[] @relation("PortioningTargetProduct")
-  portioningOrdersAsSource  PortioningOrder[]      @relation("PortioningOrderSourceProduct")
-  portioningOrderItems      PortioningOrderItem[]  @relation("PortioningOrderTargetProduct")
-  saleItems                 SaleItem[]
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  auditItems                  StockAuditItem[]
+  orderItems                  PurchaseOrderItem[]
+  stockMovements              StockMovement[]
+  productSuppliers            ProductSupplier[]
+  supplierPriceHistory        SupplierPriceHistory[]
+  recipeItems                 RecipeItem[]
+  Recipe                      Recipe?
+  transfersAsSource           StockTransfer[]              @relation("TransferSourceProduct")
+  transfersAsDestination      StockTransfer[]              @relation("TransferDestinationProduct")
+  consumptionEventItems       ConsumptionEventItem[]
+  productionOrders            ProductionOrder[]
+  productStocks               ProductStock[]
+  portioningRecipesAsSource   PortioningRecipe?            @relation("PortioningSourceProduct")
+  portioningRecipeItems       PortioningRecipeItem[]       @relation("PortioningTargetProduct")
+  portioningOrdersAsSource    PortioningOrder[]            @relation("PortioningOrderSourceProduct")
+  portioningOrderItems        PortioningOrderItem[]        @relation("PortioningOrderTargetProduct")
+  saleItems                   SaleItem[]
+  commercialAgreementProducts CommercialAgreementProduct[]
+  purchaseInvoiceItems        PurchaseInvoiceItem[]
+  bonusReceiptItems           BonusReceiptItem[]
 
   @@index([establishmentId, purchaseClassification])
   @@map("products")
@@ -137,7 +143,8 @@ model PurchaseOrder {
   establishmentId String         @db.Uuid
   establishment   establishments @relation(fields: [establishmentId], references: [id])
 
-  items PurchaseOrderItem[]
+  items   PurchaseOrderItem[]
+  invoice PurchaseInvoice?
 
   @@index([establishmentId])
   @@index([createdAt])
@@ -246,18 +253,21 @@ model establishments {
   organizationId String?
   organization   Organization?       @relation(fields: [organizationId], references: [id])
 
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now()) @updatedAt
-  transfersFrom     StockTransfer[]    @relation("TransferFrom")
-  transfersTo       StockTransfer[]    @relation("TransferTo")
-  stockMovements    StockMovement[]
-  purchaseOrders    PurchaseOrder[]
-  consumptionEvents ConsumptionEvent[]
-  productionOrders  ProductionOrder[]
-  stockLocations    StockLocation[]
-  portioningRecipes PortioningRecipe[]
-  portioningOrders  PortioningOrder[]
-  sales             Sale[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @default(now()) @updatedAt
+  transfersFrom        StockTransfer[]       @relation("TransferFrom")
+  transfersTo          StockTransfer[]       @relation("TransferTo")
+  stockMovements       StockMovement[]
+  purchaseOrders       PurchaseOrder[]
+  consumptionEvents    ConsumptionEvent[]
+  productionOrders     ProductionOrder[]
+  stockLocations       StockLocation[]
+  portioningRecipes    PortioningRecipe[]
+  portioningOrders     PortioningOrder[]
+  sales                Sale[]
+  commercialAgreements CommercialAgreement[]
+  purchaseInvoices     PurchaseInvoice[]
+  bonusReceipts        BonusReceipt[]
 }
 
 model users {
@@ -314,6 +324,156 @@ model SaleItem {
   @@index([saleId])
   @@index([productId])
   @@map("sale_items")
+}
+
+enum CommercialAgreementStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum BonusReceiptStatus {
+  RECEIVED
+  CANCELLED
+}
+
+model CommercialAgreement {
+  id                 String                       @id @default(uuid()) @db.Uuid
+  establishmentId    String                       @db.Uuid
+  establishment      establishments               @relation(fields: [establishmentId], references: [id])
+  supplierId         String                       @db.Uuid
+  supplier           Supplier                     @relation(fields: [supplierId], references: [id])
+  name               String
+  brand              String?
+  buyQuantity        Decimal                      @db.Decimal(12, 3)
+  bonusQuantity      Decimal                      @db.Decimal(12, 3)
+  currentRemainder   Decimal                      @default(0) @db.Decimal(12, 3)
+  allowMixedProducts Boolean                      @default(true)
+  startsAt           DateTime
+  endsAt             DateTime?
+  status             CommercialAgreementStatus    @default(ACTIVE)
+  notes              String?
+  createdByUserId    String                       @db.Uuid
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  products           CommercialAgreementProduct[]
+  accruals           BonusAccrual[]
+  receipts           BonusReceipt[]
+
+  @@index([establishmentId, status])
+  @@index([supplierId, status])
+  @@map("commercial_agreements")
+}
+
+model CommercialAgreementProduct {
+  id                   String              @id @default(uuid()) @db.Uuid
+  agreementId          String              @db.Uuid
+  agreement            CommercialAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  productId            String              @db.Uuid
+  product              Product             @relation(fields: [productId], references: [id])
+  eligibilityFactor    Decimal             @default(1) @db.Decimal(12, 4)
+  canGenerateBonus     Boolean             @default(true)
+  canBeReceivedAsBonus Boolean             @default(true)
+
+  @@unique([agreementId, productId])
+  @@index([productId])
+  @@map("commercial_agreement_products")
+}
+
+model PurchaseInvoice {
+  id              String                @id @default(uuid()) @db.Uuid
+  establishmentId String                @db.Uuid
+  establishment   establishments        @relation(fields: [establishmentId], references: [id])
+  supplierId      String                @db.Uuid
+  supplier        Supplier              @relation(fields: [supplierId], references: [id])
+  purchaseOrderId String                @unique @db.Uuid
+  purchaseOrder   PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
+  invoiceNumber   String
+  invoiceSeries   String                @default("")
+  issuedAt        DateTime
+  receivedAt      DateTime              @default(now())
+  netPaidAmount   Decimal?              @db.Decimal(14, 2)
+  createdByUserId String                @db.Uuid
+  createdAt       DateTime              @default(now())
+  items           PurchaseInvoiceItem[]
+  accruals        BonusAccrual[]
+
+  @@unique([establishmentId, supplierId, invoiceNumber, invoiceSeries])
+  @@index([establishmentId, issuedAt])
+  @@map("purchase_invoices")
+}
+
+model PurchaseInvoiceItem {
+  id        String          @id @default(uuid()) @db.Uuid
+  invoiceId String          @db.Uuid
+  invoice   PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String          @db.Uuid
+  product   Product         @relation(fields: [productId], references: [id])
+  quantity  Decimal         @db.Decimal(12, 3)
+  unitPrice Decimal         @db.Decimal(12, 4)
+  createdAt DateTime        @default(now())
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("purchase_invoice_items")
+}
+
+model BonusAccrual {
+  id                  String              @id @default(uuid()) @db.Uuid
+  agreementId         String              @db.Uuid
+  agreement           CommercialAgreement @relation(fields: [agreementId], references: [id])
+  invoiceId           String              @db.Uuid
+  invoice             PurchaseInvoice     @relation(fields: [invoiceId], references: [id])
+  eligibleQuantity    Decimal             @db.Decimal(12, 3)
+  balanceBefore       Decimal             @db.Decimal(12, 3)
+  earnedBonusQuantity Decimal             @db.Decimal(12, 3)
+  balanceAfter        Decimal             @db.Decimal(12, 3)
+  createdAt           DateTime            @default(now())
+
+  @@unique([agreementId, invoiceId])
+  @@index([agreementId, createdAt])
+  @@map("bonus_accruals")
+}
+
+model BonusReceipt {
+  id                String              @id @default(uuid()) @db.Uuid
+  establishmentId   String              @db.Uuid
+  establishment     establishments      @relation(fields: [establishmentId], references: [id])
+  supplierId        String              @db.Uuid
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  agreementId       String              @db.Uuid
+  agreement         CommercialAgreement @relation(fields: [agreementId], references: [id])
+  invoiceNumber     String
+  invoiceSeries     String              @default("")
+  invoiceDate       DateTime
+  additionalCredits Decimal             @default(0) @db.Decimal(14, 2)
+  status            BonusReceiptStatus  @default(RECEIVED)
+  createdByUserId   String              @db.Uuid
+  createdAt         DateTime            @default(now())
+  items             BonusReceiptItem[]
+
+  @@unique([establishmentId, supplierId, invoiceNumber, invoiceSeries])
+  @@index([agreementId, invoiceDate])
+  @@map("bonus_receipts")
+}
+
+model BonusReceiptItem {
+  id                       String       @id @default(uuid()) @db.Uuid
+  bonusReceiptId           String       @db.Uuid
+  bonusReceipt             BonusReceipt @relation(fields: [bonusReceiptId], references: [id], onDelete: Cascade)
+  productId                String       @db.Uuid
+  product                  Product      @relation(fields: [productId], references: [id])
+  locationId               String       @db.Uuid
+  quantity                 Decimal      @db.Decimal(12, 3)
+  fiscalUnitPrice          Decimal      @db.Decimal(12, 4)
+  commercialReferencePrice Decimal      @db.Decimal(12, 4)
+  fiscalTotal              Decimal      @db.Decimal(14, 2)
+  commercialBenefit        Decimal      @db.Decimal(14, 2)
+  createdAt                DateTime     @default(now())
+
+  @@index([bonusReceiptId])
+  @@index([productId])
+  @@map("bonus_receipt_items")
 }
 
 model ProductSupplier {
