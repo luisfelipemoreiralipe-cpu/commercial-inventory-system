@@ -74,6 +74,73 @@ async function createAgreement(data) {
     });
 }
 
+async function updateAgreement(data) {
+    const { id, establishmentId, supplierId, productIds } = data;
+    const agreement = await prisma.commercialAgreement.findFirst({ where: { id, establishmentId } });
+    if (!agreement) throw new AppError('Acordo comercial não encontrado.', 404);
+
+    const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, establishmentId } });
+    if (!supplier) throw new AppError('Fornecedor inválido para este estabelecimento.', 400);
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+        throw new AppError('Selecione pelo menos um produto elegível.', 400);
+    }
+    const uniqueProductIds = [...new Set(productIds.map(item => item.productId))];
+    const products = await prisma.product.findMany({
+        where: { id: { in: uniqueProductIds }, establishmentId, isActive: true },
+        select: { id: true }
+    });
+    if (products.length !== uniqueProductIds.length) {
+        throw new AppError('Um ou mais produtos elegíveis são inválidos.', 400);
+    }
+    if (!(Number(data.buyQuantity) > 0) || !(Number(data.bonusQuantity) > 0)) {
+        throw new AppError('Informe uma regra de bonificação válida.', 400);
+    }
+    if (!String(data.name || '').trim() || !data.startsAt || Number.isNaN(new Date(data.startsAt).getTime())) {
+        throw new AppError('Informe o nome e a data inicial do acordo.', 400);
+    }
+    if (!['ACTIVE', 'SUSPENDED', 'CLOSED'].includes(data.status)) {
+        throw new AppError('Status do acordo inválido.', 400);
+    }
+
+    return prisma.$transaction(async tx => {
+        await tx.commercialAgreementProduct.deleteMany({ where: { agreementId: id } });
+        return tx.commercialAgreement.update({
+            where: { id },
+            data: {
+                supplierId,
+                name: String(data.name).trim(),
+                brand: String(data.brand || '').trim() || null,
+                buyQuantity: Number(data.buyQuantity),
+                bonusQuantity: Number(data.bonusQuantity),
+                startsAt: new Date(data.startsAt),
+                endsAt: data.endsAt ? new Date(data.endsAt) : null,
+                status: data.status,
+                products: {
+                    create: productIds.map(item => ({
+                        productId: item.productId,
+                        eligibilityFactor: Number(item.eligibilityFactor || 1),
+                        canGenerateBonus: item.canGenerateBonus !== false,
+                        canBeReceivedAsBonus: item.canBeReceivedAsBonus !== false
+                    }))
+                }
+            },
+            include: { supplier: true, products: { include: { product: true } } }
+        });
+    });
+}
+
+async function deleteAgreement({ id, establishmentId }) {
+    const agreement = await prisma.commercialAgreement.findFirst({
+        where: { id, establishmentId },
+        include: { _count: { select: { accruals: true, receipts: true } } }
+    });
+    if (!agreement) throw new AppError('Acordo comercial não encontrado.', 404);
+    if (agreement._count.accruals > 0 || agreement._count.receipts > 0) {
+        throw new AppError('Este acordo já possui movimentações e não pode ser excluído. Altere o status para Encerrado.', 409);
+    }
+    await prisma.commercialAgreement.delete({ where: { id } });
+}
+
 async function processInvoiceAccruals(tx, { invoice, invoiceItems }) {
     const agreements = await tx.commercialAgreement.findMany({
         where: {
@@ -230,4 +297,4 @@ async function getSummary(establishmentId, dateFrom, dateTo) {
     });
 }
 
-module.exports = { calculateAccrual, listAgreements, createAgreement, processInvoiceAccruals, receiveBonus, getSummary };
+module.exports = { calculateAccrual, listAgreements, createAgreement, updateAgreement, deleteAgreement, processInvoiceAccruals, receiveBonus, getSummary };

@@ -8,6 +8,8 @@ router.use(authMiddleware);
 router.get('/', controller.list);
 router.get('/summary', controller.summary);
 router.post('/', requireRole(['ADMIN']), controller.create);
+router.put('/:id', requireRole(['ADMIN']), controller.update);
+router.delete('/:id', requireRole(['ADMIN']), controller.remove);
 router.post('/bonus-receipts', requireRole(['ADMIN', 'STOCK_COUNTER']), controller.receiveBonus);
 
 module.exports = router;

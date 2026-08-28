@@ -14,6 +14,20 @@ const create = asyncHandler(async (req, res) => {
     res.status(201).json({ success: true, data });
 });
 
+const update = asyncHandler(async (req, res) => {
+    const data = await service.updateAgreement({
+        ...req.body,
+        id: req.params.id,
+        establishmentId: req.user.establishmentId
+    });
+    res.json({ success: true, data });
+});
+
+const remove = asyncHandler(async (req, res) => {
+    await service.deleteAgreement({ id: req.params.id, establishmentId: req.user.establishmentId });
+    res.json({ success: true, message: 'Acordo comercial excluído.' });
+});
+
 const receiveBonus = asyncHandler(async (req, res) => {
     const data = await service.receiveBonus({
         ...req.body,
@@ -28,4 +42,4 @@ const summary = asyncHandler(async (req, res) => {
     res.json({ success: true, data });
 });
 
-module.exports = { list, create, receiveBonus, summary };
+module.exports = { list, create, update, remove, receiveBonus, summary };

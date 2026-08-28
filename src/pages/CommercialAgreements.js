@@ -16,6 +16,7 @@ const Field = styled.label`display:grid;gap:6px;color:${({theme})=>theme.colors.
 const Control = styled.input`width:100%;box-sizing:border-box;border:1px solid ${({theme})=>theme.colors.border};border-radius:9px;padding:10px 12px;background:${({theme})=>theme.colors.bg};color:${({theme})=>theme.colors.text};`;
 const Select = styled.select`width:100%;box-sizing:border-box;border:1px solid ${({theme})=>theme.colors.border};border-radius:9px;padding:10px 12px;background:${({theme})=>theme.colors.bg};color:${({theme})=>theme.colors.text};`;
 const Button = styled.button`border:0;border-radius:9px;padding:11px 16px;background:${({theme})=>theme.colors.primary};color:white;font-weight:700;cursor:pointer;disabled{opacity:.55;cursor:not-allowed;}`;
+const ActionButton = styled.button`border:1px solid ${({theme})=>theme.colors.border};border-radius:7px;padding:6px 9px;background:${({theme})=>theme.colors.surface};color:${({theme,$danger})=>$danger?'#dc2626':theme.colors.text};cursor:pointer;margin-right:6px;`;
 const ProductList = styled.div`max-height:220px;overflow:auto;display:grid;gap:7px;border:1px solid ${({theme})=>theme.colors.border};border-radius:9px;padding:10px;`;
 const ProductRow = styled.label`display:flex;gap:9px;align-items:center;color:${({theme})=>theme.colors.text};font-weight:400;`;
 const Cards = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;`;
@@ -34,7 +35,9 @@ export default function CommercialAgreements() {
   const [agreements, setAgreements] = useState([]);
   const [summary, setSummary] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [form, setForm] = useState({ name:'', brand:'', supplierId:'', buyQuantity:10, bonusQuantity:1, startsAt:today(), endsAt:'', productIds:[] });
+  const emptyForm = () => ({ name:'', brand:'', supplierId:'', buyQuantity:10, bonusQuantity:1, startsAt:today(), endsAt:'', status:'ACTIVE', productIds:[] });
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState('');
   const [receipt, setReceipt] = useState({ agreementId:'', invoiceNumber:'', invoiceSeries:'', invoiceDate:today(), additionalCredits:'', productId:'', locationId:'', quantity:'', fiscalUnitPrice:'', commercialReferencePrice:'' });
 
   const load = useCallback(async () => {
@@ -53,12 +56,34 @@ export default function CommercialAgreements() {
   const totalPending = summary.reduce((sum,row)=>sum+Number(row.pendingBonusQuantity||0),0);
 
   const toggleProduct = productId => setForm(current => ({...current, productIds: current.productIds.includes(productId) ? current.productIds.filter(id=>id!==productId) : [...current.productIds, productId]}));
-  const createAgreement = async event => {
+  const saveAgreement = async event => {
     event.preventDefault();
-    await api.post('/commercial-agreements', {...form, productIds: form.productIds.map(productId=>({productId}))});
-    toast.success('Acordo comercial criado.');
-    setForm({ name:'', brand:'', supplierId:'', buyQuantity:10, bonusQuantity:1, startsAt:today(), endsAt:'', productIds:[] });
+    const payload = {...form, productIds: form.productIds.map(productId=>({productId}))};
+    if (editingId) await api.put(`/commercial-agreements/${editingId}`, payload);
+    else await api.post('/commercial-agreements', payload);
+    toast.success(editingId ? 'Acordo comercial atualizado.' : 'Acordo comercial criado.');
+    setEditingId(''); setForm(emptyForm());
     await load(); setTab('summary');
+  };
+  const editAgreement = agreement => {
+    setEditingId(agreement.id);
+    setForm({
+      name:agreement.name || '', brand:agreement.brand || '', supplierId:agreement.supplierId,
+      buyQuantity:Number(agreement.buyQuantity), bonusQuantity:Number(agreement.bonusQuantity),
+      startsAt:String(agreement.startsAt).slice(0,10), endsAt:agreement.endsAt ? String(agreement.endsAt).slice(0,10) : '',
+      status:agreement.status, productIds:(agreement.products || []).map(item=>item.productId)
+    });
+    setTab('agreement');
+  };
+  const deleteAgreement = async agreement => {
+    if (!window.confirm(`Excluir o acordo "${agreement.name}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api.delete(`/commercial-agreements/${agreement.id}`);
+      toast.success('Acordo comercial excluído.');
+      await load();
+    } catch (error) {
+      toast.error(error.message || 'Não foi possível excluir o acordo.');
+    }
   };
   const receiveBonus = async event => {
     event.preventDefault();
@@ -74,10 +99,10 @@ export default function CommercialAgreements() {
 
   return <Page>
     <Header><div><Title>Acordos e bonificacoes</Title><Hint>A bonificacao e calculada individualmente em cada nota fiscal, sem acumular quantidades entre notas. O valor fiscal fica separado do beneficio comercial real.</Hint></div>
-      <Tabs>{[['summary','Resumo'],['agreement','Novo acordo'],['receipt','Receber bonificacao']].map(([id,label])=><Tab key={id} $active={tab===id} onClick={()=>setTab(id)}>{label}</Tab>)}</Tabs>
+      <Tabs>{[['summary','Resumo'],['agreement',editingId?'Editar acordo':'Novo acordo'],['receipt','Receber bonificacao']].map(([id,label])=><Tab key={id} $active={tab===id} onClick={()=>{setTab(id);if(id==='agreement'&&tab!=='agreement'){setEditingId('');setForm(emptyForm());}}}>{label}</Tab>)}</Tabs>
     </Header>
-    {tab === 'summary' && <><Cards><Card><span>Beneficio comercial total</span><strong>{money(totalBenefit)}</strong></Card><Card><span>Bonificacoes pendentes</span><strong>{qty(totalPending)}</strong></Card><Card><span>Acordos cadastrados</span><strong>{agreements.length}</strong></Card></Cards><Panel><TableWrap><Table><thead><tr><th>Acordo</th><th>Fornecedor</th><th>Ganho</th><th>Recebido</th><th>Pendente</th><th>Valor fiscal</th><th>Beneficio real</th></tr></thead><tbody>{summary.map(row=><tr key={row.agreementId}><td>{row.name}</td><td>{row.supplierName}</td><td>{qty(row.earnedBonusQuantity)}</td><td>{qty(row.receivedBonusQuantity)}</td><td>{qty(row.pendingBonusQuantity)}</td><td>{money(row.fiscalValue)}</td><td><strong>{money(row.totalBenefit)}</strong></td></tr>)}{!summary.length&&<tr><td colSpan="7">Nenhum acordo cadastrado.</td></tr>}</tbody></Table></TableWrap></Panel></>}
-    {tab === 'agreement' && <Panel><form onSubmit={createAgreement}><Grid><Field>Nome do acordo<Control required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><Field>Marca<Control value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></Field><Field>Fornecedor<Select required value={form.supplierId} onChange={e=>setForm({...form,supplierId:e.target.value})}><option value="">Selecione</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</Select></Field><Field>Quantidade comprada<Control required min="0.001" step="0.001" type="number" value={form.buyQuantity} onChange={e=>setForm({...form,buyQuantity:e.target.value})}/></Field><Field>Quantidade bonificada<Control required min="0.001" step="0.001" type="number" value={form.bonusQuantity} onChange={e=>setForm({...form,bonusQuantity:e.target.value})}/></Field><Field>Inicio<Control required type="date" value={form.startsAt} onChange={e=>setForm({...form,startsAt:e.target.value})}/></Field><Field>Fim (opcional)<Control type="date" value={form.endsAt} onChange={e=>setForm({...form,endsAt:e.target.value})}/></Field></Grid><Field style={{margin:'16px 0'}}>Produtos elegiveis<ProductList>{products.filter(p=>p.isActive!==false).map(p=><ProductRow key={p.id}><input type="checkbox" checked={form.productIds.includes(p.id)} onChange={()=>toggleProduct(p.id)}/>{p.name}</ProductRow>)}</ProductList></Field><Button disabled={!form.productIds.length}>Salvar acordo</Button></form></Panel>}
+    {tab === 'summary' && <><Cards><Card><span>Beneficio comercial total</span><strong>{money(totalBenefit)}</strong></Card><Card><span>Bonificacoes pendentes</span><strong>{qty(totalPending)}</strong></Card><Card><span>Acordos cadastrados</span><strong>{agreements.length}</strong></Card></Cards><Panel><TableWrap><Table><thead><tr><th>Acordo</th><th>Fornecedor</th><th>Ganho</th><th>Recebido</th><th>Pendente</th><th>Valor fiscal</th><th>Beneficio real</th><th>Acoes</th></tr></thead><tbody>{summary.map(row=>{const agreement=agreements.find(item=>item.id===row.agreementId);return <tr key={row.agreementId}><td>{row.name}</td><td>{row.supplierName}</td><td>{qty(row.earnedBonusQuantity)}</td><td>{qty(row.receivedBonusQuantity)}</td><td>{qty(row.pendingBonusQuantity)}</td><td>{money(row.fiscalValue)}</td><td><strong>{money(row.totalBenefit)}</strong></td><td>{agreement&&<><ActionButton onClick={()=>editAgreement(agreement)}>Editar</ActionButton><ActionButton $danger onClick={()=>deleteAgreement(agreement)}>Excluir</ActionButton></>}</td></tr>})}{!summary.length&&<tr><td colSpan="8">Nenhum acordo cadastrado.</td></tr>}</tbody></Table></TableWrap></Panel></>}
+    {tab === 'agreement' && <Panel><form onSubmit={saveAgreement}><Grid><Field>Nome do acordo<Control required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></Field><Field>Marca<Control value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></Field><Field>Fornecedor<Select required value={form.supplierId} onChange={e=>setForm({...form,supplierId:e.target.value})}><option value="">Selecione</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</Select></Field><Field>Quantidade comprada<Control required min="0.001" step="0.001" type="number" value={form.buyQuantity} onChange={e=>setForm({...form,buyQuantity:e.target.value})}/></Field><Field>Quantidade bonificada<Control required min="0.001" step="0.001" type="number" value={form.bonusQuantity} onChange={e=>setForm({...form,bonusQuantity:e.target.value})}/></Field><Field>Inicio<Control required type="date" value={form.startsAt} onChange={e=>setForm({...form,startsAt:e.target.value})}/></Field><Field>Fim (opcional)<Control type="date" value={form.endsAt} onChange={e=>setForm({...form,endsAt:e.target.value})}/></Field>{editingId&&<Field>Status<Select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="ACTIVE">Ativo</option><option value="SUSPENDED">Suspenso</option><option value="CLOSED">Encerrado</option></Select></Field>}</Grid><Field style={{margin:'16px 0'}}>Produtos elegiveis<ProductList>{products.filter(p=>p.isActive!==false).map(p=><ProductRow key={p.id}><input type="checkbox" checked={form.productIds.includes(p.id)} onChange={()=>toggleProduct(p.id)}/>{p.name}</ProductRow>)}</ProductList></Field><Button disabled={!form.productIds.length}>{editingId?'Salvar alteracoes':'Salvar acordo'}</Button>{editingId&&<ActionButton type="button" onClick={()=>{setEditingId('');setForm(emptyForm());setTab('summary');}} style={{marginLeft:8}}>Cancelar</ActionButton>}</form></Panel>}
     {tab === 'receipt' && <Panel><form onSubmit={receiveBonus}><Grid><Field>Acordo<Select required value={receipt.agreementId} onChange={e=>setReceipt({...receipt,agreementId:e.target.value,productId:''})}><option value="">Selecione</option>{agreements.filter(a=>a.status==='ACTIVE').map(a=><option key={a.id} value={a.id}>{a.name} - {a.supplier?.name}</option>)}</Select></Field><Field>Numero da nota<Control required value={receipt.invoiceNumber} onChange={e=>setReceipt({...receipt,invoiceNumber:e.target.value})}/></Field><Field>Serie<Control value={receipt.invoiceSeries} onChange={e=>setReceipt({...receipt,invoiceSeries:e.target.value})}/></Field><Field>Data da nota<Control required type="date" value={receipt.invoiceDate} onChange={e=>setReceipt({...receipt,invoiceDate:e.target.value})}/></Field><Field>Produto bonificado<Select required value={receipt.productId} onChange={e=>setReceipt({...receipt,productId:e.target.value})}><option value="">Selecione</option>{eligibleReceiptProducts.map(row=><option key={row.productId} value={row.productId}>{row.product.name}</option>)}</Select></Field><Field>Local de entrada<Select required value={receipt.locationId} onChange={e=>setReceipt({...receipt,locationId:e.target.value})}><option value="">Selecione</option>{locations.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</Select></Field><Field>Quantidade recebida<Control required min="0.001" step="0.001" type="number" value={receipt.quantity} onChange={e=>setReceipt({...receipt,quantity:e.target.value})}/></Field><Field>Preco unitario fiscal<Control required min="0" step="0.01" type="number" value={receipt.fiscalUnitPrice} onChange={e=>setReceipt({...receipt,fiscalUnitPrice:e.target.value})}/></Field><Field>Valor comercial unitario<Control required min="0" step="0.01" type="number" value={receipt.commercialReferencePrice} onChange={e=>setReceipt({...receipt,commercialReferencePrice:e.target.value})}/></Field><Field>Credito adicional<Control min="0" step="0.01" type="number" value={receipt.additionalCredits} onChange={e=>setReceipt({...receipt,additionalCredits:e.target.value})}/></Field></Grid><Hint style={{margin:'14px 0'}}>Valor fiscal: {money(Number(receipt.quantity||0)*Number(receipt.fiscalUnitPrice||0))}. Beneficio comercial: {money(Number(receipt.quantity||0)*Number(receipt.commercialReferencePrice||0)+Number(receipt.additionalCredits||0))}.</Hint><Button>Confirmar recebimento</Button></form></Panel>}
   </Page>;
 }
