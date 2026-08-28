@@ -2,14 +2,14 @@ const prisma = require('../utils/prisma');
 const AppError = require('../utils/AppError');
 const stockMovementService = require('./stockMovementService');
 
-function calculateAccrual({ balanceBefore, eligibleQuantity, buyQuantity, bonusQuantity }) {
-    const total = Number(balanceBefore) + Number(eligibleQuantity);
+function calculateAccrual({ eligibleQuantity, buyQuantity, bonusQuantity }) {
+    const invoiceQuantity = Number(eligibleQuantity);
     const threshold = Number(buyQuantity);
     if (!(threshold > 0)) throw new Error('Quantidade de compra do acordo deve ser maior que zero.');
-    const cycles = Math.floor((total + 1e-9) / threshold);
+    const cycles = Math.floor((invoiceQuantity + 1e-9) / threshold);
     return {
         earnedBonusQuantity: cycles * Number(bonusQuantity),
-        balanceAfter: total - cycles * threshold
+        balanceAfter: 0
     };
 }
 
@@ -97,9 +97,7 @@ async function processInvoiceAccruals(tx, { invoice, invoiceItems }) {
                 : 0), 0);
         if (eligibleQuantity <= 0) continue;
 
-        const balanceBefore = Number(agreement.currentRemainder || 0);
         const calculated = calculateAccrual({
-            balanceBefore,
             eligibleQuantity,
             buyQuantity: agreement.buyQuantity,
             bonusQuantity: agreement.bonusQuantity
@@ -109,7 +107,7 @@ async function processInvoiceAccruals(tx, { invoice, invoiceItems }) {
                 agreementId: agreement.id,
                 invoiceId: invoice.id,
                 eligibleQuantity,
-                balanceBefore,
+                balanceBefore: 0,
                 earnedBonusQuantity: calculated.earnedBonusQuantity,
                 balanceAfter: calculated.balanceAfter
             }
@@ -228,7 +226,6 @@ async function getSummary(establishmentId, dateFrom, dateTo) {
             commercialBenefit,
             additionalCredits: credits,
             totalBenefit: commercialBenefit + credits,
-            currentRemainder: Number(agreement.currentRemainder)
         };
     });
 }
