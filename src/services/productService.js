@@ -11,3 +11,7 @@ export const getSupplierComparison = async (productId) => {
     );
     return res;
 };
+
+export const getProductPriceHistory = async (productId) => {
+    return api.get(`/products/${productId}/price-history`);
+};

@@ -430,7 +430,7 @@ const ManualOrderModal = ({ isOpen, onClose, products, suppliers, onSuccess }) =
 
 const PurchaseOrders = () => {
 
-    const { state, dispatch, getSupplierById } = useApp();
+    const { state, dispatch, getSupplierById, fetchAllData } = useApp();
 
     const [suggestions, setSuggestions] = useState([]);
     const [receivedQty, setReceivedQty] = useState({});
@@ -565,13 +565,13 @@ const PurchaseOrders = () => {
                 productId: item.productId,
 
                 // Se houve alteração manual na quantidade, usa ela. Senão, mantém a original.
-                adjustedQuantity: receivedQty[item.productId] !== undefined
-                    ? Number(receivedQty[item.productId])
+                adjustedQuantity: receivedQty[item.id] !== undefined
+                    ? Number(receivedQty[item.id])
                     : Number(item.adjustedQuantity),
 
                 // 🔥 Se você digitou 55 no modal, o receivedPrice[id] existirá e será convertido aqui
-                unitPrice: receivedPrice[item.productId] !== undefined
-                    ? Number(receivedPrice[item.productId])
+                unitPrice: receivedPrice[item.id] !== undefined
+                    ? Number(receivedPrice[item.id])
                     : Number(item.unitPrice)
             }));
 
@@ -589,7 +589,7 @@ const PurchaseOrders = () => {
             toast.success("Recebimento concluído e estoque atualizado!");
 
             // 🔄 Atualiza a lista de ordens e fecha o modal
-            await fetchOrders();
+            await fetchAllData(false);
             setSelectedOrder(null);
 
             // ✨ Limpa os estados temporários para não "sujar" o próximo recebimento
@@ -973,13 +973,13 @@ Segue o pedido em PDF.
 
                                     {/* 🔥 LISTA DE ITENS AJUSTADA COM LABELS */}
                                     {selectedOrder.items.map((item) => {
-                                        const qty = receivedQty[item.productId] ?? item.adjustedQuantity;
-                                        const price = receivedPrice[item.productId] ?? item.unitPrice;
+                                        const qty = receivedQty[item.id] ?? item.adjustedQuantity;
+                                        const price = receivedPrice[item.id] ?? item.unitPrice;
                                         const total = qty * price;
 
                                         return (
                                             <div
-                                                key={item.productId}
+                                                key={item.id}
                                                 style={{
                                                     marginBottom: 16,
                                                     padding: "16px 12px",
@@ -1006,12 +1006,12 @@ Segue o pedido em PDF.
                                                             type="number"
                                                             inputMode="decimal"
                                                             // 🛡️ Mantemos como string para permitir edição fluida
-                                                            value={receivedQty[item.productId] ?? item.adjustedQuantity}
+                                                            value={receivedQty[item.id] ?? item.adjustedQuantity}
                                                             min="0"
                                                             onChange={(e) =>
                                                                 setReceivedQty((prev) => ({
                                                                     ...prev,
-                                                                    [item.productId]: e.target.value,
+                                                                    [item.id]: e.target.value,
                                                                 }))
                                                             }
                                                             placeholder="0"
@@ -1026,7 +1026,7 @@ Segue o pedido em PDF.
                                                             onChange={(val) =>
                                                                 setReceivedPrice((prev) => ({
                                                                     ...prev,
-                                                                    [item.productId]: Number(val),
+                                                                    [item.id]: Number(val),
                                                                 }))
                                                             }
                                                             placeholder="R$ 0,00"
@@ -1058,8 +1058,8 @@ Segue o pedido em PDF.
                                         <span>
                                             {formatCurrency(
                                                 selectedOrder.items.reduce((acc, item) => {
-                                                    const qty = receivedQty[item.productId] ?? item.adjustedQuantity;
-                                                    const price = receivedPrice[item.productId] ?? item.unitPrice;
+                                                    const qty = receivedQty[item.id] ?? item.adjustedQuantity;
+                                                    const price = receivedPrice[item.id] ?? item.unitPrice;
                                                     return acc + (qty * price);
                                                 }, 0)
                                             )}

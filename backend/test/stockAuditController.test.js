@@ -33,3 +33,24 @@ test('auditoria global antiga continua usando o saldo global', async () => {
 
     assert.equal(quantity, 100);
 });
+
+test('aceita contagem zero quando ela foi explicitamente enviada', () => {
+    const error = _private.validateAuditItems([
+        { id: 'item-1', countedQuantity: 0 },
+        { id: 'item-2', countedQuantity: '0' }
+    ]);
+
+    assert.equal(error, null);
+});
+
+test('rejeita auditoria vazia ou com contagem inválida', () => {
+    assert.ok(_private.validateAuditItems([]));
+    assert.ok(_private.validateAuditItems([{ id: 'item-1', countedQuantity: -1 }]));
+    assert.ok(_private.validateAuditItems([{ id: 'item-1', countedQuantity: 'texto' }]));
+});
+
+test('só permite finalizar auditoria aberta com contagem salva', () => {
+    assert.equal(_private.isAuditReadyToFinish({ status: 'OPEN', countedAt: null }), false);
+    assert.equal(_private.isAuditReadyToFinish({ status: 'OPEN', countedAt: new Date() }), true);
+    assert.equal(_private.isAuditReadyToFinish({ status: 'CLOSED', countedAt: new Date() }), false);
+});

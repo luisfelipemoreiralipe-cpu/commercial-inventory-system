@@ -195,11 +195,10 @@ export default function StockAuditDetail() {
             }));
 
             // Se os itens já têm contagem salva (vindos do banco), considerar como "salvo"
-            const anyCountSaved = data.items.some(i => Number(i.countedQuantity || 0) > 0);
-            if (anyCountSaved) {
-                setHasSaved(true);
-                setHasChanges(false);
-            }
+            // countedAt diferencia uma contagem zero confirmada de uma auditoria
+            // nova, cujos itens também começam em zero.
+            setHasSaved(Boolean(data.countedAt));
+            setHasChanges(false);
         } catch (error) {
             console.error(error);
         }

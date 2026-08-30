@@ -4,6 +4,7 @@ const supplierRepo = require('../repositories/supplierRepository');
 const prisma = require('../utils/prisma');
 const auditLogRepo = require('../repositories/auditLogRepository');
 const AppError = require('../utils/AppError');
+const { serializePriceHistory } = require('../utils/priceHistory');
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -287,12 +288,7 @@ const getPriceHistory = async (productId, establishmentId) => {
 
     const history = await productRepo.getPriceHistory(productId, establishmentId);
 
-    return history.map(item => ({
-        ...item,
-        unitPrice: Number(item.unitPrice),
-        adjustedQuantity: Number(item.adjustedQuantity),
-        supplierName: item.supplier?.name || null
-    }));
+    return serializePriceHistory(history);
 };
 
 // ─── BEST SUPPLIER ─────────────────────────────────────────────────────
@@ -310,7 +306,7 @@ const getBestSupplier = async (productId, establishmentId) => {
     let best = history[0];
 
     history.forEach(item => {
-        if (item.unitPrice < best.unitPrice) {
+        if (item.price < best.price) {
             best = item;
         }
     });
@@ -318,9 +314,9 @@ const getBestSupplier = async (productId, establishmentId) => {
     return {
         productId,
         bestSupplier: best.supplierName,
-        bestPrice: best.unitPrice,
-        lastPrice: lastPurchase.unitPrice,
-        saving: lastPurchase.unitPrice - best.unitPrice
+        bestPrice: best.price,
+        lastPrice: lastPurchase.price,
+        saving: lastPurchase.price - best.price
     };
 };
 
@@ -341,11 +337,11 @@ const getSupplierComparison = async (productId, establishmentId) => {
         const supplierName = item.supplierName;
 
         if (!suppliersMap[supplierName]) {
-            suppliersMap[supplierName] = item.unitPrice;
+            suppliersMap[supplierName] = item.price;
         } else {
             suppliersMap[supplierName] = Math.min(
                 suppliersMap[supplierName],
-                item.unitPrice
+                item.price
             );
         }
 

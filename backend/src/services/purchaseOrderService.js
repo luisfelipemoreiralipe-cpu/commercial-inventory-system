@@ -139,6 +139,9 @@ const completeOrder = async (orderId, establishmentId, incomingItems = [], invoi
                 await tx.product.updateMany({
                     where: { id: dbItem.productId, establishmentId },
                     data: {
+                        // unitPrice representa o valor da embalagem de compra;
+                        // currentCost representa o custo por unidade-base.
+                        unitPrice,
                         currentCost: finalUnitCost
                     }
                 });
@@ -161,25 +164,16 @@ const completeOrder = async (orderId, establishmentId, incomingItems = [], invoi
                         }
                     });
 
-                    const lastPrice = await tx.supplierPriceHistory.findFirst({
-                        where: {
+                    // Cada recebimento precisa de um snapshot, inclusive quando
+                    // o preço não mudou, para preservar a série histórica real.
+                    await tx.supplierPriceHistory.create({
+                        data: {
                             productId: dbItem.productId,
                             supplierId: dbItem.supplierId,
-                            product: { establishmentId }
-                        },
-                        orderBy: { createdAt: "desc" }
+                            price: unitPrice,
+                            purchaseOrderId: orderId
+                        }
                     });
-
-                    if (!lastPrice || Number(lastPrice.price) !== unitPrice) {
-                        await tx.supplierPriceHistory.create({
-                            data: {
-                                productId: dbItem.productId,
-                                supplierId: dbItem.supplierId,
-                                price: unitPrice,
-                                purchaseOrderId: orderId
-                            }
-                        });
-                    }
                 }
             }
         }

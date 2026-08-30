@@ -3,6 +3,21 @@ const { consumeProduct, addStock, getProductCostOutsideTx } = require('../servic
 
 const prisma = new PrismaClient();
 
+function validateAuditItems(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+        return "Informe os itens contados da auditoria.";
+    }
+
+    const invalidItem = items.some(item =>
+        !item?.id ||
+        !Number.isFinite(Number(item.countedQuantity)) ||
+        Number(item.countedQuantity) < 0
+    );
+    return invalidItem ? "A contagem possui item inválido." : null;
+}
+
+const isAuditReadyToFinish = audit => audit?.status === "OPEN" && Boolean(audit.countedAt);
+
 async function getCurrentAuditQuantity(tx, item, establishmentId) {
     if (item.locationId) {
         const stock = await tx.productStock.findUnique({
@@ -242,13 +257,20 @@ exports.updateItems = async (req, res) => {
     try {
         const items = req.body;
 
+        const validationError = validateAuditItems(items);
+        if (validationError) {
+            return res.status(400).json({ error: validationError });
+        }
+
         await prisma.$transaction(async (tx) => {
 
             const audit = await tx.stockAudit.findFirst({
                 where: {
+                    id: req.params.id,
                     establishmentId: req.user.establishmentId,
                     status: "OPEN"
-                }
+                },
+                select: { id: true, _count: { select: { items: true } } }
             });
 
             if (!audit) {
@@ -257,13 +279,15 @@ exports.updateItems = async (req, res) => {
 
             // OTIMIZAÇÃO: Buscar todos os itens do banco em uma única query
             // Isso evita o problema de N+1 queries que causa lentidão
-            const itemIds = items.map(i => i.id).filter(Boolean);
-            if (itemIds.length === 0) return;
+            const itemIds = [...new Set(items.map(i => i.id))];
 
             const dbItems = await tx.stockAuditItem.findMany({
                 where: { id: { in: itemIds }, auditId: audit.id },
                 include: { product: { include: { productStocks: true } } }
             });
+            if (dbItems.length !== audit._count.items || itemIds.length !== audit._count.items) {
+                throw new Error("É necessário salvar a contagem de todos os itens da auditoria.");
+            }
             const dbItemsMap = new Map(dbItems.map(i => [i.id, i]));
 
             for (const item of items) {
@@ -289,6 +313,11 @@ exports.updateItems = async (req, res) => {
                     }
                 });
             }
+
+            await tx.stockAudit.update({
+                where: { id: audit.id },
+                data: { countedAt: new Date() }
+            });
 
         }, {
             maxWait: 10000,  // Aumentado o tempo de espera de conexão
@@ -322,8 +351,12 @@ exports.finish = async (req, res) => {
             return res.status(404).json({ error: "Auditoria não encontrada" });
         }
 
-        if (audit.status === "CLOSED") {
-            return res.status(400).json({ error: "Auditoria já finalizada" });
+        if (audit.status !== "OPEN") {
+            return res.status(400).json({ error: "Auditoria já finalizada ou em processamento" });
+        }
+
+        if (!isAuditReadyToFinish(audit)) {
+            return res.status(400).json({ error: "Salve a contagem completa antes de finalizar a auditoria." });
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -426,4 +459,4 @@ exports.finish = async (req, res) => {
     }
 };
 
-exports._private = { getCurrentAuditQuantity };
+exports._private = { getCurrentAuditQuantity, validateAuditItems, isAuditReadyToFinish };

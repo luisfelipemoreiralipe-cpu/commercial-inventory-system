@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore, MdWarning, MdPictureAsPdf } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSearch, MdEdit as MdQty, MdStore, MdWarning, MdPictureAsPdf, MdTimeline } from 'react-icons/md';
 import { useApp, ACTIONS } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatCurrency';
 import Card from '../components/Card';
@@ -23,6 +23,7 @@ import {
     removeProductSupplier
 } from "../services/productSupplierService";
 import { getStockLocations } from "../services/stockLocationService";
+import { getProductPriceHistory } from "../services/productService";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const UNITS = ['unidade', 'kg', 'g', 'litro', 'ml', 'caixa', 'pacote', 'saco', 'rolo', 'metro', 'pç'];
@@ -298,6 +299,8 @@ const Products = () => {
     const [form, setForm] = useState(EMPTY_FORM);
     const [locations, setLocations] = useState([]);
     const [qtyLocationId, setQtyLocationId] = useState('');
+    const [priceHistoryProduct, setPriceHistoryProduct] = useState(null);
+    const [priceHistory, setPriceHistory] = useState([]);
 
     // 🔥 FUNÇÃO FORA (CORRETO)
     const loadProducts = async () => {
@@ -474,6 +477,17 @@ const Products = () => {
 
         }
 
+    };
+
+    const handleOpenPriceHistory = async (product) => {
+        try {
+            const history = await getProductPriceHistory(product.id);
+            setPriceHistory(Array.isArray(history) ? history : []);
+            setPriceHistoryProduct(product);
+        } catch (err) {
+            console.error(err);
+            toast.error("Erro ao carregar histórico de preços");
+        }
     };
 
 
@@ -968,6 +982,12 @@ const Products = () => {
                                                         <MdStore />
                                                     </IconBtn>
                                                     <IconBtn
+                                                        title="Histórico de preços"
+                                                        onClick={() => handleOpenPriceHistory(p)}
+                                                    >
+                                                        <MdTimeline />
+                                                    </IconBtn>
+                                                    <IconBtn
                                                         title="Editar quantidade"
                                                         color="warning"
                                                         onClick={() => { 
@@ -1378,6 +1398,60 @@ const Products = () => {
 
                 </Button>
 
+            </Modal>
+            <Modal
+                isOpen={!!priceHistoryProduct}
+                onClose={() => setPriceHistoryProduct(null)}
+                title={`Histórico de preços — ${priceHistoryProduct?.name || ''}`}
+                footer={<Button onClick={() => setPriceHistoryProduct(null)}>Fechar</Button>}
+            >
+                {!priceHistory.length ? (
+                    <EmptyState title="Sem histórico de compras" />
+                ) : (
+                    <TableOverflow>
+                        <Table>
+                            <thead>
+                                <tr>
+                                    <Th>Data</Th>
+                                    <Th>Fornecedor</Th>
+                                    <Th>Preço</Th>
+                                    <Th>Preço anterior</Th>
+                                    <Th>Variação</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {priceHistory.map((entry) => {
+                                    const variation = entry.percentageVariation;
+                                    const variationColor = variation > 0
+                                        ? '#dc2626'
+                                        : variation < 0
+                                            ? '#16a34a'
+                                            : '#64748B';
+
+                                    return (
+                                        <Tr key={entry.id}>
+                                            <Td data-label="Data">
+                                                {new Date(entry.createdAt).toLocaleDateString('pt-BR')}
+                                            </Td>
+                                            <Td data-label="Fornecedor">{entry.supplierName || '-'}</Td>
+                                            <Td data-label="Preço">{formatCurrency(Number(entry.price))}</Td>
+                                            <Td data-label="Preço anterior">
+                                                {entry.previousPrice === null
+                                                    ? '-'
+                                                    : formatCurrency(Number(entry.previousPrice))}
+                                            </Td>
+                                            <Td data-label="Variação" style={{ color: variationColor, fontWeight: 700 }}>
+                                                {variation === null
+                                                    ? '-'
+                                                    : `${variation > 0 ? '+' : ''}${Number(variation).toFixed(2)}%`}
+                                            </Td>
+                                        </Tr>
+                                    );
+                                })}
+                            </tbody>
+                        </Table>
+                    </TableOverflow>
+                )}
             </Modal>
             <RecipeModal
                 product={recipeModal}

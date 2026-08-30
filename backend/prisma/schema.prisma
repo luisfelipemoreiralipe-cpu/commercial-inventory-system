@@ -614,6 +614,7 @@ model StockAudit {
   status String @default("OPEN")
 
   createdAt DateTime @default(now())
+  countedAt DateTime?
 
   items StockAuditItem[]
 
