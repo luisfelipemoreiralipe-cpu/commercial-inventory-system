@@ -1,0 +1,3 @@
+const test=require('node:test');const assert=require('node:assert/strict');const schemas=require('../src/validations/supplierPortalValidation');
+test('senha externa exige comprimento, caixa e número',()=>{assert.equal(schemas.password.safeParse('SenhaForte123').success,true);assert.equal(schemas.password.safeParse('senhafraca').success,false);});
+test('lote externo não aceita organizationSupplierId forjado',()=>{const data={organizationSupplierId:'forged',items:[{catalogItemId:'11111111-1111-4111-8111-111111111111',packagePrice:10,commercialUnit:'cx',unitsPerPackage:1,available:true}]};assert.equal(schemas.submitPrices.safeParse(data).success,false);});

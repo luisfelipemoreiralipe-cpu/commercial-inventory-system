@@ -16,6 +16,8 @@ backend/.env
 
 # production
 /build
+/backups
+/.tools
 
 # prisma (optional safety)
 backend/prisma/dev.db

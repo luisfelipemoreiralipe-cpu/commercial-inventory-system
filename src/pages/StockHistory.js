@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import {
     MdHistory,
@@ -12,6 +12,8 @@ import Card from '../components/Card';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import Select from '../components/Select';
+import Button from '../components/Button';
+import api from '../services/api';
 
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
@@ -209,6 +211,23 @@ const QtyDelta = styled.span`
   color: ${({ $positive, theme }) => $positive ? theme.colors.success : theme.colors.danger};
 `;
 
+const Pagination = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.md};
+  flex-wrap: wrap;
+  padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const PaginationActions = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
 // ─── Type config ──────────────────────────────────────────────────────────────
 const TYPE_CONFIG = {
     entry: { label: 'Entrada', variant: 'success', icon: <MdArrowUpward />, color: '#059669', positive: true },
@@ -224,13 +243,19 @@ const StockHistory = () => {
     const [filterType, setFilterType] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [movements, setMovements] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [pagination, setPagination] = useState({ page: 1, pageSize: 50, totalItems: 0, totalPages: 0 });
+    const [summary, setSummary] = useState({ total: 0, entry: 0, exit: 0, bonus: 0, consumption: 0 });
+    const requestSequence = useRef(0);
 
 
     // 🔥 1. FUNÇÃO PRIMEIRO
     const getMovementType = (m) => {
         const type = m.type?.toUpperCase();
 
-        if (type === "BONUS" || type === "IN") return "entry";
+        if (["PURCHASE", "BONUS", "IN"].includes(type)) return "entry";
 
         if (type === "OUT") return "exit";
 
@@ -241,56 +266,37 @@ const StockHistory = () => {
         return "adjustment";
     };
 
-    // 🔥 2. FILTERED DEPOIS
-    const filtered = useMemo(() => {
-        return state.stockMovements.filter((m) => {
-            if (filterProduct && m.productId !== filterProduct) return false;
+    const loadMovements = useCallback(async () => {
+        const requestId = ++requestSequence.current;
+        setLoading(true);
+        try {
+            const params = { page, pageSize: 50 };
+            if (filterProduct) params.productId = filterProduct;
+            if (filterType) params.movementType = filterType;
+            if (dateFrom) params.dateFrom = dateFrom;
+            if (dateTo) params.dateTo = dateTo;
 
-            if (filterType && getMovementType(m) !== filterType) return false;
-
-            if (dateFrom && new Date(m.createdAt) < new Date(dateFrom)) return false;
-
-            if (dateTo && new Date(m.createdAt) > new Date(dateTo + 'T23:59:59')) return false;
-
-            return true;
-        });
-    }, [state.stockMovements, filterProduct, filterType, dateFrom, dateTo]);
-
-    // 🔥 3. TOTALS POR ÚLTIMO
-    const totals = useMemo(() => ({
-        entry: filtered
-            .filter((m) => getMovementType(m) === "entry")
-            .reduce((acc, m) => acc + (m.newQuantity - m.previousQuantity), 0),
-
-        exit: filtered
-            .filter((m) => getMovementType(m) === "exit")
-            .reduce((acc, m) => acc + Math.abs(m.newQuantity - m.previousQuantity), 0),
-
-    }), [filtered]);
-
-    // 🔥 KPI BONIFICAÇÃO
-    const totalBonus = useMemo(() => {
-        return filtered.reduce((acc, m) => {
-            if (m.reference?.toUpperCase().includes("BONIFICA")) {
-                const delta = m.newQuantity - m.previousQuantity;
-
-                console.log("BONUS:", m.productName, delta);
-
-                return acc + delta;
+            const result = await api.get('/stock-movements', { params });
+            if (requestId !== requestSequence.current) return;
+            setMovements(result?.items || []);
+            setPagination(result?.pagination || { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 });
+            setSummary(result?.summary || { total: 0, entry: 0, exit: 0, bonus: 0, consumption: 0 });
+            if (result?.pagination?.page && result.pagination.page !== page) {
+                setPage(result.pagination.page);
             }
+        } finally {
+            if (requestId === requestSequence.current) setLoading(false);
+        }
+    }, [page, filterProduct, filterType, dateFrom, dateTo]);
 
-            return acc;
-        }, 0);
-    }, [filtered]);
+    useEffect(() => {
+        const timer = setTimeout(loadMovements, 250);
+        return () => clearTimeout(timer);
+    }, [loadMovements, state.establishment?.id]);
 
-    // 🔥 KPI CONSUMO
-    const totalConsumption = useMemo(() => {
-        return filtered
-            .filter((m) => m.type?.toUpperCase() === "OUT")
-            .reduce((acc, m) => acc + Math.abs(m.newQuantity - m.previousQuantity), 0);
-    }, [filtered]);
-
-
+    useEffect(() => {
+        setPage(1);
+    }, [state.establishment?.id]);
 
     const hasFilters = filterProduct || filterType || dateFrom || dateTo;
 
@@ -299,16 +305,24 @@ const StockHistory = () => {
         setFilterType('');
         setDateFrom('');
         setDateTo('');
+        setPage(1);
     };
 
-    // Unique products
     const movementProducts = useMemo(() => {
-        const seen = new Map();
-        state.stockMovements.forEach((m) => {
-            if (!seen.has(m.productId)) seen.set(m.productId, m.productName);
-        });
-        return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-    }, [state.stockMovements]);
+        return [...(state.products || [])]
+            .filter((product) => product.trackInventory !== false)
+            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    }, [state.products]);
+
+    const productsById = useMemo(
+        () => new Map((state.products || []).map((product) => [product.id, product])),
+        [state.products]
+    );
+
+    const updateFilter = (setter) => (value) => {
+        setter(value);
+        setPage(1);
+    };
 
     return (
         <>
@@ -316,7 +330,7 @@ const StockHistory = () => {
                 <div>
                     <PageTitle>Histórico de Estoque</PageTitle>
                     <PageSubtitle>
-                        {state.stockMovements.length} movimento(s) registrado(s) no total
+                        {pagination.totalItems} movimento(s) encontrado(s)
                     </PageSubtitle>
                 </div>
             </PageHeader>
@@ -327,7 +341,7 @@ const StockHistory = () => {
 
                 <FilterGroup>
                     Produto:
-                    <Select value={filterProduct} onChange={setFilterProduct}
+                    <Select value={filterProduct} onChange={updateFilter(setFilterProduct)}
                         options={[
                             { value: "", label: "Todos" },
                             ...movementProducts.map(p => ({ value: p.id, label: p.name }))
@@ -337,23 +351,24 @@ const StockHistory = () => {
 
                 <FilterGroup>
                     Tipo:
-                    <Select value={filterType} onChange={setFilterType}
+                    <Select value={filterType} onChange={updateFilter(setFilterType)}
                         options={[
                             { value: "", label: "Todos" },
                             { value: "entry", label: "Entrada" },
-                            { value: "exit", label: "Saída" }
+                            { value: "exit", label: "Saída" },
+                            { value: "adjustment", label: "Ajuste" }
                         ]}
                     />
                 </FilterGroup>
 
                 <FilterGroup>
                     De:
-                    <DateInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                    <DateInput type="date" value={dateFrom} onChange={(e) => updateFilter(setDateFrom)(e.target.value)} />
                 </FilterGroup>
 
                 <FilterGroup>
                     Até:
-                    <DateInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                    <DateInput type="date" value={dateTo} onChange={(e) => updateFilter(setDateTo)(e.target.value)} />
                 </FilterGroup>
 
                 {hasFilters && <ClearBtn onClick={clearFilters}>Limpar</ClearBtn>}
@@ -363,31 +378,31 @@ const StockHistory = () => {
             <SummaryRow>
                 <SummaryCard accent="#0066CC">
                     <SummaryLabel>Total filtrado</SummaryLabel>
-                    <SummaryValue color="#111827">{filtered.length}</SummaryValue>
+                    <SummaryValue color="#111827">{summary.total}</SummaryValue>
                 </SummaryCard>
                 <SummaryCard accent="#059669">
                     <SummaryLabel>Entradas</SummaryLabel>
-                    <SummaryValue color="#059669">{totals.entry}</SummaryValue>
+                    <SummaryValue color="#059669">{summary.entry}</SummaryValue>
                 </SummaryCard>
                 <SummaryCard accent="#DC2626">
                     <SummaryLabel>Saídas</SummaryLabel>
-                    <SummaryValue color="#DC2626">{totals.exit}</SummaryValue>
+                    <SummaryValue color="#DC2626">{summary.exit}</SummaryValue>
                 </SummaryCard>
                 <SummaryCard accent="#7C3AED">
                     <SummaryLabel>Bonificação</SummaryLabel>
-                    <SummaryValue>{totalBonus}</SummaryValue>
+                    <SummaryValue>{summary.bonus}</SummaryValue>
                 </SummaryCard>
 
                 <SummaryCard accent="#DC2626">
                     <SummaryLabel>Consumo Interno</SummaryLabel>
-                    <SummaryValue>{totalConsumption}</SummaryValue>
+                    <SummaryValue>{summary.consumption}</SummaryValue>
                 </SummaryCard>
 
             </SummaryRow>
 
             {/* Table */}
             <Card padding="0">
-                {filtered.length === 0 ? (
+                {!loading && movements.length === 0 ? (
                     <EmptyState
                         icon={<MdHistory />}
                         title="Nenhum movimento encontrado"
@@ -408,12 +423,12 @@ const StockHistory = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((m) => {
+                                {movements.map((m) => {
                                     const movementType = getMovementType(m);
                                     const cfg = TYPE_CONFIG[movementType];
                                     const isPositive = Number(m.newQuantity) > Number(m.previousQuantity);
 
-                                    const product = state.products?.find(p => p.id === m.productId);
+                                    const product = productsById.get(m.productId);
                                     const pack = Number(product?.packQuantity || 1);
                                     const pUnit = product?.purchaseUnit || 'un';
                                     const bUnit = product?.unit || 'ml';
@@ -468,6 +483,19 @@ const StockHistory = () => {
                         </Table>
                     </TableWrap>
                 )}
+                <Pagination>
+                    <span>
+                        {loading ? 'Carregando...' : `${pagination.totalItems} registro(s) · Página ${pagination.page} de ${pagination.totalPages || 1}`}
+                    </span>
+                    <PaginationActions>
+                        <Button size="sm" variant="secondary" disabled={loading || page <= 1} onClick={() => setPage((current) => current - 1)}>
+                            Anterior
+                        </Button>
+                        <Button size="sm" variant="secondary" disabled={loading || page >= pagination.totalPages} onClick={() => setPage((current) => current + 1)}>
+                            Próxima
+                        </Button>
+                    </PaginationActions>
+                </Pagination>
             </Card>
         </>
     );

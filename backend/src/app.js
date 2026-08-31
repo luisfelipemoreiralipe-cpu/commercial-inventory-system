@@ -27,6 +27,10 @@ const entryRoutes = require('./routes/entryRoutes');
 const stockLocationRoutes = require('./routes/stockLocationRoutes');
 const commercialAgreementRoutes = require('./routes/commercialAgreementRoutes');
 const portioningRoutes = require('./routes/portioningRoutes');
+const organizationProductRoutes = require('./routes/organizationProductRoutes');
+const organizationSupplierRoutes = require('./routes/organizationSupplierRoutes');
+const supplierPriceUpdateRoutes = require('./routes/supplierPriceUpdateRoutes');
+const supplierPortalRoutes = require('./routes/supplierPortalRoutes');
 
 const app = express();
 
@@ -79,6 +83,10 @@ app.use('/api/entries', entryRoutes);
 app.use('/api/stock-locations', stockLocationRoutes);
 app.use('/api/commercial-agreements', commercialAgreementRoutes);
 app.use('/api/portioning', portioningRoutes);
+app.use('/api/organization-products', organizationProductRoutes);
+app.use('/api/organization-suppliers', organizationSupplierRoutes);
+app.use('/api/supplier-price-updates', supplierPriceUpdateRoutes);
+app.use('/api/supplier-portal', supplierPortalRoutes);
 
 // Fallback for undefined routes
 app.use(notFoundMiddleware);

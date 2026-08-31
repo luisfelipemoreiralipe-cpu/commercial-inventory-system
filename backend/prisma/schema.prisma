@@ -46,6 +46,9 @@ model Supplier {
   establishmentId String         @db.Uuid
   establishment   establishments @relation(fields: [establishmentId], references: [id])
 
+  organizationSupplierId String?               @db.Uuid
+  organizationSupplier   OrganizationSupplier? @relation(fields: [organizationSupplierId], references: [id])
+
   createdAt        DateTime            @default(now())
   orderItems       PurchaseOrderItem[]
   productSuppliers ProductSupplier[]
@@ -55,6 +58,9 @@ model Supplier {
   commercialAgreements CommercialAgreement[]
   purchaseInvoices     PurchaseInvoice[]
   bonusReceipts        BonusReceipt[]
+
+  @@unique([establishmentId, organizationSupplierId])
+  @@index([organizationSupplierId])
 }
 
 model Category {
@@ -98,6 +104,9 @@ model Product {
   establishmentId String         @db.Uuid
   establishment   establishments @relation(fields: [establishmentId], references: [id])
 
+  organizationProductId String?              @db.Uuid
+  organizationProduct   OrganizationProduct? @relation(fields: [organizationProductId], references: [id])
+
   categoryId String   @db.Uuid
   category   Category @relation(fields: [categoryId], references: [id])
 
@@ -127,7 +136,9 @@ model Product {
   purchaseInvoiceItems        PurchaseInvoiceItem[]
   bonusReceiptItems           BonusReceiptItem[]
 
+  @@unique([establishmentId, organizationProductId])
   @@index([establishmentId, purchaseClassification])
+  @@index([organizationProductId])
   @@map("products")
 }
 
@@ -213,6 +224,7 @@ model StockMovement {
   @@index([createdAt])
   @@index([saleId])
   @@index([establishmentId, purchaseClassification, createdAt])
+  @@index([establishmentId, createdAt, id])
   @@map("stock_movements")
 }
 
@@ -553,7 +565,203 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  establishments establishments[]
+  establishments      establishments[]
+  products            OrganizationProduct[]
+  productCodeSequence OrganizationProductSequence?
+  productReviews      OrganizationProductReview[]
+  suppliers           OrganizationSupplier[]
+  supplierReviews     OrganizationSupplierReview[]
+}
+
+model OrganizationSupplier {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String
+  name           String
+  legalName      String?
+  cnpj           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+  localSuppliers Supplier[]
+  catalogItems   SupplierCatalogItem[]
+  priceUpdates   SupplierPriceUpdate[]
+  portalUsers    SupplierPortalUser[]
+
+  @@index([organizationId])
+  @@index([organizationId, cnpj])
+  @@map("organization_suppliers")
+}
+
+model SupplierPortalUser {
+  id                     String    @id @default(uuid()) @db.Uuid
+  organizationSupplierId String    @db.Uuid
+  name                   String
+  email                  String    @unique
+  passwordHash           String
+  isActive               Boolean   @default(true)
+  isBlocked              Boolean   @default(false)
+  failedLoginAttempts    Int       @default(0)
+  lockedUntil            DateTime?
+  lastLoginAt            DateTime?
+  revokedAt              DateTime?
+  sessionVersion         Int       @default(1)
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organizationSupplier OrganizationSupplier @relation(fields: [organizationSupplierId], references: [id])
+
+  @@index([organizationSupplierId, isActive])
+  @@map("supplier_portal_users")
+}
+
+model OrganizationSupplierReview {
+  id                            String    @id @default(uuid()) @db.Uuid
+  organizationId                String
+  candidateKey                  String
+  status                        String
+  supplierIds                   Json
+  suggestedName                 String
+  normalizedCnpj                String
+  appliedOrganizationSupplierId String?   @db.Uuid
+  reviewedByUserId              String?   @db.Uuid
+  reviewedAt                    DateTime?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, candidateKey])
+  @@index([organizationId, status])
+  @@map("organization_supplier_reviews")
+}
+
+model OrganizationProduct {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String
+  internalCode   String
+  name           String
+  brand          String?
+  baseUnit       String
+  barcode        String?
+  description    String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  localProducts        Product[]
+  supplierCatalogItems SupplierCatalogItem[]
+
+  @@unique([organizationId, internalCode])
+  @@index([organizationId, barcode])
+  @@map("organization_products")
+}
+
+model SupplierCatalogItem {
+  id                     String    @id @default(uuid()) @db.Uuid
+  organizationSupplierId String    @db.Uuid
+  organizationProductId  String    @db.Uuid
+  supplierCode           String?
+  commercialUnit         String
+  unitsPerPackage        Decimal   @db.Decimal(12, 3)
+  packagePrice           Decimal   @db.Decimal(12, 4)
+  normalizedUnitPrice    Decimal   @db.Decimal(12, 4)
+  available              Boolean   @default(true)
+  minimumOrder           Decimal?  @db.Decimal(12, 3)
+  deliveryLeadDays       Int?
+  validUntil             DateTime?
+  status                 String    @default("ACTIVE")
+  lastSubmittedAt        DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organizationSupplier OrganizationSupplier      @relation(fields: [organizationSupplierId], references: [id])
+  organizationProduct  OrganizationProduct       @relation(fields: [organizationProductId], references: [id])
+  updateItems          SupplierPriceUpdateItem[]
+
+  @@unique([organizationSupplierId, organizationProductId])
+  @@index([organizationProductId])
+  @@map("supplier_catalog_items")
+}
+
+model SupplierPriceUpdate {
+  id                     String    @id @default(uuid()) @db.Uuid
+  organizationSupplierId String    @db.Uuid
+  status                 String    @default("DRAFT")
+  note                   String?
+  submittedAt            DateTime?
+  approvedAt             DateTime?
+  appliedAt              DateTime?
+  approvedByUserId       String?   @db.Uuid
+  createdByUserId        String?   @db.Uuid
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organizationSupplier OrganizationSupplier      @relation(fields: [organizationSupplierId], references: [id])
+  items                SupplierPriceUpdateItem[]
+
+  @@index([organizationSupplierId, status])
+  @@index([createdAt, id])
+  @@map("supplier_price_updates")
+}
+
+model SupplierPriceUpdateItem {
+  id                      String   @id @default(uuid()) @db.Uuid
+  supplierPriceUpdateId   String   @db.Uuid
+  supplierCatalogItemId   String   @db.Uuid
+  previousPackagePrice    Decimal  @db.Decimal(12, 4)
+  newPackagePrice         Decimal  @db.Decimal(12, 4)
+  previousNormalizedPrice Decimal  @db.Decimal(12, 4)
+  newNormalizedPrice      Decimal  @db.Decimal(12, 4)
+  commercialUnit          String
+  unitsPerPackage         Decimal  @db.Decimal(12, 3)
+  available               Boolean
+  deliveryLeadDays        Int?
+  status                  String   @default("PENDING")
+  rejectionReason         String?
+  affectedEstablishments  Int      @default(0)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  update      SupplierPriceUpdate @relation(fields: [supplierPriceUpdateId], references: [id], onDelete: Cascade)
+  catalogItem SupplierCatalogItem @relation(fields: [supplierCatalogItemId], references: [id])
+
+  @@unique([supplierPriceUpdateId, supplierCatalogItemId])
+  @@index([supplierCatalogItemId])
+  @@map("supplier_price_update_items")
+}
+
+model OrganizationProductSequence {
+  organizationId String @id
+  currentValue   Int    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_product_sequences")
+}
+
+model OrganizationProductReview {
+  id                           String    @id @default(uuid()) @db.Uuid
+  organizationId               String
+  candidateKey                 String
+  status                       String
+  productIds                   Json
+  suggestedName                String
+  appliedOrganizationProductId String?   @db.Uuid
+  reviewedByUserId             String?   @db.Uuid
+  reviewedAt                   DateTime?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, candidateKey])
+  @@index([organizationId, status])
+  @@map("organization_product_reviews")
 }
 
 model StockTransfer {
@@ -613,7 +821,7 @@ model StockAudit {
 
   status String @default("OPEN")
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   countedAt DateTime?
 
   items StockAuditItem[]

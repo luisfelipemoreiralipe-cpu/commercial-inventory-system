@@ -1,10 +1,19 @@
 const stockMovementService = require('../services/stockMovementService');
 const asyncHandler = require('../utils/asyncHandler');
+const { listQuerySchema } = require('../validations/stockMovementValidation');
 
 // 🔍 LISTAR MOVIMENTAÇÕES
 const getAll = asyncHandler(async (req, res) => {
+    const parsed = listQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+        return res.status(422).json({
+            success: false,
+            message: 'Filtros inválidos.',
+            errors: parsed.error.flatten().fieldErrors
+        });
+    }
 
-    const { productId, dateFrom, dateTo, type, reason, supplierId } = req.query;
+    const { productId, dateFrom, dateTo, type, movementType, reason, supplierId, page, pageSize, limit } = parsed.data;
     const establishmentId = req.user.establishmentId;
 
     const data = await stockMovementService.getMovements({
@@ -12,8 +21,11 @@ const getAll = asyncHandler(async (req, res) => {
         dateFrom,
         dateTo,
         type,
+        movementType,
         reason,
         supplierId,
+        page,
+        pageSize: pageSize || limit,
         establishmentId
     });
 

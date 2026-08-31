@@ -48,9 +48,13 @@ const upsertSupplierToProduct = (productId, supplierId, price) =>
 
 // ─── READ ───────────────────────────────────────────
 
-const getSuppliersByProduct = (productId) =>
+const getSuppliersByProduct = (productId, establishmentId) =>
     prisma.productSupplier.findMany({
-        where: { productId },
+        where: {
+            productId,
+            product: { establishmentId },
+            supplier: { establishmentId }
+        },
         include: {
             supplier: {
                 select: {
@@ -64,11 +68,13 @@ const getSuppliersByProduct = (productId) =>
 
 // ─── DELETE ─────────────────────────────────────────
 
-const removeSupplierFromProduct = (productId, supplierId) =>
+const removeSupplierFromProduct = (productId, supplierId, establishmentId) =>
     prisma.productSupplier.deleteMany({
         where: {
             productId,
-            supplierId
+            supplierId,
+            product: { establishmentId },
+            supplier: { establishmentId }
         }
     });
 

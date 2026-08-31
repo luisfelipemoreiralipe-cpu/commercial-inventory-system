@@ -2,6 +2,7 @@ const { Router } = require('express');
 const controller = require('../controllers/productController');
 const validate = require('../middlewares/validate');
 const authMiddleware = require('../middlewares/authMiddleware');
+const requireRole = require('../middlewares/requireRole');
 const {
     createProductSchema,
     updateProductSchema,
@@ -29,12 +30,13 @@ router.get('/:id/supplier-comparison', authMiddleware, controller.getSupplierCom
 router.get('/:id/suppliers', authMiddleware, controller.getSuppliers);
 
 // adicionar fornecedor ao produto
-router.post('/:id/suppliers', authMiddleware, controller.addSupplier);
+router.post('/:id/suppliers', authMiddleware, requireRole(['ADMIN']), controller.addSupplier);
 
 // remover fornecedor do produto
 router.delete(
     '/:productId/suppliers/:supplierId',
     authMiddleware,
+    requireRole(['ADMIN']),
     controller.removeSupplier
 );
 
@@ -43,6 +45,7 @@ router.get('/:id', authMiddleware, controller.getById);
 router.post(
     '/',
     authMiddleware,
+    requireRole(['ADMIN']),
     validate(createProductSchema),
     controller.create
 );
@@ -50,15 +53,17 @@ router.post(
 router.put(
     '/:id',
     authMiddleware,
+    requireRole(['ADMIN']),
     validate(updateProductSchema),
     controller.update
 );
 
-router.delete('/:id', authMiddleware, controller.remove);
+router.delete('/:id', authMiddleware, requireRole(['ADMIN']), controller.remove);
 
 router.patch(
     '/:id/quantity',
     authMiddleware,
+    requireRole(['ADMIN']),
     validate(updateQuantitySchema),
     controller.updateQuantity
 );

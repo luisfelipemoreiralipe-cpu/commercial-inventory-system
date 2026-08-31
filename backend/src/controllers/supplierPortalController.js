@@ -1,0 +1,14 @@
+const authService=require('../services/supplierPortalAuthService');const admin=require('../services/supplierPortalAdminService');const asyncHandler=require('../utils/asyncHandler');
+const portalService=require('../services/supplierPortalService');
+const login=asyncHandler(async(req,res)=>res.json({success:true,data:await authService.login(req.body)}));
+const requestReset=asyncHandler(async(req,res)=>res.json({success:true,data:await authService.requestReset(req.body.email)}));
+const reset=asyncHandler(async(req,res)=>res.json({success:true,data:await authService.resetPassword(req.body)}));
+const me=asyncHandler(async(req,res)=>res.json({success:true,data:{user:req.supplierPortal.user,supplier:req.supplierPortal.supplier}}));
+const listUsers=asyncHandler(async(req,res)=>res.json({success:true,data:await admin.list(req.params.supplierId,req.user.establishmentId)}));
+const createUser=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await admin.create(req.params.supplierId,req.body,req.user.establishmentId,req.user.userId)}));
+const revoke=asyncHandler(async(req,res)=>res.json({success:true,data:await admin.revoke(req.params.id,req.user.establishmentId,req.user.userId)}));
+const issueReset=asyncHandler(async(req,res)=>res.json({success:true,data:await admin.issueReset(req.params.id,req.user.establishmentId,req.user.userId)}));
+const catalog=asyncHandler(async(req,res)=>res.json({success:true,data:await portalService.catalog(req.supplierPortal)}));
+const history=asyncHandler(async(req,res)=>res.json({success:true,data:await portalService.history(req.supplierPortal)}));
+const submit=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await portalService.submit(req.body,req.supplierPortal)}));
+module.exports={login,requestReset,reset,me,listUsers,createUser,revoke,issueReset,catalog,history,submit};

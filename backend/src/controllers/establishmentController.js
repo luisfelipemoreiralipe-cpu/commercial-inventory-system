@@ -15,9 +15,9 @@ const getAll = asyncHandler(async (req, res) => {
     }
 
     const organizationsEstablishments = await prisma.establishments.findMany({
-        where: {
-            organizationId: establishment.organizationId
-        },
+        where: establishment.organizationId
+            ? { organizationId: establishment.organizationId }
+            : { id: establishment.id },
         select: {
             id: true,
             name: true

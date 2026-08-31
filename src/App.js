@@ -26,6 +26,13 @@ import Entries from "./pages/Entries";
 import StockLocations from "./pages/StockLocations";
 import MaterialConsumption from "./pages/MaterialConsumption";
 import CommercialAgreements from "./pages/CommercialAgreements";
+import OrganizationProducts from "./pages/OrganizationProducts";
+import OrganizationSuppliers from "./pages/OrganizationSuppliers";
+import SupplierPriceUpdates from "./pages/SupplierPriceUpdates";
+import SupplierPortalLogin from "./pages/SupplierPortalLogin";
+import SupplierPortalRecovery from "./pages/SupplierPortalRecovery";
+import SupplierPortalDashboard from "./pages/SupplierPortalDashboard";
+import SupplierPortalUsers from "./pages/SupplierPortalUsers";
 
 import SidebarLayout from "./components/SidebarLayout";
 import PrivateRoute from "./components/PrivateRoute";
@@ -67,6 +74,9 @@ function App() {
             {/* ROTAS PUBLICAS */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/supplier-portal/login" element={<SupplierPortalLogin />} />
+            <Route path="/supplier-portal/recovery" element={<SupplierPortalRecovery />} />
+            <Route path="/supplier-portal" element={<SupplierPortalDashboard />} />
             <Route path="/select-establishment" element={<SelectEstablishment />} />
 
             {/* ROTAS PROTEGIDAS */}
@@ -83,6 +93,10 @@ function App() {
               <Route path="users" element={<Users />} />
 
               <Route path="/products" element={<Products />} />
+              <Route path="/organization-products" element={<OrganizationProducts />} />
+              <Route path="/organization-suppliers" element={<OrganizationSuppliers />} />
+              <Route path="/supplier-price-updates" element={<SupplierPriceUpdates />} />
+              <Route path="/supplier-portal-users" element={<SupplierPortalUsers />} />
 
               <Route path="/suppliers" element={<Suppliers />} />
 

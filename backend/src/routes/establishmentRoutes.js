@@ -7,7 +7,7 @@ const router = Router();
 
 router.get('/', authMiddleware, controller.getAll);
 router.post('/', authMiddleware, requireRole(['ADMIN']), controller.create);
-router.put('/update/:id', authMiddleware, controller.update);
+router.put('/update/:id', authMiddleware, requireRole(['ADMIN']), controller.update);
 
 
 module.exports = router;

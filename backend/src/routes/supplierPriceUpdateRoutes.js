@@ -1,0 +1,16 @@
+const { Router } = require('express');
+const controller = require('../controllers/supplierPriceUpdateController');
+const auth = require('../middlewares/authMiddleware');
+const requireRole = require('../middlewares/requireRole');
+const validate = require('../middlewares/validate');
+const schemas = require('../validations/supplierPriceUpdateValidation');
+const router = Router();
+router.use(auth);
+router.get('/', controller.list);
+router.get('/catalog/:organizationSupplierId', controller.catalog);
+router.get('/:id/preview', controller.preview);
+router.get('/:id', controller.getById);
+router.post('/', requireRole(['ADMIN']), validate(schemas.createSchema), controller.create);
+router.post('/:id/apply', requireRole(['ADMIN']), controller.apply);
+router.post('/:id/reject', requireRole(['ADMIN']), validate(schemas.rejectSchema), controller.reject);
+module.exports=router;

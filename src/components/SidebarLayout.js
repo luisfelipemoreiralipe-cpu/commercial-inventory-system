@@ -18,7 +18,10 @@ import {
   MdLogout,
   MdStore,
   MdFactory,
-  MdContentCut
+  MdContentCut,
+  MdAccountTree,
+  MdBusiness,
+  MdPriceChange
 } from 'react-icons/md';
 import { MdReceiptLong } from 'react-icons/md';
 import { useApp } from '../context/AppContext';
@@ -359,6 +362,10 @@ const NAV_GROUPS = [
     items: [
       { to: '/', label: 'Dashboard', icon: <MdDashboard /> },
       { to: '/products', label: 'Produtos', icon: <MdInventory2 />, badge: true },
+      { to: '/organization-products', label: 'Catálogo Central', icon: <MdAccountTree /> },
+      { to: '/organization-suppliers', label: 'Fornecedores Centrais', icon: <MdBusiness /> },
+      { to: '/supplier-price-updates', label: 'Preços de Fornecedores', icon: <MdPriceChange /> },
+      { to: '/supplier-portal-users', label: 'Acessos de Fornecedores', icon: <MdPeople /> },
       { to: '/patrimony', label: 'Patrimônio', icon: <MdStore /> },
       { to: '/suppliers', label: 'Fornecedores', icon: <MdPeople /> },
       { to: '/production', label: 'Produção', icon: <MdFactory /> },

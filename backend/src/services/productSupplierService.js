@@ -15,10 +15,10 @@ const addSupplierToProduct = async (productId, supplierId, price, establishmentI
         throw new AppError('Produto não encontrado.', 404);
     }
 
-    const supplier = await supplierRepo.findById(supplierId);
+    const supplier = await supplierRepo.findById(supplierId, establishmentId);
 
     if (!supplier) {
-        throw new AppError('Fornecedor inválido.', 400);
+        throw new AppError('Fornecedor não encontrado ou acesso negado.', 404);
     }
 
     if (!price || Number(price) <= 0) {
@@ -94,7 +94,7 @@ const getProductSuppliers = async (productId, establishmentId) => {
         throw new AppError('Produto não encontrado.', 404);
     }
 
-    const suppliers = await productSupplierRepo.getSuppliersByProduct(productId);
+    const suppliers = await productSupplierRepo.getSuppliersByProduct(productId, establishmentId);
 
     return suppliers.map(item => ({
         id: item.supplier.id,
@@ -115,9 +115,16 @@ const removeSupplierFromProduct = async (productId, supplierId, establishmentId)
         throw new AppError('Produto não encontrado.', 404);
     }
 
+    const supplier = await supplierRepo.findById(supplierId, establishmentId);
+
+    if (!supplier) {
+        throw new AppError('Fornecedor não encontrado ou acesso negado.', 404);
+    }
+
     await productSupplierRepo.removeSupplierFromProduct(
         productId,
-        supplierId
+        supplierId,
+        establishmentId
     );
 
 };

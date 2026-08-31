@@ -78,7 +78,9 @@ const getProductCostOutsideTx = async (productId, establishmentId) => {
 };
 
 // 🔍 CONSULTA
-const getMovements = (filters) => stockMovementRepo.findAll(filters);
+const getMovements = (filters) => filters.page || filters.pageSize
+    ? stockMovementRepo.findPaginated(filters)
+    : stockMovementRepo.findAll(filters);
 
 /**
  * 🔥 CONSUMO (CORE)
@@ -451,8 +453,11 @@ const createEntry = async ({
     if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
 
-    const product = await prisma.product.findUnique({ where: { id: productId } });
-    const productName = product ? product.name : 'Produto Desconhecido';
+    const product = await prisma.product.findFirst({
+        where: { id: productId, establishmentId }
+    });
+    if (!product) throw new Error('Produto não encontrado ou acesso negado.');
+    const productName = product.name;
     
     // Injeta a quantidade e o nome do produto raiz na referência para relatórios
     // Isso é essencial porque produtos de PRODUÇÃO viram ingredientes no banco
@@ -485,8 +490,11 @@ const createBulkEntries = async ({ items, entryType, notes, establishmentId }) =
             if (!productId) throw new Error("Produto é obrigatório em todos os itens");
             if (!quantity || quantity <= 0) throw new Error("Quantidade inválida");
 
-            const product = await tx.product.findUnique({ where: { id: productId } });
-            const productName = product ? product.name : 'Produto Desconhecido';
+            const product = await tx.product.findFirst({
+                where: { id: productId, establishmentId }
+            });
+            if (!product) throw new Error('Produto não encontrado ou acesso negado.');
+            const productName = product.name;
             
             const rootInfo = `[${quantity} ${productName.trim()}]`;
             const reference = notes

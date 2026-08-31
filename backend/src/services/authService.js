@@ -2,7 +2,11 @@ const prisma = require('../utils/prisma');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET deve ser configurado antes de iniciar a API.');
+}
 
 async function register({ name, email, password }) {
     const existingUser = await prisma.users.findUnique({ where: { email } });
@@ -80,7 +84,7 @@ async function login({ email, password }) {
 
     return {
         token,
-        user: { id: user.id, name: user.name, email: user.email },
+        user: { id: user.id, name: user.name, email: user.email, role: defaultUE?.role || null },
         establishments: establishmentsList
     };
 }
@@ -102,7 +106,7 @@ async function getContext({ userId, establishmentId }) {
     const currentUE = user.establishments.find(ue => ue.establishmentId === establishmentId);
 
     return {
-        user: { id: user.id, name: user.name, email: user.email },
+        user: { id: user.id, name: user.name, email: user.email, role: currentUE?.role || null },
         establishment: currentUE?.establishment || null,
         organization: currentUE?.establishment?.organization || null,
         establishments: user.establishments.map(ue => ue.establishment)
