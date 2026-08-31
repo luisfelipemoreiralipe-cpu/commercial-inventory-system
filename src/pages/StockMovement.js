@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useApp } from "../context/AppContext";
 import Card from "../components/Card";
@@ -103,6 +104,7 @@ const ResultBox = styled.div`
 
 export default function StockMovement() {
     const { state, fetchAllData } = useApp();
+    const navigate = useNavigate();
 
     const [mode, setMode] = useState("BONUS");
     const [productId, setProductId] = useState("");
@@ -305,7 +307,7 @@ export default function StockMovement() {
 
                 <Button
                     variant={mode === "OPERATIONAL_USE" ? "primary" : "secondary"}
-                    onClick={() => { setMode("OPERATIONAL_USE"); setProductId(""); setSearchTerm(""); setLocationId(""); }}
+                    onClick={() => navigate("/material-consumption")}
                 >
                     <MdLocalBar /> Consumo Operacional
                 </Button>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import toast from 'react-hot-toast';
 import Card from '../components/Card';
@@ -27,6 +28,7 @@ const toDateInput = date => date.toISOString().slice(0, 10);
 
 export default function MaterialConsumption() {
   const { state } = useApp();
+  const navigate = useNavigate();
   const today = new Date();
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - 6);
@@ -71,7 +73,13 @@ export default function MaterialConsumption() {
     <p>Registre a baixa semanal de limpeza, descartáveis e outros materiais operacionais.</p>
     <Card padding="20px"><form onSubmit={submit}>
       <Grid>
-        <Select label="Produto" value={form.productId} onChange={value => setForm({ ...form, productId: value })} options={[{ value: '', label: 'Selecione...' }, ...products.map(product => ({ value: product.id, label: `${product.name} — ${labels[product.purchaseClassification]}` }))]} />
+        <div>
+          <Select label="Produto" value={form.productId} onChange={value => setForm({ ...form, productId: value })} options={[{ value: '', label: 'Selecione...' }, ...products.map(product => ({ value: product.id, label: `${product.name} — ${labels[product.purchaseClassification]}` }))]} />
+          {!products.length && <div style={{ marginTop: 8, fontSize: 13, color: '#b45309' }}>
+            Nenhum material operacional cadastrado. Classifique o produto como limpeza, descartável ou outro custo operacional antes de lançar o consumo.
+            <Button type="button" variant="secondary" onClick={() => navigate('/products')} style={{ marginTop: 8, width: '100%' }}>Classificar produtos</Button>
+          </div>}
+        </div>
         <Select label="Local de estoque" value={form.locationId} onChange={value => setForm({ ...form, locationId: value })} options={[{ value: '', label: 'Selecione...' }, ...locations.map(location => ({ value: location.id, label: location.name }))]} />
         <Input label={`Quantidade${selectedProduct?.unit ? ` (${selectedProduct.unit})` : ''}`} type="number" min="0.001" step="0.001" value={form.quantity} onChange={event => setForm({ ...form, quantity: event.target.value })} />
         <Input label="Setor responsável" value={form.responsibleSector} onChange={event => setForm({ ...form, responsibleSector: event.target.value })} />
@@ -79,7 +87,7 @@ export default function MaterialConsumption() {
         <Input label="Fim do período" type="date" value={form.periodTo} onChange={event => setForm({ ...form, periodTo: event.target.value })} />
       </Grid>
       <div style={{ marginTop: 14 }}><Input label="Motivo / observação" value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} /></div>
-      <Button type="submit" variant="primary" disabled={saving} style={{ marginTop: 16 }}>{saving ? 'Registrando...' : 'Registrar baixa semanal'}</Button>
+      <Button type="submit" variant="primary" disabled={saving || !products.length} style={{ marginTop: 16 }}>{saving ? 'Registrando...' : 'Registrar baixa semanal'}</Button>
     </form></Card>
 
     <h2 style={{ marginTop: 28 }}>Histórico de consumo operacional</h2>
