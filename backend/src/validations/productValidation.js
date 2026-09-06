@@ -6,6 +6,7 @@ const createProductSchema = z.object({
     unit: z.string().min(1, 'Unidade é obrigatória'),
     type: z.enum(['INVENTORY', 'PRODUCTION', 'ASSET']),
     unitPrice: z.number().min(0, 'Preço deve ser positivo').optional().nullable(),
+    salePrice: z.number().finite().min(0, 'Preço de venda não pode ser negativo').max(99999999.9999).optional().nullable(),
     quantity: z.number().min(0, 'Quantidade deve ser ≥ 0').default(0),
     minQuantity: z.number().min(0, 'Estoque mínimo deve ser ≥ 0').default(0),
     purchaseUnit: z.string().optional().nullable(),

@@ -2,6 +2,23 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { _private } = require('../src/controllers/salesController');
 
+test('venda manual usa padrão, aceita alteração e volta ao padrão sem alterar produto', async () => {
+    const product = { id: 'product', name: 'Bebida', salePrice: 12 };
+    const productMap = new Map([[product.id, product]]);
+    const tx = { sale: { create: async ({ data }) => data } };
+    const record = (source, item) => _private.createSaleRecord(tx, {
+        establishmentId: 'tenant', source, items: [{ productId: product.id, quantity: 2, ...item }], productMap
+    });
+    assert.equal((await record('MANUAL', {})).netTotal, 24);
+    assert.equal((await record('MANUAL', { unitSalePrice: 15 })).netTotal, 30);
+    assert.equal((await record('MANUAL', { unitSalePrice: 0 })).netTotal, 0);
+    assert.equal((await record('MANUAL', {})).netTotal, 24);
+    assert.equal(product.salePrice, 12);
+    assert.equal((await record('CSV', {})).netTotal, null);
+    product.salePrice = null;
+    assert.equal((await record('MANUAL', {})).netTotal, null);
+});
+
 test('venda usa saldo pronto e explode apenas a produção restante', async () => {
     const totalDemand = {};
     const lemon = {

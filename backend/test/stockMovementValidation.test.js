@@ -1,5 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+
+test('data do lançamento valida calendário e usa horário de São Paulo', () => {
+    const { parseEntryDate } = require('../src/validations/stockMovementValidation');
+    assert.equal(parseEntryDate('2026-09-01').toISOString(), '2026-09-01T15:00:00.000Z');
+    assert.equal(parseEntryDate('2024-02-29').toISOString(), '2024-02-29T15:00:00.000Z');
+    for (const invalid of ['', null, '2026-02-29', '2026-13-01', '01/09/2026']) {
+        assert.throws(() => parseEntryDate(invalid), /Data do lançamento inválida/);
+    }
+    const before = Date.now();
+    assert.ok(parseEntryDate().getTime() >= before);
+});
 const { listQuerySchema } = require('../src/validations/stockMovementValidation');
 
 test('aceita paginação e filtros válidos', () => {

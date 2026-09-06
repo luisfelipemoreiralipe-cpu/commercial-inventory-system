@@ -239,7 +239,13 @@ async function finalizeSaleCost(tx, saleId) {
 }
 
 async function createSaleRecord(tx, { establishmentId, source, items, productMap, soldAt, externalId }) {
-    const normalizedItems = items.map(item => ({ ...item, ...financialValues(item) }));
+    const normalizedItems = items.map(item => {
+        const product = productMap.get(item.productId || item.product);
+        const pricedItem = source === 'MANUAL' && item.unitSalePrice == null
+            ? { ...item, unitSalePrice: product?.salePrice ?? null }
+            : item;
+        return { ...pricedItem, ...financialValues(pricedItem) };
+    });
     const hasCompleteRevenue = normalizedItems.length > 0 && normalizedItems.every(item => item.netTotal !== null);
     const sum = field => normalizedItems.reduce((total, item) => total + Number(item[field] || 0), 0);
 
@@ -665,5 +671,5 @@ const importManual = asyncHandler(async (req, res) => {
 module.exports = {
     importCSV,
     importManual,
-    _private: { explodeDemandRecursive, normalizeQuantity, normalizeHeader, parseMoney, financialValues, buildCsvExternalId, normalizeExternalId }
+    _private: { explodeDemandRecursive, normalizeQuantity, normalizeHeader, parseMoney, financialValues, buildCsvExternalId, normalizeExternalId, createSaleRecord }
 };

@@ -88,6 +88,7 @@ const createProduct = async (data, establishmentId) => {
         categoryId: data.categoryId,
         type: data.type, // 🔥 ESSENCIAL
         unitPrice: data.unitPrice || 0,
+        salePrice: data.salePrice ?? null,
         quantity: 0, // Começa sempre com 0, vamos ajustar usando updateProductQuantity para logar correto
         minQuantity: data.minQuantity || 0,
         defaultLocationId: data.defaultLocationId || null,

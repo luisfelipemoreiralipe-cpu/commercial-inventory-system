@@ -23,4 +23,14 @@ const listQuerySchema = z.object({
     { message: 'Período inválido.', path: ['dateTo'] }
 );
 
-module.exports = { listQuerySchema };
+const parseEntryDate = (value) => {
+    if (value === undefined) return new Date();
+    const parsed = dateField.safeParse(value);
+    if (!parsed.success) {
+        const AppError = require('../utils/AppError');
+        throw new AppError('Data do lançamento inválida.', 422);
+    }
+    return new Date(`${parsed.data}T12:00:00-03:00`);
+};
+
+module.exports = { listQuerySchema, parseEntryDate };

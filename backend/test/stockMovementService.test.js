@@ -2,6 +2,42 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { consumeProduct } = require('../src/services/stockMovementService');
 
+test('lançamentos individuais e em lote propagam a data aos ingredientes', async () => {
+    const prisma = require('../src/utils/prisma');
+    const service = require('../src/services/stockMovementService');
+    const originalTransaction = prisma.$transaction;
+    const originalFind = prisma.product.findFirst;
+    try {
+        for (const entryType of Object.keys(service.ENTRY_TYPES)) {
+            for (const bulk of [false, true]) {
+                const fixture = createFakeTransaction({
+                    products: [
+                        { id: 'drink', name: 'Drink', type: 'PRODUCTION', quantity: 0, establishmentId: 'est', defaultLocationId: 'loc' },
+                        { id: 'ingredient', name: 'Ingrediente', type: 'INVENTORY', quantity: 10, establishmentId: 'est', defaultLocationId: 'loc', currentCost: 2 }
+                    ],
+                    stocks: [{ productId: 'ingredient', locationId: 'loc', quantity: 10 }],
+                    recipes: { drink: { yieldQuantity: 1, items: [{ quantity: 2, product: { id: 'ingredient' } }] } }
+                });
+                prisma.$transaction = async callback => callback(fixture.tx);
+                prisma.product.findFirst = fixture.tx.product.findFirst;
+                const item = { productId: 'drink', quantity: 1, locationId: 'loc' };
+                const input = { entryType, establishmentId: 'est', entryDate: '2026-08-31' };
+                if (bulk) await service.createBulkEntries({ ...input, items: [item, item] });
+                else await service.createEntry({ ...input, ...item });
+                assert.equal(fixture.movements.length, bulk ? 2 : 1);
+                for (const movement of fixture.movements) {
+                    assert.equal(movement.createdAt.toISOString(), '2026-08-31T15:00:00.000Z');
+                    assert.equal(movement.reason, entryType);
+                    assert.equal(movement.productId, 'ingredient');
+                }
+            }
+        }
+    } finally {
+        prisma.$transaction = originalTransaction;
+        prisma.product.findFirst = originalFind;
+    }
+});
+
 const createFakeTransaction = ({ products, stocks, recipes }) => {
     const movements = [];
     const stockMap = new Map(stocks.map(stock => [`${stock.productId}:${stock.locationId}`, { ...stock }]));

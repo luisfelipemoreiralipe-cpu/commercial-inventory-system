@@ -394,6 +394,7 @@ export default function Entries() {
     const [showModal, setShowModal] = useState(false);
     const [formType, setFormType] = useState('DOUBLE_DRINK');
     const [formNotes, setFormNotes] = useState('');
+    const [entryDate, setEntryDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()));
     const [submitting, setSubmitting] = useState(false);
 
     const EMPTY_ITEM = () => ({
@@ -531,6 +532,7 @@ export default function Entries() {
 
     // ─── Submit ─────────────────────────────────────────────────────────────
     const handleSubmit = async () => {
+        if (!entryDate) return toast.error('Informe a data do lançamento');
         for (const item of items) {
             if (!item.productId) return toast.error("Selecione um produto em todos os itens");
             if (!item.quantity || Number(item.quantity) <= 0) return toast.error("Informe uma quantidade válida em todos os itens");
@@ -549,6 +551,7 @@ export default function Entries() {
         setSubmitting(true);
         try {
             await api.post('/entries', {
+                entryDate,
                 entryType: formType,
                 notes: formNotes || undefined,
                 items: payloadItems
@@ -665,7 +668,7 @@ export default function Entries() {
                     <Button onClick={exportToPDF} size="md" variant="secondary">
                         <MdPictureAsPdf style={{ color: '#EF4444' }} /> Exportar PDF
                     </Button>
-                    <Button onClick={() => setShowModal(true)} size="md">
+                    <Button onClick={() => { setEntryDate(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())); setShowModal(true); }} size="md">
                         <MdAdd /> Novo Lançamento
                     </Button>
                 </div>
@@ -821,6 +824,13 @@ export default function Entries() {
                     maxWidth="600px"
                 >
                     <FormGrid>
+                        <Input
+                            label="Data do lançamento"
+                            type="date"
+                            value={entryDate}
+                            onChange={(event) => setEntryDate(event.target.value)}
+                            required
+                        />
                         {/* Tipo */}
                         <div>
                             <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '10px', display: 'block', color: '#64748b' }}>

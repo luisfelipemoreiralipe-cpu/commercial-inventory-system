@@ -440,6 +440,7 @@ const ENTRY_TYPES = {
 
 // 🎯 CRIAR LANÇAMENTO (Cortesia, Drink em Dobro, Promoção, etc.)
 const createEntry = async ({
+    entryDate,
     productId,
     quantity,
     entryType,
@@ -447,6 +448,7 @@ const createEntry = async ({
     establishmentId,
     locationId
 }) => {
+    const createdAt = require('../validations/stockMovementValidation').parseEntryDate(entryDate);
     const typeConfig = ENTRY_TYPES[entryType];
     if (!typeConfig) throw new Error(`Tipo de lançamento inválido: ${entryType}`);
     if (!productId) throw new Error("Produto é obrigatório");
@@ -474,12 +476,14 @@ const createEntry = async ({
             establishmentId,
             reason: typeConfig.reason,
             reference,
+            movementMetadata: { createdAt },
             locationId
         }, tx);
     });
 };
 
-const createBulkEntries = async ({ items, entryType, notes, establishmentId }) => {
+const createBulkEntries = async ({ items, entryType, notes, establishmentId, entryDate }) => {
+    const createdAt = require('../validations/stockMovementValidation').parseEntryDate(entryDate);
     const typeConfig = ENTRY_TYPES[entryType];
     if (!typeConfig) throw new Error(`Tipo de lançamento inválido: ${entryType}`);
 
@@ -507,6 +511,7 @@ const createBulkEntries = async ({ items, entryType, notes, establishmentId }) =
                 establishmentId,
                 reason: typeConfig.reason,
                 reference,
+                movementMetadata: { createdAt },
                 locationId
             }, tx);
         }

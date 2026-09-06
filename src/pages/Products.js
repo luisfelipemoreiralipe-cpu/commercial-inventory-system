@@ -11,7 +11,7 @@ import toast from "react-hot-toast";
 import EmptyState from '../components/EmptyState';
 import api from "../services/api";
 import RecipeModal from "../components/RecipeModal";
-import { Input } from '../components/FormFields';
+import { Input, CurrencyInput } from '../components/FormFields';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import Select from "../components/Select";
@@ -35,6 +35,7 @@ const EMPTY_FORM = {
     purchaseUnit: '',
     packQuantity: 1,
     unitPrice: '',
+    salePrice: '',
     quantity: '',
     minQuantity: '',
     supplierId: '',
@@ -441,6 +442,9 @@ const Products = () => {
         if (!form.name.trim()) e.name = 'Campo obrigatório';
 
         if (!form.categoryId) e.categoryId = 'Campo obrigatório';
+        if (form.salePrice !== '' && (!Number.isFinite(Number(form.salePrice)) || Number(form.salePrice) < 0 || Number(form.salePrice) > 99999999.9999)) {
+            e.salePrice = 'Informe um preço de venda válido';
+        }
 
         if (form.type !== "PRODUCTION") {
 
@@ -508,6 +512,7 @@ const Products = () => {
             purchaseUnit: p.purchaseUnit || '',
             packQuantity: p.packQuantity || 1,
             unitPrice: p.unitPrice,
+            salePrice: p.salePrice ?? '',
             quantity: Number(p.quantity || 0) / Number(p.packQuantity || 1),
             minQuantity: Number(p.minQuantity || 0) / Number(p.packQuantity || 1),
             supplierId: p.supplierId || '',
@@ -577,6 +582,7 @@ const Products = () => {
             packQuantity: Number(form.packQuantity || 1),
             type: form.type || 'INVENTORY',
             unitPrice: Number(form.unitPrice || 0),
+            salePrice: form.salePrice === '' ? null : Number(form.salePrice),
             quantity: Number(form.quantity || 0) * Number(form.packQuantity || 1),
             minQuantity: Number(form.minQuantity || 0) * Number(form.packQuantity || 1),
             defaultLocationId: form.defaultLocationId || null,
@@ -1047,6 +1053,16 @@ const Products = () => {
             >
                 <FormGrid>
 
+                    <FormFull>
+                        <CurrencyInput
+                            label="Preço de venda padrão (opcional)"
+                            placeholder="R$ 0,00"
+                            value={form.salePrice == null ? '' : String(form.salePrice)}
+                            onChange={(value) => setForm(prev => ({ ...prev, salePrice: value }))}
+                            error={errors.salePrice}
+                        />
+                        <small>Valor por unidade lançada na venda manual. Alterações no lançamento valem apenas para aquela venda. Deixe vazio para remover o padrão.</small>
+                    </FormFull>
                     <FormFull>
                         <Input
                             label="Nome do Produto *"

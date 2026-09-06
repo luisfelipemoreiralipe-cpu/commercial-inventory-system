@@ -151,7 +151,7 @@ export default function StockMovement() {
             .map(([productId, quantity]) => ({
                 productId,
                 quantity: Number(quantity),
-                unitSalePrice: manualPrices[productId],
+                unitSalePrice: manualPrices[productId] ?? state.products.find(p => p.id === productId)?.salePrice ?? '',
                 discountTotal: manualDiscounts[productId] || 0
             }));
 
@@ -159,7 +159,7 @@ export default function StockMovement() {
             toast.error("Informe pelo menos um produto com quantidade maior que zero");
             return;
         }
-        if (items.some(item => !Number.isFinite(Number(item.unitSalePrice)) || Number(item.unitSalePrice) < 0)) {
+        if (items.some(item => item.unitSalePrice === '' || !Number.isFinite(Number(item.unitSalePrice)) || Number(item.unitSalePrice) < 0)) {
             toast.error("Informe o preço unitário de todos os produtos vendidos");
             return;
         }
@@ -394,7 +394,7 @@ export default function StockMovement() {
                                                             step="0.01"
                                                             inputMode="decimal"
                                                             placeholder="0,00"
-                                                            value={manualPrices[p.id] || ""}
+                                                            value={manualPrices[p.id] ?? p.salePrice ?? ""}
                                                             onChange={(e) => setManualPrices(prev => ({ ...prev, [p.id]: e.target.value }))}
                                                         />
                                                     </td>
@@ -412,7 +412,7 @@ export default function StockMovement() {
                                                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                                                             Math.max(
-                                                                Number(manualSales[p.id] || 0) * Number(manualPrices[p.id] || 0)
+                                                                Number(manualSales[p.id] || 0) * Number(manualPrices[p.id] ?? p.salePrice ?? 0)
                                                                 - Number(manualDiscounts[p.id] || 0),
                                                                 0
                                                             )
