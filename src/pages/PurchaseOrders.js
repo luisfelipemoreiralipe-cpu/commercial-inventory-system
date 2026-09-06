@@ -561,7 +561,7 @@ const PurchaseOrders = () => {
         try {
             // 🛡️ Mapeia os itens garantindo a prioridade dos valores editados (como o preço de 55)
             const items = selectedOrder.items.map(item => ({
-                id: item.id, // ID técnico do vínculo item-ordem
+                id: item.isExtra ? undefined : item.id,
                 productId: item.productId,
 
                 // Se houve alteração manual na quantidade, usa ela. Senão, mantém a original.
@@ -847,7 +847,7 @@ Segue o pedido em PDF.
                                                     <Button
                                                         size="sm"
                                                         variant="success"
-                                                        onClick={() => setSelectedOrder(order)}
+                                                        onClick={() => { setReceivedQty({}); setReceivedPrice({}); setSelectedOrder(order); }}
                                                     >
                                                         <MdCheckCircle />
                                                     </Button>
@@ -972,6 +972,27 @@ Segue o pedido em PDF.
                                     </div>
 
                                     {/* 🔥 LISTA DE ITENS AJUSTADA COM LABELS */}
+                                    <label style={{ display: 'block', marginBottom: 16 }}>
+                                        Adicionar item extra recebido
+                                        <select
+                                            aria-label="Adicionar item extra recebido"
+                                            value=""
+                                            style={{ display: 'block', width: '100%', padding: 12, marginTop: 8 }}
+                                            onChange={(event) => {
+                                                const product = state.products.find(p => p.id === event.target.value);
+                                                if (!product) return;
+                                                setSelectedOrder(prev => ({ ...prev, items: [...prev.items, {
+                                                    id: `extra-${product.id}`, isExtra: true,
+                                                    productId: product.id, productName: product.name,
+                                                    supplierId, adjustedQuantity: 1, unitPrice: Number(product.unitPrice || 0)
+                                                }] }));
+                                            }}
+                                        >
+                                            <option value="">Selecione um produto</option>
+                                            {state.products.filter(product => !selectedOrder.items.some(item => item.productId === product.id))
+                                                .map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
+                                        </select>
+                                    </label>
                                     {selectedOrder.items.map((item) => {
                                         const qty = receivedQty[item.id] ?? item.adjustedQuantity;
                                         const price = receivedPrice[item.id] ?? item.unitPrice;
@@ -990,7 +1011,21 @@ Segue o pedido em PDF.
                                             >
                                                 <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15, color: "#111827" }}>
                                                     {item.productName}
+                                                    {item.notReceived && <span> — Não recebido</span>}
                                                 </div>
+
+                                                <Button variant="secondary" onClick={() => {
+                                                    if (item.isExtra) {
+                                                        setSelectedOrder(prev => ({ ...prev, items: prev.items.filter(row => row.id !== item.id) }));
+                                                        setReceivedQty(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                                                        setReceivedPrice(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                                                    } else {
+                                                        setReceivedQty(prev => ({ ...prev, [item.id]: item.notReceived ? item.adjustedQuantity : 0 }));
+                                                        setSelectedOrder(prev => ({ ...prev, items: prev.items.map(row => row.id === item.id ? { ...row, notReceived: !row.notReceived } : row) }));
+                                                    }
+                                                }}>
+                                                    {item.notReceived ? 'Restaurar item' : 'Remover do recebimento'}
+                                                </Button>
 
                                                 {/* Grid de Inputs Responsivo */}
                                                 <div style={{
@@ -1008,6 +1043,7 @@ Segue o pedido em PDF.
                                                             // 🛡️ Mantemos como string para permitir edição fluida
                                                             value={receivedQty[item.id] ?? item.adjustedQuantity}
                                                             min="0"
+                                                            disabled={item.notReceived}
                                                             onChange={(e) =>
                                                                 setReceivedQty((prev) => ({
                                                                     ...prev,

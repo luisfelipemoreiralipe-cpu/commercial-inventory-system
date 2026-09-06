@@ -73,6 +73,23 @@ const completeOrder = async (orderId, establishmentId, incomingItems = [], invoi
         throw new AppError('Esta ordem já foi concluída.', 400);
     }
 
+    if (!Array.isArray(incomingItems)) throw new AppError('Itens de recebimento inválidos.', 400);
+    const seen = new Set();
+    for (const item of incomingItems) {
+        if (!item || (item.id && !order.items.some(existing => existing.id === item.id))) {
+            throw new AppError('Item não pertence a esta ordem.', 400);
+        }
+        const key = item.id || item.productId;
+        if (!key || seen.has(key)) throw new AppError('Item inválido ou repetido.', 400);
+        seen.add(key);
+        for (const field of ['adjustedQuantity', 'unitPrice']) {
+            if ((!item.id || item[field] !== undefined) &&
+                (typeof item[field] !== 'number' || !Number.isFinite(item[field]) || item[field] < 0)) {
+                throw new AppError('Quantidade e preço devem ser números não negativos.', 400);
+            }
+        }
+    }
+
     const supplierIds = [...new Set(order.items.map(item => item.supplierId).filter(Boolean))];
     if (supplierIds.length !== 1) throw new AppError('A nota deve corresponder a um único fornecedor.', 400);
     if (!String(invoiceData.invoiceNumber || '').trim() || !invoiceData.issuedAt) {
@@ -95,8 +112,27 @@ const completeOrder = async (orderId, establishmentId, incomingItems = [], invoi
             throw new AppError('Esta ordem já foi concluída ou está sendo processada.', 409);
         }
 
+        const receiptItems = [...order.items];
+        for (const incoming of incomingItems.filter(item => !item.id)) {
+            const product = await tx.product.findFirst({ where: { id: incoming.productId, establishmentId } });
+            if (!product) throw new AppError('Produto extra não pertence a este estabelecimento.', 400);
+            const supplier = await tx.supplier.findFirst({ where: { id: supplierIds[0], establishmentId } });
+            if (!supplier) throw new AppError('Fornecedor não pertence a este estabelecimento.', 400);
+            if (receiptItems.some(item => item.productId === incoming.productId)) {
+                throw new AppError('Produto já incluído. Ajuste a quantidade recebida.', 400);
+            }
+            receiptItems.push(await tx.purchaseOrderItem.create({ data: {
+                purchaseOrderId: orderId,
+                productId: product.id,
+                productName: product.name,
+                supplierId: supplierIds[0],
+                purchaseClassification: product.purchaseClassification,
+                adjustedQuantity: incoming.adjustedQuantity,
+                unitPrice: incoming.unitPrice
+            } }));
+        }
         const invoiceItems = [];
-        for (const dbItem of order.items) {
+        for (const dbItem of receiptItems) {
 
             if (!dbItem.productId) continue;
 
@@ -207,7 +243,7 @@ const completeOrder = async (orderId, establishmentId, incomingItems = [], invoi
                 actionType: 'COMPLETE',
                 entityType: 'PURCHASE_ORDER',
                 entityId: orderId,
-                description: `Ordem ${ref} concluída. ${order.items.length} produto(s) reabastecido(s).`,
+                description: `Ordem ${ref} concluída. ${invoiceItems.length} produto(s) reabastecido(s).`,
                 establishmentId: establishmentId
             }
         });

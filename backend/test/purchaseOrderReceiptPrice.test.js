@@ -71,3 +71,48 @@ test('recebimento persiste preço editado no item, produto, fornecedor e histór
     assert.equal(calls.history.purchaseOrderId, order.id);
     assert.equal(calls.stock.unitCost, 12.5);
 });
+
+test('recebimento inclui produto extra e não movimenta item ausente', async () => {
+    const original = { id: 'item-original', productId: 'original', supplierId: 'supplier', adjustedQuantity: 2, unitPrice: 100 };
+    const order = { id: 'order', status: 'pending', items: [original] };
+    const movements = [];
+    const persisted = [];
+    let invoiceItems;
+    const tx = {
+        purchaseOrder: { updateMany: async () => ({ count: 1 }) },
+        product: {
+            findFirst: async ({ where }) => where.id === 'foreign' ? null : ({ id: where.id, name: 'Produto extra', packQuantity: 6, purchaseClassification: 'CMV_BEVERAGES' }),
+            updateMany: async () => ({ count: 1 })
+        },
+        supplier: { findFirst: async () => ({ id: 'supplier' }) },
+        purchaseOrderItem: {
+            create: async ({ data }) => { persisted.push(data); return { id: 'extra-id', ...data }; },
+            update: async ({ data }) => { persisted.push(data); return data; }
+        },
+        productSupplier: { upsert: async () => ({}) },
+        supplierPriceHistory: { create: async () => ({}) },
+        purchaseInvoice: { create: async ({ data }) => { invoiceItems = data.items.create; return { id: 'invoice', ...data }; } },
+        auditLog: { create: async () => ({}) }
+    };
+    mockModule('../src/repositories/purchaseOrderRepository', { findById: async () => order });
+    mockModule('../src/utils/prisma', { $transaction: async callback => callback(tx) });
+    mockModule('../src/services/stockMovementService', { addStock: async data => movements.push(data) });
+    mockModule('../src/services/commercialAgreementService', { processInvoiceAccruals: async () => {} });
+    delete require.cache[require.resolve('../src/services/purchaseOrderService')];
+    const { completeOrder } = require('../src/services/purchaseOrderService');
+    const invoice = { invoiceNumber: '123', issuedAt: '2026-09-06' };
+    await completeOrder('order', 'tenant', [
+        { id: 'item-original', adjustedQuantity: 0, unitPrice: 100 },
+        { productId: 'extra', adjustedQuantity: 3, unitPrice: 120 }
+    ], invoice, 'user');
+    assert.equal(persisted[0].supplierId, 'supplier');
+    assert.equal(persisted[1].adjustedQuantity, 0);
+    assert.equal(movements.length, 1);
+    assert.equal(movements[0].productId, 'extra');
+    assert.equal(movements[0].quantity, 18);
+    assert.equal(movements[0].unitCost, 20);
+    assert.deepEqual(invoiceItems, [{ productId: 'extra', quantity: 3, unitPrice: 120 }]);
+    await assert.rejects(completeOrder('order', 'tenant', [{ productId: 'foreign', adjustedQuantity: 1, unitPrice: 10 }], invoice), /não pertence/);
+    await assert.rejects(completeOrder('order', 'tenant', [{ id: 'another-order-item', adjustedQuantity: 1, unitPrice: 10 }], invoice), /não pertence/);
+    await assert.rejects(completeOrder('order', 'tenant', [{ productId: 'extra', adjustedQuantity: -1, unitPrice: 10 }], invoice), /não negativos/);
+});
