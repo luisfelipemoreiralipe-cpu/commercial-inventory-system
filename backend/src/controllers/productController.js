@@ -28,7 +28,7 @@ const getById = asyncHandler(async (req, res) => {
 const create = asyncHandler(async (req, res) => {
     const {
         name, categoryId, unit, purchaseUnit, packQuantity,
-        type, unitPrice, quantity, minQuantity, defaultLocationId, isActive,
+        type, unitPrice, salePrice, quantity, minQuantity, defaultLocationId, isActive,
         purchaseClassification, restockFrequency, idealQuantity, trackInventory, responsibleSector
     } = req.body;
     
@@ -38,7 +38,7 @@ const create = asyncHandler(async (req, res) => {
     const data = await productService.createProduct(
         {
             name: trimmedName, categoryId, unit, purchaseUnit, packQuantity,
-            type, unitPrice, quantity, minQuantity, defaultLocationId, isActive,
+            type, unitPrice, salePrice, quantity, minQuantity, defaultLocationId, isActive,
             purchaseClassification, restockFrequency, idealQuantity, trackInventory, responsibleSector
         },
         req.user.establishmentId
@@ -50,7 +50,7 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
     const {
         name, categoryId, unit, purchaseUnit, packQuantity,
-        type, unitPrice, quantity, minQuantity, defaultLocationId, isActive,
+        type, unitPrice, salePrice, quantity, minQuantity, defaultLocationId, isActive,
         purchaseClassification, restockFrequency, idealQuantity, trackInventory, responsibleSector
     } = req.body;
     
@@ -61,7 +61,7 @@ const update = asyncHandler(async (req, res) => {
         req.params.id,
         {
             name: trimmedName, categoryId, unit, purchaseUnit, packQuantity,
-            type, unitPrice, quantity, minQuantity, defaultLocationId, isActive,
+            type, unitPrice, salePrice, quantity, minQuantity, defaultLocationId, isActive,
             purchaseClassification, restockFrequency, idealQuantity, trackInventory, responsibleSector
         },
         req.user.establishmentId
