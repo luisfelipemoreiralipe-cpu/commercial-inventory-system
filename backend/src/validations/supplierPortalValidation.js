@@ -1,5 +1,5 @@
 const {z}=require('zod');
-const password=z.string().min(10).max(128).regex(/[A-Z]/,'Inclua uma letra maiúscula.').regex(/[a-z]/,'Inclua uma letra minúscula.').regex(/[0-9]/,'Inclua um número.');
+const password=z.string().min(6,'A senha deve ter pelo menos 6 caracteres.').max(128);
 const login=z.object({email:z.string().trim().email().max(254),password:z.string().min(1).max(128)}).strict();
 const createUser=z.object({name:z.string().trim().min(2).max(120),email:z.string().trim().email().max(254),password}).strict();
 const reset=z.object({token:z.string().min(32).max(256),password}).strict();
