@@ -9,4 +9,24 @@ const list=async(supplierId,establishmentId)=>{const organizationId=await orgSco
 const create=async(supplierId,input,establishmentId,adminId)=>{const organizationId=await orgScope(establishmentId);await ensureSupplier(supplierId,organizationId);const email=normalizeEmail(input.email);const exists=await prisma.supplierPortalUser.findUnique({where:{email}});if(exists)throw new AppError('E-mail já cadastrado no portal.',409);return prisma.$transaction(async tx=>{const user=await tx.supplierPortalUser.create({data:{organizationSupplierId:supplierId,name:input.name.trim(),email,passwordHash:await bcrypt.hash(input.password,12)}});await tx.auditLog.create({data:{actionType:'CREATE',entityType:'SUPPLIER_PORTAL_USER',entityId:user.id,description:`Conta externa criada por ${adminId}.`,establishmentId}});return{id:user.id,name:user.name,email:user.email,isActive:user.isActive};});};
 const revoke=async(id,establishmentId,adminId)=>{const organizationId=await orgScope(establishmentId);const user=await prisma.supplierPortalUser.findFirst({where:{id,organizationSupplier:{organizationId}}});if(!user)throw new AppError('Conta externa não encontrada.',404);return prisma.$transaction(async tx=>{const result=await tx.supplierPortalUser.update({where:{id},data:{isActive:false,revokedAt:new Date(),sessionVersion:{increment:1},passwordResetTokenHash:null,passwordResetExpiresAt:null}});await tx.auditLog.create({data:{actionType:'REVOKE',entityType:'SUPPLIER_PORTAL_USER',entityId:id,description:`Conta externa revogada por ${adminId}.`,establishmentId}});return{id:result.id,isActive:result.isActive,revokedAt:result.revokedAt};});};
 const issueReset=async(id,establishmentId,adminId)=>{const organizationId=await orgScope(establishmentId);const user=await prisma.supplierPortalUser.findFirst({where:{id,organizationSupplier:{organizationId},isActive:true,revokedAt:null}});if(!user)throw new AppError('Conta externa ativa não encontrada.',404);const token=crypto.randomBytes(32).toString('hex');const hash=crypto.createHash('sha256').update(token).digest('hex');await prisma.$transaction([prisma.supplierPortalUser.update({where:{id},data:{passwordResetTokenHash:hash,passwordResetExpiresAt:new Date(Date.now()+30*60*1000)}}),prisma.auditLog.create({data:{actionType:'ISSUE_RESET',entityType:'SUPPLIER_PORTAL_USER',entityId:id,description:`Recuperação emitida por ${adminId}.`,establishmentId}})]);return{token,expiresInMinutes:30};};
-module.exports={list,create,revoke,issueReset};
+const publicFields={id:true,name:true,email:true,isActive:true,isBlocked:true,lastLoginAt:true,revokedAt:true,organizationSupplierId:true,organizationSupplier:{select:{id:true,name:true}}};
+const listAll=async establishmentId=>{
+ const organizationId=await orgScope(establishmentId);
+ return prisma.supplierPortalUser.findMany({where:{organizationSupplier:{organizationId}},select:publicFields,orderBy:[{organizationSupplier:{name:'asc'}},{name:'asc'}]});
+};
+const update=async(id,input,establishmentId,adminId)=>{
+ const organizationId=await orgScope(establishmentId);
+ return prisma.$transaction(async tx=>{
+  const user=await tx.supplierPortalUser.findFirst({where:{id,organizationSupplier:{organizationId}}});
+  if(!user)throw new AppError('Conta externa não encontrada.',404);
+  const data={name:input.name.trim(),email:normalizeEmail(input.email)};
+  const duplicate=await tx.supplierPortalUser.findUnique({where:{email:data.email}});
+  if(duplicate&&duplicate.id!==id)throw new AppError('E-mail já cadastrado no portal.',409);
+  if(input.password){data.passwordHash=await bcrypt.hash(input.password,12);data.failedLoginAttempts=0;data.lockedUntil=null;}
+  if(input.password||data.email!==user.email){data.sessionVersion={increment:1};data.passwordResetTokenHash=null;data.passwordResetExpiresAt=null;}
+  const result=await tx.supplierPortalUser.update({where:{id},data,select:publicFields});
+  await tx.auditLog.create({data:{actionType:'UPDATE',entityType:'SUPPLIER_PORTAL_USER',entityId:id,description:`Conta externa atualizada por ${adminId}.`,establishmentId}});
+  return result;
+ });
+};
+module.exports={list,create,revoke,issueReset,listAll,update};

@@ -11,4 +11,6 @@ const issueReset=asyncHandler(async(req,res)=>res.json({success:true,data:await 
 const catalog=asyncHandler(async(req,res)=>res.json({success:true,data:await portalService.catalog(req.supplierPortal)}));
 const history=asyncHandler(async(req,res)=>res.json({success:true,data:await portalService.history(req.supplierPortal)}));
 const submit=asyncHandler(async(req,res)=>res.status(201).json({success:true,data:await portalService.submit(req.body,req.supplierPortal)}));
-module.exports={login,requestReset,reset,me,listUsers,createUser,revoke,issueReset,catalog,history,submit};
+const listAllUsers=asyncHandler(async(req,res)=>res.json({success:true,data:await admin.listAll(req.user.establishmentId)}));
+const updateUser=asyncHandler(async(req,res)=>res.json({success:true,data:await admin.update(req.params.id,req.body,req.user.establishmentId,req.user.userId)}));
+module.exports={listAllUsers,updateUser,login,requestReset,reset,me,listUsers,createUser,revoke,issueReset,catalog,history,submit};
