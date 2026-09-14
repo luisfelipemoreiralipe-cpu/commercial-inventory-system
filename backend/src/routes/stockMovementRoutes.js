@@ -4,10 +4,18 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const requireRole = require('../middlewares/requireRole');
 const Roles = require('../constants/roles');
 const validate = require('../middlewares/validate');
-const { operationalUseSchema } = require('../validations/operationalUseValidation');
+const { operationalUseSchema, beverageOperationalUseSchema } = require('../validations/operationalUseValidation');
 console.log('ROLES DEBUG:', Roles);
 
 const router = Router();
+
+router.post(
+    '/beverage-operational-use',
+    authMiddleware,
+    requireRole(['ADMIN']),
+    validate(beverageOperationalUseSchema),
+    controller.createBeverageOperationalUse
+);
 
 // 🔍 LISTAR MOVIMENTAÇÕES → ADMIN ONLY
 router.get(

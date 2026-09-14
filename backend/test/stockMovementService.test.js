@@ -2,6 +2,38 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { consumeProduct } = require('../src/services/stockMovementService');
 
+test('consumo operacional de bebidas baixa ingredientes e rejeita materiais e local de outra casa', async () => {
+    const prisma = require('../src/utils/prisma');
+    const { createBeverageOperationalUse } = require('../src/services/stockMovementService');
+    const original = prisma.$transaction;
+    const fixture = createFakeTransaction({
+        products: [
+            { id: 'drink', name: 'Drink', type: 'PRODUCTION', quantity: 0, establishmentId: 'est', defaultLocationId: 'loc', purchaseClassification: 'CMV_BEVERAGES' },
+            { id: 'ingredient', name: 'Ingrediente', type: 'INVENTORY', quantity: 10, establishmentId: 'est', defaultLocationId: 'loc', currentCost: 2, purchaseClassification: 'CMV_BEVERAGES' },
+            { id: 'material', name: 'Limpeza', type: 'INVENTORY', quantity: 10, establishmentId: 'est', purchaseClassification: 'CLEANING' }
+        ],
+        stocks: [{ productId: 'ingredient', locationId: 'loc', quantity: 10 }],
+        recipes: { drink: { yieldQuantity: 1, items: [{ quantity: 2, product: { id: 'ingredient' } }] } }
+    });
+    fixture.tx.stockLocation.findFirst = async ({ where }) => where.id === 'loc' && where.establishmentId === 'est' ? { id: 'loc' } : null;
+    prisma.$transaction = async callback => callback(fixture.tx);
+    try {
+        const input = { productId: 'drink', quantity: 2, establishmentId: 'est', userId: 'user' };
+        await createBeverageOperationalUse(input);
+        assert.equal(fixture.stockMap.get('ingredient:loc').quantity, 6);
+        assert.equal(fixture.movements[0].reason, 'OPERATIONAL_USE');
+        assert.equal(fixture.movements[0].purchaseClassification, 'CMV_BEVERAGES');
+        assert.equal(fixture.movements[0].recordedByUserId, 'user');
+        await assert.rejects(createBeverageOperationalUse({ ...input, productId: 'material' }), /bebida ou ingrediente/);
+        await assert.rejects(createBeverageOperationalUse({ ...input, locationId: 'other' }), /Local de estoque/);
+        await assert.rejects(createBeverageOperationalUse({ ...input, establishmentId: 'other' }), /bebida ou ingrediente/);
+        await assert.rejects(createBeverageOperationalUse({ ...input, quantity: 100 }), /Saldo insuficiente/);
+        assert.equal(fixture.movements.length, 1);
+    } finally {
+        prisma.$transaction = original;
+    }
+});
+
 test('lançamentos individuais e em lote propagam a data aos ingredientes', async () => {
     const prisma = require('../src/utils/prisma');
     const service = require('../src/services/stockMovementService');

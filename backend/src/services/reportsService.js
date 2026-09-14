@@ -211,7 +211,10 @@ const getFinancialSummary = async (establishmentId, dateFrom, dateTo) => {
             summary.operationalConsumption += cost;
             dailyChart[dayKey].operationalConsumption += cost;
 
-            if (classification === 'CLEANING') {
+            if (classification === 'CMV_BEVERAGES') {
+                summary.beverageOperationalConsumption += cost;
+                dailyChart[dayKey].beverageOperationalConsumption += cost;
+            } else if (classification === 'CLEANING') {
                 summary.cleaningConsumption += cost;
                 dailyChart[dayKey].cleaningConsumption += cost;
             } else if (classification === 'DISPOSABLES') {

@@ -1,6 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { operationalUseSchema } = require('../src/validations/operationalUseValidation');
+const { beverageOperationalUseSchema } = require('../src/validations/operationalUseValidation');
+
+test('consumo de bebidas aceita lançamento sem período e mantém materiais com período obrigatório', () => {
+    const input = { productId: '11111111-1111-4111-8111-111111111111', quantity: 2 };
+    assert.equal(beverageOperationalUseSchema.safeParse(input).success, true);
+    assert.equal(operationalUseSchema.safeParse(input).success, false);
+    assert.equal(beverageOperationalUseSchema.safeParse({ ...input, quantity: -1 }).success, false);
+    assert.equal(beverageOperationalUseSchema.safeParse({ ...input, locationId: 'invalid' }).success, false);
+});
 
 const validData = {
     productId: '11111111-1111-4111-8111-111111111111',

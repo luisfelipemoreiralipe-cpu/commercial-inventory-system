@@ -581,7 +581,30 @@ const getEntrySummary = async ({ establishmentId, dateFrom, dateTo }) => {
     return { byType, topProduct, totalMovements: movements.length };
 };
 
+const createBeverageOperationalUse = async ({ productId, quantity, establishmentId, locationId, userId }) => {
+    if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) throw new Error('Quantidade inválida');
+    return prisma.$transaction(async tx => {
+        const product = await tx.product.findFirst({ where: { id: productId, establishmentId } });
+        if (!product || product.purchaseClassification !== 'CMV_BEVERAGES' || product.trackInventory === false || product.isActive === false) {
+            throw new Error('Selecione uma bebida ou ingrediente ativo com controle de estoque.');
+        }
+        const defaultLocation = locationId || product.defaultLocationId ? null : await tx.stockLocation.findFirst({
+            where: { establishmentId, isDefault: true }
+        });
+        const targetLocationId = locationId || product.defaultLocationId || defaultLocation?.id;
+        const location = targetLocationId && await tx.stockLocation.findFirst({ where: { id: targetLocationId, establishmentId } });
+        if (!location) throw new Error('Local de estoque inválido ou acesso negado.');
+        await consumeProduct({
+            productId, quantity: Number(quantity), establishmentId, locationId: targetLocationId,
+            reason: 'OPERATIONAL_USE', reference: 'CONSUMO OPERACIONAL',
+            enforceAvailableStock: true,
+            movementMetadata: { recordedByUserId: userId || null }
+        }, tx);
+    });
+};
+
 module.exports = {
+    createBeverageOperationalUse,
     getMovements,
     createInternalUse,
     createOperationalUse,

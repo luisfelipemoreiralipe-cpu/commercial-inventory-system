@@ -12,6 +12,7 @@ const fakePrisma = {
             { reason: 'OPERATIONAL_USE', totalCost: 20, createdAt: movementDate, purchaseClassification: 'CLEANING', product: null },
             { reason: 'OPERATIONAL_USE', totalCost: 10, createdAt: movementDate, purchaseClassification: 'DISPOSABLES', product: null },
             { reason: 'OPERATIONAL_USE', totalCost: 5, createdAt: movementDate, purchaseClassification: 'OPERATING', product: null },
+            { reason: 'OPERATIONAL_USE', totalCost: 12, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null },
             { reason: 'LOSS', reference: 'STOCK_AUDIT:audit-1', totalCost: 90, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null },
             { reason: 'GAIN', reference: 'STOCK_AUDIT:audit-1', totalCost: 60, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null },
             { reason: 'OPERATIONAL_LOSS', totalCost: 7, createdAt: movementDate, purchaseClassification: 'CMV_BEVERAGES', product: null }
@@ -40,6 +41,8 @@ test('relatório separa CMV de bebidas dos custos operacionais', async () => {
     assert.equal(result.summary.cleaningConsumption, 20);
     assert.equal(result.summary.disposablesConsumption, 10);
     assert.equal(result.summary.otherOperationalConsumption, 5);
+    assert.equal(result.summary.beverageOperationalConsumption, 12);
+    assert.equal(result.summary.operationalConsumption, 47);
     assert.equal(result.summary.purchasesByClassification.CMV_BEVERAGES, 60);
     assert.equal(result.summary.purchasesByClassification.CLEANING, 30);
     assert.equal(result.summary.netRevenue, 200);

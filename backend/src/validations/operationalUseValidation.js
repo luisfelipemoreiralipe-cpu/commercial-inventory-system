@@ -25,4 +25,10 @@ const operationalUseSchema = z.object({
     }
 });
 
-module.exports = { operationalUseSchema };
+const beverageOperationalUseSchema = z.object({
+    productId: z.string().uuid('Produto inválido'),
+    locationId: z.string().uuid('Local de estoque inválido').optional(),
+    quantity: z.coerce.number().finite().positive().max(1000000)
+});
+
+module.exports = { operationalUseSchema, beverageOperationalUseSchema };

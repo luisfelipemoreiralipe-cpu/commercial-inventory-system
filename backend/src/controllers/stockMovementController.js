@@ -141,7 +141,22 @@ const addBonus = async (req, res) => {
 
 };
 
+const createBeverageOperationalUse = async (req, res) => {
+    try {
+        const { productId, quantity, locationId } = req.body;
+        await stockMovementService.createBeverageOperationalUse({
+            productId, quantity, locationId,
+            establishmentId: req.user.establishmentId,
+            userId: req.user.userId || req.user.id
+        });
+        return res.json({ success: true, message: 'Consumo operacional registrado com sucesso' });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
+    createBeverageOperationalUse,
     getAll,
     createInternalUse,
     createOperationalUse,

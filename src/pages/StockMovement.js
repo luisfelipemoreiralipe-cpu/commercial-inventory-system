@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useApp } from "../context/AppContext";
 import Card from "../components/Card";
@@ -104,7 +103,6 @@ const ResultBox = styled.div`
 
 export default function StockMovement() {
     const { state, fetchAllData } = useApp();
-    const navigate = useNavigate();
 
     const [mode, setMode] = useState("BONUS");
     const [productId, setProductId] = useState("");
@@ -137,13 +135,6 @@ export default function StockMovement() {
     }, []);
 
     const selectedProduct = state.products.find((p) => p.id === productId);
-    const parsedQuantity = Number(quantity || 0);
-
-    const resultingStock = selectedProduct
-        ? mode === "BONUS"
-            ? Number(selectedProduct.quantity) + parsedQuantity
-            : Number(selectedProduct.quantity) - parsedQuantity
-        : 0;
 
     const handleManualSaleSubmit = async () => {
         const items = Object.entries(manualSales)
@@ -194,14 +185,17 @@ export default function StockMovement() {
             return;
         }
 
-        if (!quantity || Number(quantity) <= 0) {
+        if (!quantity || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0) {
             toast.error("Informe uma quantidade válida");
             return;
         }
 
+        const pack = selectedProduct?.type === 'PRODUCTION' ? 1 : Number(selectedProduct?.packQuantity || 1);
+        const moveQty = Number(quantity) * pack;
+
         if (mode === "INTERNAL_USE" || mode === "OPERATIONAL_USE") {
             if (selectedProduct?.type === "INVENTORY") {
-                if (Number(quantity) > Number(selectedProduct.quantity)) {
+                if (moveQty > Number(selectedProduct.quantity)) {
                     toast.error("Estoque insuficiente no sistema");
                     return;
                 }
@@ -210,9 +204,6 @@ export default function StockMovement() {
 
         setLoading(true);
         try {
-            const pack = selectedProduct?.type === 'PRODUCTION' ? 1 : Number(selectedProduct?.packQuantity || 1);
-            const moveQty = Number(quantity) * pack;
-
             if (mode === "BONUS") {
                 await api.post("/stock-movements/bonus", {
                     productId: String(productId),
@@ -227,7 +218,7 @@ export default function StockMovement() {
                     locationId: locationId || undefined
                 });
             } else if (mode === "OPERATIONAL_USE") {
-                await api.post("/stock-movements/operational-use", {
+                await api.post("/stock-movements/beverage-operational-use", {
                     productId: String(productId),
                     quantity: moveQty,
                     locationId: locationId || undefined
@@ -240,7 +231,7 @@ export default function StockMovement() {
 
         } catch (error) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Erro ao movimentar estoque");
+            toast.error(error.message || "Erro ao movimentar estoque");
         } finally {
             setLoading(false);
         }
@@ -284,7 +275,7 @@ export default function StockMovement() {
                     <PageSubtitle>
                         {mode === "BONUS" ? "Entrada de bonificação" :
                             mode === "INTERNAL_USE" ? "Saída para uso interno" : 
-                            mode === "OPERATIONAL_USE" ? "Saída para uso operacional" :
+                            mode === "OPERATIONAL_USE" ? "Saída de produtos consumidos pela equipe" :
                             mode === "MANUAL_SALE" ? "Lançamento manual múltiplo" : "Importação de vendas"}
                     </PageSubtitle>
                 </div>
@@ -307,7 +298,7 @@ export default function StockMovement() {
 
                 <Button
                     variant={mode === "OPERATIONAL_USE" ? "primary" : "secondary"}
-                    onClick={() => navigate("/material-consumption")}
+                    onClick={() => { setMode("OPERATIONAL_USE"); setProductId(""); setSearchTerm(""); setLocationId(""); setQuantity(""); }}
                 >
                     <MdLocalBar /> Consumo Operacional
                 </Button>
@@ -451,6 +442,7 @@ export default function StockMovement() {
                             options={[
                                 ...(state.products || [])
                                     .filter((p) => mode === "BONUS" ? p.type === "INVENTORY" : true)
+                                    .filter((p) => mode !== "OPERATIONAL_USE" || (p.purchaseClassification === "CMV_BEVERAGES" && p.isActive !== false && p.trackInventory !== false))
                                     .map((p) => {
                                         const pack = Number(p.packQuantity || 1);
                                         const inUnits = (Number(p.quantity || 0) / pack).toFixed(2);

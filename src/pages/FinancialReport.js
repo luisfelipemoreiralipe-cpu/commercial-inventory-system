@@ -313,7 +313,7 @@ const FinancialReport = () => {
 
     const operationalDetails = [
         ['Consumo interno', summary.internalConsumption],
-        ['Cortesias e promoções', summary.beverageOperationalConsumption],
+        ['Consumo operacional de bebidas (inclui cortesias e promoções)', summary.beverageOperationalConsumption],
         ['Limpeza', summary.cleaningConsumption],
         ['Descartáveis', summary.disposablesConsumption],
         ['Outros consumos operacionais', summary.otherOperationalConsumption],
