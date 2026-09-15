@@ -85,23 +85,8 @@ const getPurchaseSuggestions = async (establishmentId, targetDays = 7) => {
         const suppliers = await Promise.all(product.productSuppliers.map(async (ps) => {
             const sid = ps.supplier.id;
 
-            // Histórico (Últimas 3 compras deste fornecedor/produto e ESTABELECIMENTO)
-            const history = await prisma.supplierPriceHistory.findMany({
-                where: { 
-                    productId: product.id, 
-                    supplierId: sid,
-                    product: {
-                        establishmentId
-                    }
-                },
-                orderBy: { createdAt: 'desc' },
-                take: 3
-            });
-
-            let nominalPrice = Number(ps.price);
-            if (history.length > 0) {
-                nominalPrice = Math.min(...history.map(h => Number(h.price)));
-            }
+            // Use the current supplier price; history is only for comparison.
+            const nominalPrice = Number(ps.price);
 
             // Fator Bônus (Validando tenant)
             const bonusCount = await prisma.stockMovement.count({
